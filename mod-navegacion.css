@@ -1,0 +1,144 @@
+/* ============================================================
+   MÓDULO NAVEGACIÓN — estructura general de la app
+   PC: barra lateral fija a la izquierda.
+   Android: barra inferior fija + panel "Más" para el resto.
+   ============================================================ */
+
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+.app-columna {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-item {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+}
+
+/* ---- Placeholder de un módulo todavía no construido ---- */
+.proximamente {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 60px 20px;
+  color: var(--texto-secundario);
+  text-align: center;
+}
+.proximamente i { font-size: 32px; }
+.proximamente p { margin: 0; font-size: 13px; }
+
+/* ---- Barra lateral (PC) — oculta por defecto, visible desde 900px ---- */
+.nav-pc { display: none; }
+
+/* ---- Panel "Más" — no se pinta si no se ha abierto ---- */
+#panel-mas { display: none; }
+
+/* ============================================================
+   Escritorio (≥900px): barra lateral visible, barra inferior oculta
+   ============================================================ */
+@media (min-width: 900px) {
+  .nav-pc {
+    display: flex;
+    flex-direction: column;
+    width: 160px;
+    flex: 0 0 160px;
+    background: var(--gris-oscuro);
+    padding: 16px 0;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    box-sizing: border-box;
+  }
+  .nav-pc .nav-item {
+    gap: 10px;
+    padding: 10px 16px;
+    color: rgba(255, 255, 255, .7);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .nav-pc .nav-item i { font-size: 18px; width: 18px; text-align: center; }
+  .nav-pc .nav-item.activa {
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, .12);
+  }
+  .nav-pc .nav-item.nav-separador { margin-top: auto; }
+
+  .nav-movil { display: none !important; }
+}
+
+/* ============================================================
+   Móvil (<900px): barra inferior fija + panel "Más"
+   ============================================================ */
+@media (max-width: 899px) {
+  .nav-movil {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    display: flex;
+    background: var(--gris-oscuro);
+    padding: 6px 0 8px;
+    z-index: 20;
+  }
+  .nav-movil .nav-item {
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+    padding: 4px 0;
+    color: rgba(255, 255, 255, .7);
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .nav-movil .nav-item i { font-size: 20px; }
+  .nav-movil .nav-item.activa { color: #FFFFFF; }
+
+  /* Hueco para que la barra inferior no tape el final del contenido */
+  main { padding-bottom: 84px; }
+}
+
+/* ---- Panel "Más" (hoja que sube desde abajo, solo en móvil) ---- */
+#panel-mas.abierto {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+.panel-mas-fondo {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, .4);
+}
+.panel-mas-hoja {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: var(--superficie);
+  border-radius: 16px 16px 0 0;
+  padding: 12px 8px 20px;
+  display: flex;
+  flex-direction: column;
+}
+.panel-mas-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 12px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--texto);
+  text-align: left;
+  border-radius: var(--radio-control);
+  cursor: pointer;
+}
+.panel-mas-item:hover { background: var(--fondo); }
+.panel-mas-item i { font-size: 20px; color: var(--texto-secundario); width: 20px; }

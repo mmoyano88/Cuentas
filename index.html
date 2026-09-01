@@ -10,6 +10,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css">
   <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="mod-navegacion.css">
   <link rel="stylesheet" href="mod-configuracion.css">
 </head>
 <body>
@@ -37,22 +38,33 @@
 
   <!-- ============ APLICACIÓN ============ -->
   <div id="app" hidden>
-    <header class="cabecera">
-      <h1 id="titulo-pantalla" class="titulo-pantalla">Cuentas</h1>
-      <button type="button" id="indicador-sync" class="pastilla ind-ambar">
-        <span>Conectando</span><i class="ti ti-clock"></i>
-      </button>
-    </header>
+    <div class="app-shell">
+      <nav id="nav-pc" class="nav-pc"></nav>
 
-    <div id="banda-prueba" class="banda-prueba" hidden>MODO PRUEBA</div>
+      <div class="app-columna">
+        <header class="cabecera">
+          <h1 id="titulo-pantalla" class="titulo-pantalla">Cuentas</h1>
+          <button type="button" id="indicador-sync" class="pastilla ind-ambar">
+            <span>Conectando</span><i class="ti ti-clock"></i>
+          </button>
+        </header>
 
-    <main id="contenido">
-      <!-- Cada módulo (Clientes, Presupuestos, Facturas...) insertará
-           aquí su pantalla a medida que lo construyamos. -->
-    </main>
+        <div id="banda-prueba" class="banda-prueba" hidden>MODO PRUEBA</div>
+
+        <main id="contenido">
+          <!-- Cada módulo (Clientes, Presupuestos, Facturas...) insertará
+               aquí su pantalla a medida que lo construyamos. -->
+        </main>
+      </div>
+    </div>
+
+    <nav id="nav-movil" class="nav-movil"></nav>
+    <div id="panel-mas"></div>
   </div>
 
   <script src="app.js"></script>
+  <script src="preview-datos.js"></script>
+  <script src="mod-navegacion.js"></script>
   <script src="mod-configuracion.js"></script>
 </body>
 </html>

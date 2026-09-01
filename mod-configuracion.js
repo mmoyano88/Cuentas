@@ -63,8 +63,6 @@ function pintarConfiguracion() {
   const contenido = document.getElementById('contenido');
   if (!contenido) return;
 
-  document.getElementById('titulo-pantalla').textContent = 'Configuración';
-
   contenido.innerHTML =
     '<div class="config-layout">' +
       '<nav class="config-tabs" id="config-tabs"></nav>' +
@@ -660,12 +658,13 @@ async function eliminacionEmergencia() {
 }
 
 // ============================================================
-// 15. REGISTRO EN EL NÚCLEO
+// 15. REGISTRO COMO VISTA
 // ============================================================
+// Sustituye al "próximamente" que mod-navegacion.js registra por
+// defecto para esta sección (por eso este archivo debe cargarse
+// DESPUÉS de mod-navegacion.js en index.html).
 
-pintadores.push(function () {
-  // Configuración es, de momento, la única pantalla — se pinta
-  // siempre. Cuando haya más módulos, esto pasará por un selector
-  // de vista en vez de pintarse directo.
-  pintarConfiguracion();
+registrarVista('configuracion', {
+  titulo: 'Configuración',
+  pintar: pintarConfiguracion
 });

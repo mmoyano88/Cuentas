@@ -84,6 +84,39 @@ async function ejecutarReconciliadores() {
 }
 
 // ============================================================
+// 1.1 VISTAS (pantallas) Y NAVEGACIÓN ENTRE ELLAS
+// ============================================================
+// Cada pantalla (Configuración, Clientes, Facturas...) se registra
+// con `registrarVista()`. La navegación (mod-navegacion.js) es quien
+// pinta los botones y llama a `cambiarVista()`; el núcleo no conoce
+// los nombres de los módulos, solo esta lista.
+
+const LS_VISTA_ACTIVA = 'cuentas_vista_v1';
+const VISTA_INICIAL = 'configuracion'; // cambiar a 'dashboard' cuando exista ese módulo
+
+const vistas = {};
+let vistaActiva = null;
+
+function registrarVista(id, opciones) {
+  vistas[id] = opciones; // { titulo, pintar }
+}
+
+function pintarVistaActiva() {
+  if (!vistaActiva || !vistas[vistaActiva]) return;
+  const titulo = document.getElementById('titulo-pantalla');
+  if (titulo) titulo.textContent = vistas[vistaActiva].titulo;
+  vistas[vistaActiva].pintar();
+}
+
+function cambiarVista(id) {
+  if (!vistas[id]) return;
+  vistaActiva = id;
+  localStorage.setItem(LS_VISTA_ACTIVA, id);
+  pintarVistaActiva();
+  ejecutarPintadores();
+}
+
+// ============================================================
 // 2. ALMACENAMIENTO EN EL DISPOSITIVO
 // ============================================================
 // Cada tipo de dato tiene DOS cajas separadas: una para los datos
@@ -356,6 +389,7 @@ async function sincronizar() {
     console.error('No se pudo sincronizar:', err);
     indicador('sinconexion');
   }
+  pintarVistaActiva();
   ejecutarPintadores();
 }
 
@@ -562,6 +596,9 @@ async function arrancarAplicacion() {
 
   cargarTodoLocal();
   fusionarDatosDePrueba();
+
+  vistaActiva = localStorage.getItem(LS_VISTA_ACTIVA) || VISTA_INICIAL;
+  pintarVistaActiva();
   ejecutarPintadores();
 
   await sincronizar();
