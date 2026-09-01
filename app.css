@@ -1,0 +1,229 @@
+/* ============================================================
+   CUENTAS — estilos base
+   Colores, tipografías y medidas según el diario del proyecto
+   (sección Interfaz / Diseño). Mobile-first.
+   ============================================================ */
+
+:root {
+  /* Estructura */
+  --fondo: #F7F7F5;
+  --texto: #1A1A1A;
+  --texto-secundario: #3A3A3A;
+  --superficie: #FFFFFF;
+  --gris-neutro: #EAEAE6;
+  --gris-oscuro: #2C2C2A;
+
+  /* Marca */
+  --rojo: #D32F2F;
+
+  /* Estados */
+  --verde-fondo: #C0DD97;  --verde-texto: #173404;
+  --azul-fondo:  #B5D4F4;  --azul-texto:  #042C53;
+  --ambar-fondo: #FAC775;  --ambar-texto: #412402;
+  --rojo-fondo:  #F7C1C1;  --rojo-texto:  #501313;
+  --gris-fondo:  #D3D1C7;  --gris-texto:  #2C2C2A;
+
+  /* Medidas */
+  --padding-pagina: 20px;
+  --radio-tarjeta: 12px;
+  --radio-control: 8px;
+  --alto-control: 44px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-text-size-adjust: 100%;
+  /* Respeta la zona de la barra de estado y de gestos en el móvil
+     cuando la app está instalada a pantalla completa. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+[hidden] { display: none !important; }
+
+/* ---------------- Pantalla de acceso ---------------- */
+
+.pantalla-acceso {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--padding-pagina);
+}
+
+.tarjeta-acceso {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 28px 24px;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .06);
+}
+
+.logo-acceso {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  align-self: center;
+}
+
+.titulo-acceso {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  text-align: center;
+}
+
+.etiqueta {
+  font-size: 12px;
+  color: var(--texto-secundario);
+}
+
+.campo {
+  height: var(--alto-control);
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  padding: 0 12px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--superficie);
+  color: var(--texto);
+  width: 100%;
+}
+.campo:focus {
+  outline: none;
+  border-color: var(--rojo);
+}
+
+.error-acceso {
+  margin: 0;
+  font-size: 12px;
+  color: var(--rojo-texto);
+  background: var(--rojo-fondo);
+  padding: 8px 10px;
+  border-radius: var(--radio-control);
+}
+
+/* ---------------- Botones (3 tipos, medidas fijas) ---------------- */
+
+.boton-principal,
+.boton-secundario,
+.boton-menor {
+  height: var(--alto-control);
+  border-radius: var(--radio-control);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 0 16px;
+  cursor: pointer;
+}
+
+.boton-principal {
+  background: var(--rojo);
+  color: #FFFFFF;
+  border: none;
+}
+.boton-principal:disabled { opacity: .6; cursor: default; }
+
+.boton-secundario {
+  background: var(--superficie);
+  color: var(--texto);
+  border: 1px solid #D8D8D2;
+}
+
+.boton-menor {
+  background: none;
+  border: none;
+  color: var(--texto-secundario);
+}
+
+/* ---------------- Cabecera de pantalla ---------------- */
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px var(--padding-pagina) 12px;
+}
+
+.titulo-pantalla {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* ---------------- Pastillas de estado ---------------- */
+
+.pastilla {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pastilla i { font-size: 13px; }
+
+.ind-verde { background: var(--verde-fondo); color: var(--verde-texto); }
+.ind-azul  { background: var(--azul-fondo);  color: var(--azul-texto); }
+.ind-ambar { background: var(--ambar-fondo); color: var(--ambar-texto); }
+.ind-rojo  { background: var(--rojo-fondo);  color: var(--rojo-texto); }
+.ind-gris  { background: var(--gris-fondo);  color: var(--gris-texto); }
+
+/* Giro suave del icono mientras sincroniza */
+.pastilla.girando i { animation: girar 1s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pastilla.girando i { animation: none; }
+}
+
+/* ---------------- Banda de modo prueba ---------------- */
+/* Visible desde cualquier pantalla mientras el modo prueba esté
+   activo, para que sea imposible olvidar que lo está. */
+
+.banda-prueba {
+  background: var(--ambar-fondo);
+  color: var(--ambar-texto);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 6px;
+}
+
+/* ---------------- Contenido ---------------- */
+
+main {
+  padding: 0 var(--padding-pagina) var(--padding-pagina);
+}
+
+.nota-provisional {
+  color: var(--texto-secundario);
+  font-size: 13px;
+}
+
+/* ---------------- Escritorio ---------------- */
+
+@media (min-width: 900px) {
+  :root { --padding-pagina: 24px; }
+}

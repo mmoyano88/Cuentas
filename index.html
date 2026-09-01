@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#D32F2F">
+  <title>Cuentas</title>
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+  <!-- ============ PANTALLA DE ACCESO ============
+       Solo se ve la primera vez en cada dispositivo. Después la
+       clave queda guardada y se entra directamente. -->
+  <section id="pantalla-acceso" class="pantalla-acceso" hidden>
+    <form id="form-acceso" class="tarjeta-acceso" autocomplete="on">
+      <img src="icon-192.png" alt="" class="logo-acceso">
+      <h1 class="titulo-acceso">Cuentas</h1>
+
+      <input type="text" name="username" autocomplete="username"
+             value="cuentas" hidden aria-hidden="true">
+
+      <label class="etiqueta" for="campo-clave">Clave de acceso</label>
+      <input type="password" id="campo-clave" name="password"
+             autocomplete="current-password" class="campo" required>
+
+      <p id="error-acceso" class="error-acceso" hidden></p>
+
+      <button type="submit" id="boton-entrar" class="boton-principal">Entrar</button>
+    </form>
+  </section>
+
+  <!-- ============ APLICACIÓN ============ -->
+  <div id="app" hidden>
+    <header class="cabecera">
+      <h1 id="titulo-pantalla" class="titulo-pantalla">Cuentas</h1>
+      <button type="button" id="indicador-sync" class="pastilla ind-ambar">
+        <span>Conectando</span><i class="ti ti-clock"></i>
+      </button>
+    </header>
+
+    <div id="banda-prueba" class="banda-prueba" hidden>MODO PRUEBA</div>
+
+    <main id="contenido">
+      <!-- Cada módulo (Clientes, Presupuestos, Facturas...) insertará
+           aquí su pantalla a medida que lo construyamos. -->
+      <p class="nota-provisional">
+        Conexión lista. Aquí irán las pantallas de la aplicación.
+      </p>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
