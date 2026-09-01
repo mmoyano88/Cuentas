@@ -1,0 +1,253 @@
+/* ============================================================
+   MÓDULO CONFIGURACIÓN — estilos propios
+   ============================================================ */
+
+.config-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ---- Pestañas ----
+   Móvil: fila horizontal deslizable. Escritorio: columna fija a la
+   izquierda (recupera el planteamiento de "barra lateral" del mapa). */
+.config-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.config-tabs::-webkit-scrollbar { display: none; }
+
+.config-tab {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 20px;
+  border: 1px solid #D8D8D2;
+  background: var(--superficie);
+  color: var(--texto-secundario);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.config-tab.activa {
+  background: var(--gris-oscuro);
+  border-color: var(--gris-oscuro);
+  color: #FFFFFF;
+}
+
+@media (min-width: 900px) {
+  .config-layout { flex-direction: row; align-items: flex-start; }
+  .config-tabs {
+    flex-direction: column;
+    width: 180px;
+    flex: 0 0 180px;
+    overflow: visible;
+  }
+  .config-tab { text-align: left; }
+  .config-panel { flex: 1; min-width: 0; }
+}
+
+/* ---- Panel / tarjeta de contenido ---- */
+.config-panel {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.config-panel h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.config-nota {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: -6px 0 0;
+}
+
+/* ---- Formulario en rejilla ---- */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 560px) {
+  .config-grid.dos-columnas { grid-template-columns: 1fr 1fr; }
+}
+
+.campo-grupo { display: flex; flex-direction: column; gap: 4px; }
+.campo-grupo label {
+  font-size: 12px;
+  color: var(--texto-secundario);
+}
+
+.direccion-preview {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  background: var(--fondo);
+  border-radius: var(--radio-control);
+  padding: 8px 10px;
+}
+
+/* ---- Avatar / foto de perfil ---- */
+.avatar-editor {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--gris-neutro);
+  background-size: cover;
+  background-position: center;
+  flex: 0 0 auto;
+}
+
+/* ---- Editor de listas (IVA, IRPF, tipos de cliente, equipos, servicios) ---- */
+.array-editor { display: flex; flex-direction: column; gap: 8px; }
+
+.array-fila {
+  display: grid;
+  gap: 8px;
+  align-items: center;
+  grid-template-columns: 1fr auto;
+}
+.array-fila.cols-2 { grid-template-columns: 1fr 90px auto; }
+.array-fila.cols-3 { grid-template-columns: 1fr 90px 110px auto; }
+.array-fila.cols-3-select { grid-template-columns: 1fr 120px 90px auto; }
+
+.array-fila input,
+.array-fila select {
+  height: 38px;
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  padding: 0 10px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--superficie);
+  color: var(--texto);
+  width: 100%;
+}
+.array-fila input:disabled {
+  background: var(--fondo);
+  color: var(--texto-secundario);
+}
+.array-fila input:focus,
+.array-fila select:focus { outline: none; border-color: var(--rojo); }
+
+.array-quitar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.array-quitar:hover { background: var(--fondo); color: var(--rojo-texto); }
+
+.array-anadir {
+  height: 38px;
+  border: 1px dashed #C9C9C2;
+  border-radius: var(--radio-control);
+  background: none;
+  color: var(--texto-secundario);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 0 14px;
+}
+.array-anadir:hover { border-color: var(--rojo); color: var(--rojo); }
+
+/* ---- Editor de texto enriquecido ---- */
+.rich-editor { display: flex; flex-direction: column; gap: 0; }
+.rich-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: var(--fondo);
+  border: 1px solid #D8D8D2;
+  border-bottom: none;
+  border-radius: var(--radio-control) var(--radio-control) 0 0;
+}
+.rich-toolbar button {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  font-size: 14px;
+}
+.rich-toolbar button:hover { background: var(--gris-neutro); color: var(--texto); }
+
+.rich-contenido {
+  min-height: 110px;
+  border: 1px solid #D8D8D2;
+  border-radius: 0 0 var(--radio-control) var(--radio-control);
+  padding: 10px 12px;
+  font-size: 13px;
+  background: var(--superficie);
+}
+.rich-contenido:focus { outline: none; border-color: var(--rojo); }
+
+/* ---- Cartel informativo (pestaña Series) ---- */
+.config-cartel {
+  background: var(--fondo);
+  border-radius: var(--radio-control);
+  padding: 16px;
+  font-size: 13px;
+  color: var(--texto-secundario);
+  text-align: center;
+}
+
+/* ---- Preferencias: acciones sueltas ---- */
+.config-accion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--gris-neutro);
+}
+.config-accion:first-child { border-top: none; padding-top: 0; }
+.config-accion-texto { font-size: 13px; }
+.config-accion-texto small { display: block; color: var(--texto-secundario); font-size: 11px; margin-top: 2px; }
+
+.enlace-discreto {
+  background: none;
+  border: none;
+  color: var(--texto-secundario);
+  font-family: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 10px;
+  align-self: flex-start;
+}
+
+/* ---- Pie del panel con el botón de guardar ---- */
+.config-guardar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
