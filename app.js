@@ -359,6 +359,39 @@ async function borrarRegistro(entidad, id, repintar, cerrarModal) {
 }
 
 // ============================================================
+// 7.1 DIÁLOGO CON VARIAS OPCIONES
+// ============================================================
+// Como alert()/confirm() pero con más de dos botones (p. ej. "Usar
+// el existente" / "Editarlo" / "Cancelar"). Devuelve una promesa con
+// el id del botón pulsado, o null si se cierra sin elegir.
+
+function mostrarDialogoOpciones(titulo, mensaje, botones) {
+  return new Promise(function (resolve) {
+    const fondo = document.createElement('div');
+    fondo.className = 'dialogo-fondo';
+    fondo.innerHTML =
+      '<div class="dialogo-caja">' +
+        '<p class="dialogo-titulo">' + escaparHtml(titulo) + '</p>' +
+        '<p class="dialogo-mensaje">' + escaparHtml(mensaje) + '</p>' +
+        '<div class="dialogo-botones">' +
+          botones.map(function (b) {
+            const clase = b.tipo === 'principal' ? 'boton-principal' : 'boton-secundario';
+            return '<button type="button" class="' + clase + '" data-id="' + b.id + '">' + escaparHtml(b.texto) + '</button>';
+          }).join('') +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(fondo);
+
+    function cerrar(valor) { fondo.remove(); resolve(valor); }
+
+    fondo.addEventListener('click', function (ev) { if (ev.target === fondo) cerrar(null); });
+    fondo.querySelectorAll('[data-id]').forEach(function (b) {
+      b.addEventListener('click', function () { cerrar(b.dataset.id); });
+    });
+  });
+}
+
+// ============================================================
 // 8. SINCRONIZACIÓN
 // ============================================================
 

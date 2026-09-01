@@ -12,15 +12,19 @@
  * tirar la copia vieja.
  */
 
-const VERSION = 'cuentas-v2';
+const VERSION = 'cuentas-v9';
 
 const ARCHIVOS = [
   './',
   './index.html',
   './app.css',
   './app.js',
+  './mod-navegacion.css',
+  './mod-navegacion.js',
   './mod-configuracion.css',
   './mod-configuracion.js',
+  './mod-clientes.css',
+  './mod-clientes.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
