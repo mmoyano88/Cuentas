@@ -136,9 +136,26 @@ function cablearCabeceraLista() {
 
   const btnFiltro = document.getElementById('cli-btn-filtro');
   const panel = document.getElementById('cli-filtros-panel');
+
+  function cerrarPanelFiltro() {
+    panel.classList.remove('abierto');
+    document.removeEventListener('click', cerrarPanelFiltroSiFuera);
+  }
+  function cerrarPanelFiltroSiFuera(ev) {
+    if (!panel.contains(ev.target) && ev.target !== btnFiltro && !btnFiltro.contains(ev.target)) cerrarPanelFiltro();
+  }
+
   btnFiltro.addEventListener('click', function (ev) {
     ev.stopPropagation();
+    const seVaAAbrir = !panel.classList.contains('abierto');
     panel.classList.toggle('abierto');
+    if (seVaAAbrir) {
+      // Se añade en el siguiente turno para que este mismo click, que
+      // ya está en marcha, no cierre el panel que acaba de abrirse.
+      setTimeout(function () { document.addEventListener('click', cerrarPanelFiltroSiFuera); }, 0);
+    } else {
+      document.removeEventListener('click', cerrarPanelFiltroSiFuera);
+    }
   });
   panel.querySelectorAll('[data-filtro]').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -146,7 +163,6 @@ function cablearCabeceraLista() {
       pintarClientes();
     });
   });
-  document.addEventListener('click', function cerrar() { panel.classList.remove('abierto'); }, { once: true });
 }
 
 // ============================================================
@@ -223,6 +239,9 @@ function renderFilaMovil(c) {
       '<p class="cli-nombre">' + escaparHtml(c.nombre_contacto) + '</p>' +
       '<p class="cli-meta">' + metaLineaMovil(c) + '</p>' +
     '</div>' +
+    '<div class="cli-acciones">' +
+      '<button type="button" class="cli-btn-icono" data-mas="' + c.id + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
+    '</div>' +
   '</div>';
 }
 
@@ -286,13 +305,19 @@ function abrirMenuMas(boton, id) {
   document.body.appendChild(menu);
   posicionarMenuMas(menu, boton);
 
-  menu.querySelector('[data-accion="desactivar"]')?.addEventListener('click', function () { cambiarEstadoContacto(id, 'inactivo'); });
-  menu.querySelector('[data-accion="reactivar"]')?.addEventListener('click', function () { cambiarEstadoContacto(id, 'activo'); });
-  menu.querySelector('[data-accion="eliminar"]')?.addEventListener('click', function () { eliminarContactoDefinitivo(id); });
+  function cerrarMenu() {
+    menu.remove();
+    document.removeEventListener('click', cerrarMenuSiFuera);
+  }
+  function cerrarMenuSiFuera(ev) {
+    if (!menu.contains(ev.target)) cerrarMenu();
+  }
 
-  setTimeout(function () {
-    document.addEventListener('click', function cerrar() { menu.remove(); }, { once: true });
-  }, 0);
+  menu.querySelector('[data-accion="desactivar"]')?.addEventListener('click', function () { cerrarMenu(); cambiarEstadoContacto(id, 'inactivo'); });
+  menu.querySelector('[data-accion="reactivar"]')?.addEventListener('click', function () { cerrarMenu(); cambiarEstadoContacto(id, 'activo'); });
+  menu.querySelector('[data-accion="eliminar"]')?.addEventListener('click', function () { cerrarMenu(); eliminarContactoDefinitivo(id); });
+
+  setTimeout(function () { document.addEventListener('click', cerrarMenuSiFuera); }, 0);
 }
 
 // Coloca el menú pegado al botón que lo abrió, hacia abajo por
