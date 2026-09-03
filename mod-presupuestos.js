@@ -672,7 +672,14 @@ function preAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="estado"]')?.addEventListener('click', function () { cerrarMenu(); preCambiarEstado(id); });
   menu.querySelector('[data-accion="duplicar"]')?.addEventListener('click', function () { cerrarMenu(); preDuplicar(id); });
   menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); preBotonDePrueba('Descargar PDF'); });
-  menu.querySelector('[data-accion="factura"]')?.addEventListener('click', function () { cerrarMenu(); preBotonDePrueba('Convertir en factura'); });
+  menu.querySelector('[data-accion="factura"]')?.addEventListener('click', function () {
+    cerrarMenu();
+    if (typeof convertirPresupuestoEnFactura !== 'function') {
+      preBotonDePrueba('Convertir en factura');
+      return;
+    }
+    convertirPresupuestoEnFactura(id);
+  });
   menu.querySelector('[data-accion="eliminar"]')?.addEventListener('click', function () { cerrarMenu(); preEliminar(id); });
 
   setTimeout(function () { document.addEventListener('click', cerrarSiFuera); }, 0);
