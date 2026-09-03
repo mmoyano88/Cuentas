@@ -986,7 +986,7 @@ function abrirFormularioPresupuesto(id, prefill) {
   const datos = {
     numero: original ? original.numero : preSiguienteNumero(),
     fecha: original ? normalizarFecha(original.fecha) : fechaHoyISO(),
-    id_cliente: original ? String(original.id_cliente || '') : '',
+    id_cliente: original ? String(original.id_cliente || '') : String((prefill && prefill.id_cliente_prefill) || ''),
     concepto: deCalculadora ? (prefill.concepto || '') : (original ? (original.concepto || '') : ''),
     subtotal: deCalculadora ? prefill.subtotal : (original ? parsearNumero(original.subtotal) : 0),
     desc_tipo: deCalculadora
