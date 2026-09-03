@@ -1,0 +1,15 @@
+/* ============================================================
+   MÓDULO FACTURAS DE COMPRA — estilos propios
+   Comparte pantalla con Facturas de venta y reutiliza sus clases
+   (.fv-fila, .fv-tabla, .fv-modal...), definidas en
+   mod-facturas-venta.css. Aquí solo va lo específico de compras.
+   ============================================================ */
+
+/* Campo para escribir un porcentaje que no está en la lista.
+   Aparece justo debajo del desplegable al elegir "Otro...". */
+.fc-otro-campo {
+  margin-top: 6px;
+}
+.fc-otro-campo[hidden] {
+  display: none;
+}

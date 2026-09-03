@@ -184,31 +184,26 @@ function pintarFacturas() {
         '<button type="button" data-area="ventas">Ventas</button>' +
         '<button type="button" data-area="compras">Compras</button>' +
       '</div>' +
-      (fvArea === 'ventas'
-        ? '<button type="button" class="fv-flotante" id="fv-btn-nuevo" aria-label="Nueva factura"><i class="ti ti-plus"></i></button>'
-        : '') +
+      '<button type="button" class="fv-flotante" id="fv-btn-nuevo" aria-label="Nueva factura"><i class="ti ti-plus"></i></button>' +
     '</div>' +
     '<div id="fv-zona"></div>';
 
   document.getElementById('fv-selector').querySelectorAll('[data-area]').forEach(function (b) {
     b.classList.toggle('activa', b.dataset.area === fvArea);
     b.addEventListener('click', function () {
-      if (b.dataset.area === 'compras') {
-        if (typeof pintarFacturasCompra === 'function') {
-          fvArea = 'compras';
-          pintarFacturas();
-        } else {
-          alert('El módulo de Facturas de compra todavía no está construido.');
-        }
+      if (b.dataset.area === 'compras' && typeof pintarFacturasCompra !== 'function') {
+        alert('El módulo de Facturas de compra todavía no está construido.');
         return;
       }
-      fvArea = 'ventas';
+      fvArea = b.dataset.area;
       pintarFacturas();
     });
   });
 
-  const btnNuevo = document.getElementById('fv-btn-nuevo');
-  if (btnNuevo) btnNuevo.addEventListener('click', function () { abrirFormularioFacturaVenta(null); });
+  document.getElementById('fv-btn-nuevo').addEventListener('click', function () {
+    if (fvArea === 'compras') abrirFormularioFacturaCompra(null);
+    else abrirFormularioFacturaVenta(null);
+  });
 
   if (fvArea === 'compras' && typeof pintarFacturasCompra === 'function') {
     pintarFacturasCompra();
@@ -640,6 +635,9 @@ function fvTrimestreDeFecha(iso) {
   return 'Q4';
 }
 
+// Los importes se copian desglosados (base, iva, irpf, total), que son
+// las columnas reales de la hoja `apuntes`. Sin ellos, Contabilidad,
+// Impuestos y Dashboard verían el apunte a cero.
 async function fvCrearApunteCobro(factura) {
   const existente = fvApunteDe(factura.id);
   const fecha = factura.fecha_cobro || fechaHoyISO();
@@ -649,7 +647,12 @@ async function fvCrearApunteCobro(factura) {
     tipo: 'ingreso',
     fecha: fecha,
     concepto: 'Cobro factura ' + (factura.numero || ''),
-    importe: factura.total,
+    base: parsearNumero(factura.base),
+    iva_pct: parsearNumero(factura.iva_pct),
+    iva: parsearNumero(factura.iva),
+    irpf_pct: parsearNumero(factura.irpf_pct),
+    irpf: parsearNumero(factura.irpf),
+    total: parsearNumero(factura.total),
     impuesto_tipo: fvTipoImpuestoApunte(factura.iva, factura.irpf),
     impuesto_trimestre: fvTrimestreDeFecha(fecha),
     impuesto_año: fecha ? parseInt(fecha.split('-')[0], 10) : new Date().getFullYear(),
