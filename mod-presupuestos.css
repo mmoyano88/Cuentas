@@ -41,7 +41,8 @@
 .pre-flotante {
   position: fixed;
   right: 20px;
-  bottom: 90px;
+  /* Por encima de la barra inferior, que ahora es más alta. */
+  bottom: calc(112px + env(safe-area-inset-bottom));
   width: 56px;
   height: 56px;
   border-radius: 50%;
@@ -472,17 +473,32 @@
   text-decoration: underline;
 }
 
-/* ---- Calculadora ---- */
-.pre-calc-grid {
-  display: grid;
-  grid-template-columns: 1fr;
+/* ---- Calculadora: dos zonas ----
+   Arriba/izquierda lo que Miguel rellena; abajo/derecha el resultado.
+   Se usa flex, no grid con filas fijas: así la caja de resultado no
+   puede solaparse nunca con las tarjetas de al lado. */
+.pre-calc-layout {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-items: start;
   margin-top: 14px;
 }
+.pre-calc-entrada {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.pre-calc-salida { min-width: 0; }
+
 @media (min-width: 900px) {
-  .pre-calc-grid { grid-template-columns: 1fr 1fr; }
-  .pre-calc-resultado { grid-column: 2; grid-row: 1 / span 3; position: sticky; top: 16px; }
+  .pre-calc-layout { flex-direction: row; align-items: flex-start; }
+  .pre-calc-entrada { flex: 1; }
+  .pre-calc-salida {
+    flex: 0 0 330px;
+    position: sticky;
+    top: 16px;
+  }
 }
 
 .pre-tarjeta {
@@ -521,3 +537,73 @@
   border-radius: var(--radio-control);
   padding: 8px 10px;
 }
+
+
+/* ---- Caja de Resultado (fondo oscuro) ----
+   Contrastes comprobados sobre #2C2C2A: blanco 13:1, texto tenue 6,4:1
+   y el rojo claro del total 6,0:1. Todos por encima del mínimo AA. */
+.pre-tarjeta-resultado {
+  background: var(--gris-oscuro);
+  color: #FFFFFF;
+  border-radius: var(--radio-tarjeta);
+  padding: 16px 18px;
+}
+
+.pre-tarjeta-resultado .pre-tarjeta-titulo { color: #FFFFFF; }
+
+.pre-tarjeta-resultado .pre-linea { color: rgba(255, 255, 255, .72); }
+.pre-tarjeta-resultado .pre-linea strong { color: #FFFFFF; }
+.pre-tarjeta-resultado .pre-linea small {
+  font-size: 11px;
+  color: rgba(255, 255, 255, .55);
+}
+.pre-tarjeta-resultado .pre-linea.destacada {
+  color: #FFFFFF;
+  border-top-color: rgba(255, 255, 255, .18);
+}
+
+.pre-tarjeta-resultado .pre-total-final { border-top-color: rgba(255, 255, 255, .18); }
+.pre-tarjeta-resultado .pre-total-final span { color: #FFFFFF; }
+.pre-tarjeta-resultado .pre-total-final strong { color: #FF6B6B; }
+
+.pre-tarjeta-resultado .pre-negativo { color: #FF6B6B; }
+
+.pre-calc-botones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+.pre-calc-botones-fila { display: flex; gap: 8px; }
+.pre-calc-botones-fila .boton-secundario { flex: 1; }
+
+.pre-tarjeta-resultado .boton-secundario {
+  background: transparent;
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, .35);
+}
+.pre-tarjeta-resultado .boton-secundario:hover { background: rgba(255, 255, 255, .1); }
+
+/* ---- Bloque de control de la fila: [más opciones] [punto] ----
+   Siempre pegado a la derecha, igual en PC y en Android. */
+.pre-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.pre-punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.pre-punto.ok        { background: #3E9E4E; }
+.pre-punto.guardando { background: #E0A32E; }
+.pre-punto.error     { background: var(--rojo); }
+.pre-punto.prueba    { background: #B8B6AC; }
+
+.pre-menu-mas button.destacado { color: var(--rojo); font-weight: 600; }

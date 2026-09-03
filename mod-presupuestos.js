@@ -51,6 +51,41 @@ let preCalc = Object.assign({}, PRE_CALC_VACIA);
 // M2): cuando existan varias, este valor vendrá de la serie elegida.
 const PRE_PREFIJO_SERIE = 'P';
 
+// Estado de sincronizacion de cada presupuesto, para el punto de color
+// de la lista. Solo se apunta lo que NO esta ya guardado: si un id no
+// aparece aqui, es que esta guardado en la base de datos (verde).
+//   'guardando' -> ambar   |   'error' -> rojo
+// Este patron se reutilizara en Facturas, Apuntes, etc.
+const preSyncEstados = {};
+
+// Trabajos que no llegaron a guardarse, por si hay que reintentarlos.
+const prePendientes = {};
+
+function preMarcarSync(id, valor) {
+  if (!id) return;
+  if (valor) preSyncEstados[String(id)] = valor;
+  else delete preSyncEstados[String(id)];
+}
+
+function preEstadoSync(p) {
+  const marcado = preSyncEstados[String(p.id)];
+  if (marcado) return marcado;
+  if (esDePrueba(p)) return 'prueba';
+  return 'ok';
+}
+
+const PRE_PUNTOS = {
+  ok:        { clase: 'ok',        titulo: 'Guardado en la base de datos' },
+  guardando: { clase: 'guardando', titulo: 'Guardando...' },
+  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Mas opciones" y reintenta.' },
+  prueba:    { clase: 'prueba',    titulo: 'Solo en este dispositivo (modo prueba)' }
+};
+
+function prePuntoEstado(p) {
+  const info = PRE_PUNTOS[preEstadoSync(p)] || PRE_PUNTOS.ok;
+  return '<span class="pre-punto ' + info.clase + '" title="' + escaparHtml(info.titulo) + '"></span>';
+}
+
 const PRE_ESTADOS = {
   pendiente: { etiqueta: 'Pendiente', clase: 'ind-ambar' },
   aceptado:  { etiqueta: 'Aceptado',  clase: 'ind-verde' },
@@ -332,9 +367,12 @@ function preCalcularCalculadora(d) {
     irpfPct: irpf.porcentaje
   });
 
-  // Rentabilidad interna (mapa 7.3): los gastos se descuentan SIN el
-  // margen, y la compensación de IRPF no cuenta como resultado.
-  const resultadoTrabajo = roundMoney((totales.base - totales.compensacion) - gastosDirectos);
+  // Rentabilidad interna (redefinida por Miguel el 03/09/2026, sustituye
+  // a la del mapa 7.3): del subtotal se descuentan los gastos directos
+  // SIN su margen, porque ese margen es beneficio propio. La reserva de
+  // IRPF es siempre el porcentaje de compensación de Configuración,
+  // lleve o no retención la factura: es una previsión para el peor caso.
+  const resultadoTrabajo = roundMoney(totales.subtotal - gastosDirectos);
   const reservaIrpf = roundMoney(Math.max(0, resultadoTrabajo) * (t.compensacionPct / 100));
   const disponible = roundMoney(resultadoTrabajo - reservaIrpf);
 
@@ -351,8 +389,8 @@ function preCalcularCalculadora(d) {
     equiposElegidos: equiposElegidos,
     serviciosElegidos: serviciosElegidos,
     tipoCliente: tipoCliente,
-    iva: iva,
-    irpf: irpf,
+    tipoIva: iva,
+    tipoIrpf: irpf,
     resultadoTrabajo: resultadoTrabajo,
     reservaIrpf: reservaIrpf,
     disponible: disponible
@@ -523,14 +561,14 @@ function preRenderFilaMovil(p) {
         prePastillaEstado(p.estado) +
       '</button>' +
     '</div>' +
-    '<div class="pre-acciones">' +
+    '<div class="pre-control">' +
       '<button type="button" class="pre-btn-icono" data-mas="' + escaparHtml(p.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
+      prePuntoEstado(p) +
     '</div>' +
   '</div>';
 }
 
 function preRenderFilaTabla(p) {
-  const puedeEditar = !preBloqueado(p);
   return '<tr class="pre-fila-tabla" data-id="' + escaparHtml(p.id) + '">' +
     '<td>' + escaparHtml(mostrarFecha(p.fecha)) + '</td>' +
     '<td class="pre-celda-numero">' + escaparHtml(p.numero || '—') + '</td>' +
@@ -543,11 +581,9 @@ function preRenderFilaTabla(p) {
     '</td>' +
     '<td class="pre-celda-derecha">' + escaparHtml(formatMoney(p.base)) + '</td>' +
     '<td class="pre-celda-derecha">' + escaparHtml(formatMoney(p.total)) + '</td>' +
-    '<td><div class="pre-acciones">' +
-      (puedeEditar
-        ? '<button type="button" class="pre-btn-icono" data-editar="' + escaparHtml(p.id) + '" aria-label="Editar"><i class="ti ti-pencil"></i></button>'
-        : '') +
+    '<td><div class="pre-control">' +
       '<button type="button" class="pre-btn-icono" data-mas="' + escaparHtml(p.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
+      prePuntoEstado(p) +
     '</div></td>' +
   '</tr>';
 }
@@ -555,16 +591,9 @@ function preRenderFilaTabla(p) {
 function preCablearFilas(contenedor) {
   contenedor.querySelectorAll('.pre-fila, .pre-fila-tabla').forEach(function (fila) {
     fila.addEventListener('click', function (ev) {
-      if (ev.target.closest('.pre-acciones')) return;
+      if (ev.target.closest('.pre-control')) return;
       if (ev.target.closest('[data-estado-de]')) return;
       abrirFichaPresupuesto(fila.dataset.id);
-    });
-  });
-
-  contenedor.querySelectorAll('[data-editar]').forEach(function (b) {
-    b.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      preAbrirEdicion(b.dataset.editar);
     });
   });
 
@@ -619,6 +648,9 @@ function preAbrirMenuMas(boton, id) {
   const menu = document.createElement('div');
   menu.className = 'pre-menu-mas';
   menu.innerHTML =
+    (preEstadoSync(p) === 'error'
+      ? '<button type="button" class="destacado" data-accion="reintentar">Reintentar guardado</button>'
+      : '') +
     (preBloqueado(p) ? '' : '<button type="button" data-accion="editar">Editar</button>') +
     '<button type="button" data-accion="estado">Cambiar estado</button>' +
     '<button type="button" data-accion="duplicar">Duplicar presupuesto</button>' +
@@ -635,6 +667,7 @@ function preAbrirMenuMas(boton, id) {
   }
   function cerrarSiFuera(ev) { if (!menu.contains(ev.target)) cerrarMenu(); }
 
+  menu.querySelector('[data-accion="reintentar"]')?.addEventListener('click', function () { cerrarMenu(); preReintentarGuardado(id); });
   menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); preAbrirEdicion(id); });
   menu.querySelector('[data-accion="estado"]')?.addEventListener('click', function () { cerrarMenu(); preCambiarEstado(id); });
   menu.querySelector('[data-accion="duplicar"]')?.addEventListener('click', function () { cerrarMenu(); preDuplicar(id); });
@@ -850,7 +883,7 @@ function preBloqueDesglose(p, d) {
   const compPct = parsearNumero(p.compensacion_irpf_pct) || tarifas.compensacionPct;
   const gastosDirectos = parsearNumero(d.gasto_salarios) + parsearNumero(d.gasto_materiales) +
                          parsearNumero(d.gasto_dietas) + parsearNumero(d.gasto_otros);
-  const resultadoTrabajo = roundMoney((parsearNumero(p.base) - parsearNumero(p.compensacion_irpf_importe)) - gastosDirectos);
+  const resultadoTrabajo = roundMoney(parsearNumero(p.subtotal) - gastosDirectos);
   const reservaIrpf = roundMoney(Math.max(0, resultadoTrabajo) * (compPct / 100));
   const disponible = roundMoney(resultadoTrabajo - reservaIrpf);
 
@@ -885,6 +918,7 @@ function preBloqueDesglose(p, d) {
 
     '<p class="pre-bloque-titulo" style="margin-top:14px">Rentabilidad interna</p>' +
     preLinea('Resultado del trabajo', formatMoney(resultadoTrabajo)) +
+    preLinea('Gastos del trabajo', '−' + formatMoney(gastosDirectos)) +
     preLinea('Reserva de IRPF (' + compPct + '%)', '−' + formatMoney(reservaIrpf)) +
     preLinea('Disponible estimado', formatMoney(disponible), 'destacada') +
 
@@ -1197,7 +1231,7 @@ function preLimpiarErrores(fondo) {
   fondo.querySelectorAll('[data-error-de]').forEach(function (el) { el.hidden = true; });
 }
 
-async function preProcesarGuardado(fondo, original, prefill) {
+function preProcesarGuardado(fondo, original, prefill) {
   preLimpiarErrores(fondo);
   const datos = preLeerFormulario(fondo);
 
@@ -1256,41 +1290,88 @@ async function preProcesarGuardado(fondo, original, prefill) {
     estado: original ? (original.estado || 'pendiente') : 'pendiente'
   };
 
-  const boton = fondo.querySelector('#pre-form-guardar');
-  boton.disabled = true;
-  boton.textContent = 'Guardando...';
-
   const detalleAGuardar = preDetallePrefill;
-
-  const resultado = await guardarRegistro('presupuestos', registro, preRepintarLista, null);
-
-  if (resultado.status !== 'success') {
-    boton.disabled = false;
-    boton.textContent = 'Guardar presupuesto';
-    return;
-  }
-
-  const idFinal = (resultado.data && resultado.data.id) || idPresupuesto;
-
-  // Si el presupuesto viene de la calculadora, se guarda su desglose
-  // (operación separada, mapa 8.7).
-  if (detalleAGuardar) {
-    await preGuardarDetalle(idFinal, detalleAGuardar);
-  }
-
   preDetallePrefill = null;
+
+  // La ventana se cierra AL MOMENTO. El guardado sigue en segundo plano
+  // y su resultado se ve en el punto de color de la fila y en la
+  // pastilla de sincronización de arriba.
   fondo.remove();
 
-  // Si el presupuesto venía de la calculadora, se deja limpia para el
-  // siguiente trabajo.
   if (detalleAGuardar) {
     preCalc = Object.assign({}, PRE_CALC_VACIA, { equipos: [], servicios: [] });
     preCalcEditandoId = null;
     preAvisoCalculadora = '';
   }
 
+  preMarcarSync(idPresupuesto, 'guardando');
+  preGuardarEnSegundoPlano(registro, detalleAGuardar);
+
   preSubvista = 'relacion';
   pintarPresupuestos();
+}
+
+/**
+ * Guarda sin bloquear la pantalla. Si falla, el núcleo deshace el
+ * cambio para no dejar datos a medias, así que aquí se vuelve a poner
+ * el registro en el dispositivo y se marca en rojo: el trabajo no se
+ * pierde y se puede reintentar desde "Más opciones".
+ */
+function preGuardarEnSegundoPlano(registro, detalle) {
+  return guardarRegistro('presupuestos', registro, preRepintarLista, null)
+    .then(function (resultado) {
+      if (resultado.status !== 'success') {
+        preReponerLocal(registro);
+        preMarcarSync(registro.id, 'error');
+        prePendientes[String(registro.id)] = { registro: registro, detalle: detalle || null };
+        preRepintarLista();
+        return;
+      }
+
+      const idFinal = (resultado.data && resultado.data.id) || registro.id;
+      preMarcarSync(registro.id, null);
+      preMarcarSync(idFinal, null);
+      delete prePendientes[String(registro.id)];
+
+      if (!detalle) { preRepintarLista(); return; }
+
+      // El desglose de la calculadora es una operación aparte (mapa 8.7).
+      preMarcarSync(idFinal, 'guardando');
+      preRepintarLista();
+      return preGuardarDetalle(idFinal, detalle).then(function () {
+        preMarcarSync(idFinal, null);
+        preRepintarLista();
+      });
+    })
+    .catch(function (err) {
+      console.error('Fallo al guardar el presupuesto:', err);
+      preReponerLocal(registro);
+      preMarcarSync(registro.id, 'error');
+      prePendientes[String(registro.id)] = { registro: registro, detalle: detalle || null };
+      preRepintarLista();
+    });
+}
+
+// Vuelve a dejar el registro en el dispositivo después de que el núcleo
+// lo haya deshecho por un fallo de red.
+function preReponerLocal(registro) {
+  const i = estado.presupuestos.findIndex(function (r) { return String(r.id) === String(registro.id); });
+  if (i >= 0) estado.presupuestos[i] = registro;
+  else estado.presupuestos.push(registro);
+  guardarEntidadLocal('presupuestos');
+}
+
+// Reintento manual de un presupuesto que se quedó en rojo.
+function preReintentarGuardado(id) {
+  const pendiente = prePendientes[String(id)];
+  const registro = pendiente
+    ? pendiente.registro
+    : estado.presupuestos.find(function (r) { return String(r.id) === String(id); });
+  if (!registro) return;
+
+  preMarcarSync(id, 'guardando');
+  preRepintarLista();
+  preGuardarEnSegundoPlano(registro, pendiente ? pendiente.detalle : null);
 }
 
 /**
@@ -1345,7 +1426,8 @@ function pintarCalculadora() {
   zona.innerHTML =
     (preAvisoCalculadora ? '<p class="pre-nota aviso" style="margin-bottom:12px">' + escaparHtml(preAvisoCalculadora) + '</p>' : '') +
 
-    '<div class="pre-calc-grid">' +
+    '<div class="pre-calc-layout">' +
+      '<div class="pre-calc-entrada">' +
 
       '<div class="pre-tarjeta">' +
         '<p class="pre-tarjeta-titulo">Trabajo</p>' +
@@ -1365,8 +1447,6 @@ function pintarCalculadora() {
           '/h · desplazamiento ' + escaparHtml(formatMoney(t.desplazHora)) + '/h y ' + escaparHtml(formatMoney(t.km)) +
           '/km · recargo noche +' + t.incrementoNochePct + '%.</p>' +
       '</div>' +
-
-      '<div class="pre-tarjeta pre-calc-resultado" id="pcalc-resultado"></div>' +
 
       '<div class="pre-tarjeta">' +
         '<p class="pre-tarjeta-titulo">Gastos directos</p>' +
@@ -1437,6 +1517,11 @@ function pintarCalculadora() {
           : '<p class="pre-nota">No hay servicios extra definidos en Configuración.</p>') +
       '</div>' +
 
+      '</div>' +
+
+      '<div class="pre-calc-salida">' +
+        '<div class="pre-tarjeta-resultado" id="pcalc-resultado"></div>' +
+      '</div>' +
     '</div>';
 
   // Cableado: cualquier cambio recalcula al momento
@@ -1498,35 +1583,40 @@ function preRecalcularCalculadora() {
 
   caja.innerHTML =
     '<p class="pre-tarjeta-titulo">Resultado</p>' +
-    preLinea('Horas de trabajo', formatMoney(r.costeHorasTrabajo)) +
-    preLinea('Horas de edición', formatMoney(r.costeEdicion)) +
-    preLinea('Desplazamiento', formatMoney(r.costeDesplazamiento)) +
-    preLinea('Equipos', formatMoney(r.costeEquipos)) +
-    preLinea('Gastos con margen', formatMoney(r.gastosConMargen)) +
-    preLinea('Servicios extra', formatMoney(r.costeServicios)) +
-    preLinea('Subtotal', formatMoney(r.subtotal), 'destacada') +
-    preLinea('Ajuste por tipo de cliente (' + r.ajustePct + '%)', signo(r.ajusteImporte)) +
+
+    preLinea('Subtotal', formatMoney(r.subtotal)) +
+    '<div class="pre-linea"><span>Resultado del trabajo</span><strong' +
+      (r.resultadoTrabajo < 0 ? ' class="pre-negativo"' : '') + '>' + escaparHtml(formatMoney(r.resultadoTrabajo)) + '</strong></div>' +
+    preLinea('Gastos del trabajo', '−' + formatMoney(r.gastosDirectos)) +
+
+    preLinea('Ajuste por tipo de cliente (' + r.ajustePct + '%)', signo(r.ajusteImporte), 'destacada') +
     preLinea('Compensación IRPF (' + r.compensacionPct + '%)', signo(r.compensacion)) +
     preLinea('Descuento especial', '−' + formatMoney(r.descImporte)) +
+
     preLinea('Base imponible', formatMoney(r.base), 'destacada') +
     preLinea('IVA (' + r.ivaPct + '%)', '+' + formatMoney(r.iva)) +
     preLinea('Retención IRPF (' + r.irpfPct + '%)', '−' + formatMoney(r.irpf)) +
+
     '<div class="pre-total-final"><span>TOTAL</span><strong>' + escaparHtml(formatMoney(r.total)) + '</strong></div>' +
 
-    '<p class="pre-tarjeta-titulo" style="margin-top:16px">Rentabilidad interna</p>' +
-    '<div class="pre-linea"><span>Resultado del trabajo</span><strong' +
-      (r.resultadoTrabajo < 0 ? ' class="pre-negativo"' : '') + '>' + escaparHtml(formatMoney(r.resultadoTrabajo)) + '</strong></div>' +
-    preLinea('Reserva de IRPF (' + r.compensacionPct + '%)', '−' + formatMoney(r.reservaIrpf)) +
-    '<div class="pre-linea destacada"><span>Disponible estimado</span><strong' +
+    // Previsión propia, no afecta a lo que paga el cliente.
+    '<div class="pre-linea destacada"><span>Disponible estimado<br><small>tras reservar el ' + r.compensacionPct + '% de IRPF</small></span><strong' +
       (r.disponible < 0 ? ' class="pre-negativo"' : '') + '>' + escaparHtml(formatMoney(r.disponible)) + '</strong></div>' +
 
-    '<div style="display:flex;gap:8px;margin-top:14px">' +
-      '<button type="button" class="boton-secundario" id="pcalc-limpiar" style="flex:1">Limpiar</button>' +
-      '<button type="button" class="boton-principal" id="pcalc-usar" style="flex:1">' +
+    '<div class="pre-calc-botones">' +
+      '<button type="button" class="boton-principal" id="pcalc-usar">' +
         (preCalcEditandoId ? 'Guardar cambios' : 'Crear presupuesto') +
       '</button>' +
+      '<div class="pre-calc-botones-fila">' +
+        '<button type="button" class="boton-secundario" id="pcalc-limpiar">Limpiar</button>' +
+        '<button type="button" class="boton-secundario" id="pcalc-cerrar">Cerrar</button>' +
+      '</div>' +
     '</div>';
 
+  document.getElementById('pcalc-cerrar').addEventListener('click', function () {
+    preSubvista = 'relacion';
+    pintarPresupuestos();
+  });
   document.getElementById('pcalc-limpiar').addEventListener('click', preLimpiarCalculadora);
   document.getElementById('pcalc-usar').addEventListener('click', preUsarCalculadora);
 }
@@ -1569,8 +1659,8 @@ function preSnapshotCalculadora(r) {
     })),
     subtotal_calculadora: r.subtotal,
     tipo_cliente_id: r.tipoCliente ? r.tipoCliente.id : '',
-    iva_id: r.iva ? r.iva.id : '',
-    irpf_id: r.irpf ? r.irpf.id : ''
+    iva_id: r.tipoIva ? r.tipoIva.id : '',
+    irpf_id: r.tipoIrpf ? r.tipoIrpf.id : ''
   };
 }
 
@@ -1598,8 +1688,8 @@ function preUsarCalculadora() {
     subtotal: r.subtotal,
     desc_tipo: preCalc.desc_tipo,
     desc_valor: parsearNumero(preCalc.desc_valor),
-    iva_id: r.iva ? r.iva.id : '',
-    irpf_id: r.irpf ? r.irpf.id : '',
+    iva_id: r.tipoIva ? r.tipoIva.id : '',
+    irpf_id: r.tipoIrpf ? r.tipoIrpf.id : '',
     tipo_cliente_id: r.tipoCliente ? r.tipoCliente.id : ''
   });
 }
