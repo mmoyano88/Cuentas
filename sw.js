@@ -12,7 +12,7 @@
  * tirar la copia vieja.
  */
 
-const VERSION = 'cuentas-v10';
+const VERSION = 'cuentas-v11';
 
 const ARCHIVOS = [
   './',
@@ -25,6 +25,8 @@ const ARCHIVOS = [
   './mod-configuracion.js',
   './mod-clientes.css',
   './mod-clientes.js',
+  './mod-presupuestos.css',
+  './mod-presupuestos.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

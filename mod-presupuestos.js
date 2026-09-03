@@ -28,6 +28,11 @@ let preDetallePrefill = null;
 // Aviso que se muestra en la calculadora tras recuperar un presupuesto.
 let preAvisoCalculadora = '';
 
+// Si la calculadora se abrió para editar un presupuesto ya guardado,
+// aquí queda su id: al terminar se actualiza ese mismo presupuesto en
+// vez de crear uno nuevo.
+let preCalcEditandoId = null;
+
 // Contenido de la calculadora. Vive aquí para que no se pierda al
 // cambiar de pestaña o de sección y volver.
 const PRE_CALC_VACIA = {
@@ -510,10 +515,11 @@ function preRenderFilaMovil(p) {
     '<div class="pre-info">' +
       '<p class="pre-nombre">' + escaparHtml(p.cliente || '—') + '</p>' +
       '<p class="pre-meta">' + escaparHtml(p.numero || '—') + ' · ' + escaparHtml(mostrarFecha(p.fecha)) + '</p>' +
+      '<p class="pre-meta">' + escaparHtml(p.concepto || '—') + '</p>' +
     '</div>' +
     '<div class="pre-derecha">' +
       '<span class="pre-total-fila">' + escaparHtml(formatMoney(p.total)) + '</span>' +
-      '<button type="button" class="pre-pastilla-boton" data-estado-de="' + escaparHtml(p.id) + '" style="border:none;background:none;padding:0;cursor:pointer">' +
+      '<button type="button" class="pre-pastilla-boton" data-estado-de="' + escaparHtml(p.id) + '">' +
         prePastillaEstado(p.estado) +
       '</button>' +
     '</div>' +
@@ -558,7 +564,7 @@ function preCablearFilas(contenedor) {
   contenedor.querySelectorAll('[data-editar]').forEach(function (b) {
     b.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      abrirFormularioPresupuesto(b.dataset.editar);
+      preAbrirEdicion(b.dataset.editar);
     });
   });
 
@@ -580,6 +586,26 @@ function preCablearFilas(contenedor) {
 // ============================================================
 // 6. MENÚ "MÁS OPCIONES" Y ACCIONES SOBRE UN PRESUPUESTO
 // ============================================================
+
+/**
+ * Puerta de entrada única para "Editar". Si el presupuesto se creó con
+ * la calculadora, se vuelve a abrir EN la calculadora con todos sus
+ * datos; si se hizo a mano, se abre el formulario normal.
+ */
+function preAbrirEdicion(id) {
+  const p = estado.presupuestos.find(function (x) { return String(x.id) === String(id); });
+  if (!p) return;
+
+  if (preBloqueado(p)) {
+    alert(String(p.estado) === 'aceptado'
+      ? 'Un presupuesto aceptado no se puede editar. Utiliza "Duplicar presupuesto" para crear una nueva versión.'
+      : 'Este presupuesto tiene una factura asociada y no se puede editar.');
+    return;
+  }
+
+  if (preDetalleDe(id)) preEditarEnCalculadora(id);
+  else abrirFormularioPresupuesto(id);
+}
 
 function preAbrirMenuMas(boton, id) {
   document.querySelectorAll('.pre-menu-mas').forEach(function (m) { m.remove(); });
@@ -609,7 +635,7 @@ function preAbrirMenuMas(boton, id) {
   }
   function cerrarSiFuera(ev) { if (!menu.contains(ev.target)) cerrarMenu(); }
 
-  menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); abrirFormularioPresupuesto(id); });
+  menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); preAbrirEdicion(id); });
   menu.querySelector('[data-accion="estado"]')?.addEventListener('click', function () { cerrarMenu(); preCambiarEstado(id); });
   menu.querySelector('[data-accion="duplicar"]')?.addEventListener('click', function () { cerrarMenu(); preDuplicar(id); });
   menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); preBotonDePrueba('Descargar PDF'); });
@@ -733,7 +759,7 @@ function abrirFichaPresupuesto(id) {
     '<div class="pre-modal ancho">' +
       '<div class="pre-modal-cabecera">' +
         '<div class="pre-modal-avatar">' + escaparHtml(preIniciales(p.cliente)) + '</div>' +
-        '<div>' +
+        '<div class="pre-modal-texto">' +
           '<p class="pre-modal-titulo">' + escaparHtml(p.numero || 'Presupuesto') + '</p>' +
           '<p class="pre-modal-subtitulo">' + escaparHtml(p.cliente || '—') + ' · ' + escaparHtml(mostrarFecha(p.fecha)) + '</p>' +
         '</div>' +
@@ -776,7 +802,7 @@ function abrirFichaPresupuesto(id) {
   fondo.querySelector('#pre-ficha-pdf').addEventListener('click', function () { preBotonDePrueba('Descargar PDF'); });
   fondo.querySelector('#pre-ficha-editar')?.addEventListener('click', function () {
     cerrar();
-    abrirFormularioPresupuesto(id);
+    preAbrirEdicion(id);
   });
   fondo.querySelector('#pre-ficha-calculadora')?.addEventListener('click', function () {
     cerrar();
@@ -919,21 +945,27 @@ function abrirFormularioPresupuesto(id, prefill) {
   const tiposIrpf = preTiposIrpf();
   const clientes = preClientesDisponibles();
 
+  // Si venimos de la calculadora, sus números mandan (aunque se esté
+  // editando un presupuesto ya guardado: se acaban de recalcular).
+  const deCalculadora = !!prefill;
+
   const datos = {
     numero: original ? original.numero : preSiguienteNumero(),
     fecha: original ? normalizarFecha(original.fecha) : fechaHoyISO(),
     id_cliente: original ? String(original.id_cliente || '') : '',
-    concepto: original ? (original.concepto || '') : ((prefill && prefill.concepto) || ''),
-    subtotal: original ? parsearNumero(original.subtotal) : ((prefill && prefill.subtotal) || 0),
-    desc_tipo: original ? (String(original.descuento_especial_tipo) === 'fixed' ? 'fixed' : 'percent')
-                        : ((prefill && prefill.desc_tipo) || 'percent'),
-    desc_valor: original ? parsearNumero(original.descuento_especial_valor) : ((prefill && prefill.desc_valor) || 0),
-    iva_id: (prefill && prefill.iva_id) || '',
-    irpf_id: (prefill && prefill.irpf_id) || ''
+    concepto: deCalculadora ? (prefill.concepto || '') : (original ? (original.concepto || '') : ''),
+    subtotal: deCalculadora ? prefill.subtotal : (original ? parsearNumero(original.subtotal) : 0),
+    desc_tipo: deCalculadora
+      ? (prefill.desc_tipo === 'fixed' ? 'fixed' : 'percent')
+      : (original ? (String(original.descuento_especial_tipo) === 'fixed' ? 'fixed' : 'percent') : 'percent'),
+    desc_valor: deCalculadora ? prefill.desc_valor : (original ? parsearNumero(original.descuento_especial_valor) : 0),
+    iva_id: deCalculadora ? (prefill.iva_id || '') : '',
+    irpf_id: deCalculadora ? (prefill.irpf_id || '') : ''
   };
 
-  // Al editar, el tipo de IVA/IRPF se reconoce por su porcentaje guardado.
-  if (original) {
+  // Al editar sin pasar por la calculadora, el tipo de IVA/IRPF se
+  // reconoce por el porcentaje guardado en el presupuesto.
+  if (original && !deCalculadora) {
     const ivaEnc = tiposIva.find(function (x) { return Math.abs(x.porcentaje - parsearNumero(original.iva_pct)) < 0.01; });
     const irpfEnc = tiposIrpf.find(function (x) { return Math.abs(x.porcentaje - parsearNumero(original.irpf_pct)) < 0.01; });
     datos.iva_id = ivaEnc ? ivaEnc.id : (tiposIva[0] ? tiposIva[0].id : '');
@@ -949,7 +981,7 @@ function abrirFormularioPresupuesto(id, prefill) {
   fondo.innerHTML =
     '<div class="pre-modal ancho">' +
       '<div class="pre-modal-cabecera">' +
-        '<div style="flex:1">' +
+        '<div class="pre-modal-texto">' +
           '<p class="pre-modal-titulo">' + escaparHtml(titulo) + '</p>' +
           '<p class="pre-modal-subtitulo">' + escaparHtml(datos.numero) + '</p>' +
         '</div>' +
@@ -1008,20 +1040,36 @@ function abrirFormularioPresupuesto(id, prefill) {
   fondo.querySelector('.pre-modal-cerrar').addEventListener('click', function () { preCerrarFormulario(fondo); });
   fondo.querySelector('#pre-form-cancelar').addEventListener('click', function () { preCerrarFormulario(fondo); });
 
-  fondo.querySelector('#pre-nuevo-cliente').addEventListener('click', function () {
+  const btnNuevoCliente = fondo.querySelector('#pre-nuevo-cliente');
+  btnNuevoCliente.addEventListener('click', function () {
     if (typeof abrirCreacionRapidaContacto !== 'function') {
       alert('El módulo de Clientes no está disponible.');
       return;
     }
+    // Solo puede haber una ventana de nuevo cliente abierta a la vez.
+    if (document.querySelector('.cli-modal-fondo')) return;
+    btnNuevoCliente.disabled = true;
+
     abrirCreacionRapidaContacto('cliente', function (contacto) {
       const select = fondo.querySelector('#pre-campo-id_cliente');
-      const opcion = document.createElement('option');
-      opcion.value = String(contacto.id);
-      opcion.textContent = contacto.nombre_contacto;
-      select.appendChild(opcion);
+      if (!select.querySelector('option[value="' + String(contacto.id) + '"]')) {
+        const opcion = document.createElement('option');
+        opcion.value = String(contacto.id);
+        opcion.textContent = contacto.nombre_contacto;
+        select.appendChild(opcion);
+      }
       select.value = String(contacto.id);
       preActualizarFormulario(fondo, prefill);
     });
+
+    // Se vuelve a permitir en cuanto la ventana de cliente desaparezca,
+    // se haya guardado o cancelado.
+    const vigilante = setInterval(function () {
+      if (!document.querySelector('.cli-modal-fondo')) {
+        btnNuevoCliente.disabled = false;
+        clearInterval(vigilante);
+      }
+    }, 300);
   });
 
   fondo.querySelectorAll('#pre-form input, #pre-form select, #pre-form textarea').forEach(function (el) {
@@ -1232,6 +1280,14 @@ async function preProcesarGuardado(fondo, original, prefill) {
 
   preDetallePrefill = null;
   fondo.remove();
+
+  // Si el presupuesto venía de la calculadora, se deja limpia para el
+  // siguiente trabajo.
+  if (detalleAGuardar) {
+    preCalc = Object.assign({}, PRE_CALC_VACIA, { equipos: [], servicios: [] });
+    preCalcEditandoId = null;
+    preAvisoCalculadora = '';
+  }
 
   preSubvista = 'relacion';
   pintarPresupuestos();
@@ -1466,7 +1522,9 @@ function preRecalcularCalculadora() {
 
     '<div style="display:flex;gap:8px;margin-top:14px">' +
       '<button type="button" class="boton-secundario" id="pcalc-limpiar" style="flex:1">Limpiar</button>' +
-      '<button type="button" class="boton-principal" id="pcalc-usar" style="flex:1">Crear presupuesto</button>' +
+      '<button type="button" class="boton-principal" id="pcalc-usar" style="flex:1">' +
+        (preCalcEditandoId ? 'Guardar cambios' : 'Crear presupuesto') +
+      '</button>' +
     '</div>';
 
   document.getElementById('pcalc-limpiar').addEventListener('click', preLimpiarCalculadora);
@@ -1477,6 +1535,7 @@ function preLimpiarCalculadora() {
   if (!confirm('Vaciar la calculadora y empezar de cero?')) return;
   preCalc = Object.assign({}, PRE_CALC_VACIA, { equipos: [], servicios: [] });
   preAvisoCalculadora = '';
+  preCalcEditandoId = null;
   pintarCalculadora();
 }
 
@@ -1518,10 +1577,23 @@ function preSnapshotCalculadora(r) {
 // Paso de la calculadora al presupuesto (mapa 7.4). El subtotal se pasa
 // como número directo, no leyendo el texto de la pantalla.
 function preUsarCalculadora() {
+  // Si se está editando un presupuesto que ya no es editable (por
+  // ejemplo, se aceptó desde otro dispositivo), no se sigue.
+  if (preCalcEditandoId) {
+    const existente = estado.presupuestos.find(function (x) { return String(x.id) === String(preCalcEditandoId); });
+    if (!existente) {
+      alert('El presupuesto que estabas editando ya no existe. Se creará uno nuevo.');
+      preCalcEditandoId = null;
+    } else if (preBloqueado(existente)) {
+      alert('Este presupuesto ya no se puede editar.');
+      return;
+    }
+  }
+
   const r = preCalcularCalculadora(preCalc);
   preDetallePrefill = preSnapshotCalculadora(r);
 
-  abrirFormularioPresupuesto(null, {
+  abrirFormularioPresupuesto(preCalcEditandoId || null, {
     concepto: preCalc.concepto || '',
     subtotal: r.subtotal,
     desc_tipo: preCalc.desc_tipo,
@@ -1585,8 +1657,10 @@ function preEditarEnCalculadora(id) {
   };
 
   const perdidos = (equipos.length - preCalc.equipos.length) + (servicios.length - preCalc.servicios.length);
-  preAvisoCalculadora = 'Calculadora recuperada del presupuesto ' + (p.numero || '') +
-    '. Revisa los datos antes de generar una nueva versión.' +
+  preCalcEditandoId = preBloqueado(p) ? null : p.id;
+  preAvisoCalculadora = (preCalcEditandoId
+      ? 'Editando el presupuesto ' + (p.numero || '') + ' en la calculadora. Cuando termines, pulsa "Guardar cambios": se actualizará ese mismo presupuesto, no se creará otro.'
+      : 'Calculadora recuperada del presupuesto ' + (p.numero || '') + '. Ese presupuesto ya no se puede editar, así que al terminar se creará uno nuevo.') +
     (perdidos > 0 ? ' Aviso: ' + perdidos + ' equipo(s)/servicio(s) ya no existen en Configuración y no se han podido marcar.' : '');
 
   preSubvista = 'calculadora';
