@@ -499,6 +499,15 @@ function abrirFormularioContacto(id, prefill) {
   fondo.querySelector('#cli-form-cancelar').addEventListener('click', function () { fondo.remove(); });
 
   const selectRol = fondo.querySelector('#campo-rol');
+  if (rolForzado) {
+    // Bloqueado de verdad (no se puede abrir ni cambiar), pero sin usar
+    // "disabled": así FormData sigue enviando su valor al guardar.
+    selectRol.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+    selectRol.addEventListener('keydown', function (ev) { ev.preventDefault(); });
+    selectRol.tabIndex = -1;
+    selectRol.style.opacity = '0.6';
+    selectRol.style.cursor = 'not-allowed';
+  }
   selectRol.addEventListener('change', function () {
     actualizarSelectorTipo(fondo, selectRol.value);
     fondo.querySelector('#cli-form-titulo').textContent = editando ? 'Editar contacto' : (selectRol.value === 'proveedor' ? 'Nuevo proveedor' : 'Nuevo cliente');
@@ -542,12 +551,24 @@ function campoForm(clave, etiqueta, valor, requerido, tipo, claseExtra) {
   '</div>';
 }
 
-function selectorRol(valor, deshabilitado) {
+// El rol puede venir "fijado" (al crear rápido un cliente o proveedor
+// desde Presupuestos o Facturas). En ese caso se bloquea para que no
+// se pueda cambiar, PERO sin usar el atributo "disabled" en el propio
+// <select>: un <select> deshabilitado no envía su valor al leer el
+// formulario con FormData, así que el contacto se guardaría siempre
+// con el rol vacío. En su lugar, se deja el <select> habilitado pero
+// se deshabilita cada <option> salvo la elegida: el resultado visual
+// es el mismo (no se puede cambiar), pero el valor sí viaja al guardar.
+function selectorRol(valor, bloqueado) {
   const opciones = [['cliente', 'Cliente'], ['proveedor', 'Proveedor'], ['ambos', 'Cliente y proveedor']];
   return '<div class="campo-grupo">' +
     '<label for="campo-rol">Rol *</label>' +
-    '<select class="campo" id="campo-rol" name="rol"' + (deshabilitado ? ' disabled' : '') + '>' +
-      opciones.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === valor ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+    '<select class="campo" id="campo-rol" name="rol"' + (bloqueado ? ' aria-readonly="true"' : '') + '>' +
+      opciones.map(function (o) {
+        const esElElegido = o[0] === valor;
+        return '<option value="' + o[0] + '"' + (esElElegido ? ' selected' : '') +
+          (bloqueado && !esElElegido ? ' disabled' : '') + '>' + o[1] + '</option>';
+      }).join('') +
     '</select>' +
   '</div>';
 }
