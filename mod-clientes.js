@@ -410,6 +410,9 @@ function abrirFichaContacto(id) {
       '</div>' +
       '<div class="cli-modal-pie">' +
         '<button type="button" class="boton-secundario" id="cli-ficha-editar">Editar</button>' +
+        (cliPuedeSerClienteDePresupuesto(c)
+          ? '<button type="button" class="boton-principal" id="cli-ficha-nuevo-presupuesto">Nuevo presupuesto</button>'
+          : '') +
       '</div>' +
     '</div>';
 
@@ -420,6 +423,23 @@ function abrirFichaContacto(id) {
     fondo.remove();
     abrirFormularioContacto(id);
   });
+  // Presupuestos (mod-presupuestos.js) expone abrirFormularioPresupuesto()
+  // de forma global; si ese módulo aún no está cargado, el botón ni
+  // siquiera se pinta (ver cliPuedeSerClienteDePresupuesto).
+  fondo.querySelector('#cli-ficha-nuevo-presupuesto')?.addEventListener('click', function () {
+    fondo.remove();
+    abrirFormularioPresupuesto(null, { id_cliente_prefill: c.id });
+  });
+}
+
+// Solo contactos activos con rol cliente o "ambos" pueden recibir un
+// presupuesto (mismo filtro que preClientesDisponibles() en
+// mod-presupuestos.js). Si ese módulo todavía no está cargado en esta
+// pantalla, el botón no se ofrece.
+function cliPuedeSerClienteDePresupuesto(c) {
+  if (typeof abrirFormularioPresupuesto !== 'function') return false;
+  if (c.estado !== 'activo') return false;
+  return c.rol === 'cliente' || c.rol === 'ambos';
 }
 
 // ============================================================

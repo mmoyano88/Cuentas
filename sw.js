@@ -12,13 +12,14 @@
  * tirar la copia vieja.
  */
 
-const VERSION = 'cuentas-v14';
+const VERSION = 'cuentas-v15';
 
 const ARCHIVOS = [
   './',
   './index.html',
   './app.css',
   './app.js',
+  './iconos-contacto.js',
   './mod-navegacion.css',
   './mod-navegacion.js',
   './mod-configuracion.css',
