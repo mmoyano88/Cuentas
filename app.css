@@ -271,3 +271,130 @@ main {
   gap: 8px;
   margin-top: 4px;
 }
+
+/* ---------------- Icono de contacto ---------------- */
+/* El círculo con icono blanco sobre gris oscuro, usado en Clientes y
+   reutilizable en cualquier listado futuro que necesite mostrar un
+   contacto (Presupuestos, Facturas...). */
+
+.icono-contacto {
+  border-radius: 50%;
+  background: var(--gris-oscuro);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.icono-contacto svg { width: 55%; height: 55%; stroke: currentColor; }
+
+/* ---------------- Selector de icono (modal) ---------------- */
+
+.selector-icono-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 45;
+}
+
+.selector-icono-caja {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.selector-icono-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--fondo);
+}
+.selector-icono-titulo { font-size: 15px; font-weight: 700; margin: 0; flex: 1; }
+.selector-icono-cerrar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--texto-secundario);
+  cursor: pointer;
+}
+.selector-icono-cerrar:hover { background: var(--fondo); }
+
+.selector-icono-buscador {
+  margin: 12px 16px 8px;
+  height: 40px;
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  padding: 0 12px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.selector-icono-buscador:focus { outline: none; border-color: var(--rojo); }
+
+.selector-icono-cuerpo { overflow-y: auto; padding: 4px 16px 16px; }
+
+.selector-icono-categoria-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--texto-secundario);
+  margin: 14px 0 8px;
+}
+.selector-icono-categoria-titulo:first-child { margin-top: 4px; }
+
+.selector-icono-rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+  gap: 8px;
+}
+
+.selector-icono-opcion {
+  aspect-ratio: 1;
+  border-radius: var(--radio-control);
+  border: 1px solid #D8D8D2;
+  background: var(--superficie);
+  color: var(--texto);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.selector-icono-opcion svg { width: 22px; height: 22px; stroke: currentColor; }
+.selector-icono-opcion:hover { border-color: var(--rojo); }
+.selector-icono-opcion.seleccionado {
+  background: var(--gris-oscuro);
+  border-color: var(--gris-oscuro);
+  color: #FFFFFF;
+}
+
+.selector-icono-vacio {
+  text-align: center;
+  color: var(--texto-secundario);
+  font-size: 13px;
+  padding: 30px 10px;
+}
+
+/* ---- Campo "Icono" dentro de un formulario ---- */
+.campo-icono-elegido {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  padding: 8px 10px;
+  cursor: pointer;
+  background: var(--superficie);
+}
+.campo-icono-elegido:hover { border-color: var(--rojo); }
+.campo-icono-elegido span { font-size: 13px; color: var(--texto-secundario); }
+.campo-icono-elegido .icono-contacto { width: 32px; height: 32px; }

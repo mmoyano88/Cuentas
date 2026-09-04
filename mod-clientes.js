@@ -42,11 +42,15 @@ function cliEtiquetaTipo(codigo) {
   return tipo ? tipo.etiqueta : (codigo || '');
 }
 
-function cliIniciales(contacto) {
-  const texto = (contacto.nombre_contacto || '').trim();
-  if (!texto) return '?';
-  const partes = texto.split(/\s+/);
-  return (partes[0][0] + (partes[1] ? partes[1][0] : '')).toUpperCase();
+// Enlaces "tel:" y "mailto:" — abren la app de teléfono/correo del
+// dispositivo. Sin ellos, se muestra un guion como antes.
+function enlaceTelefono(v) {
+  if (!v) return '—';
+  return '<a href="tel:' + escaparHtml(v.replace(/\s/g, '')) + '" onclick="event.stopPropagation()">' + escaparHtml(v) + '</a>';
+}
+function enlaceMail(v) {
+  if (!v) return '—';
+  return '<a href="mailto:' + escaparHtml(v) + '" onclick="event.stopPropagation()">' + escaparHtml(v) + '</a>';
 }
 
 function cliDireccionLinea(c) {
@@ -234,7 +238,7 @@ function metaLineaMovil(c) {
 
 function renderFilaMovil(c) {
   return '<div class="cli-fila" data-id="' + c.id + '">' +
-    '<div class="cli-avatar">' + escaparHtml(cliIniciales(c)) + '</div>' +
+    htmlIconoContacto(c.icono, 42) +
     '<div class="cli-info">' +
       '<p class="cli-nombre">' + escaparHtml(c.nombre_contacto) + '</p>' +
       '<p class="cli-meta">' + metaLineaMovil(c) + '</p>' +
@@ -247,13 +251,13 @@ function renderFilaMovil(c) {
 
 function renderFilaTabla(c) {
   return '<tr class="cli-fila-tabla" data-id="' + c.id + '">' +
-    '<td><div class="cli-nombre-cell"><div class="cli-avatar" style="width:32px;height:32px;font-size:11px">' + escaparHtml(cliIniciales(c)) + '</div>' +
+    '<td><div class="cli-nombre-cell">' + htmlIconoContacto(c.icono, 32) +
       '<div><div style="font-weight:500">' + escaparHtml(c.nombre_contacto) + (c.estado !== 'activo' ? ' <span class="inactivo">· Inactivo</span>' : '') + '</div>' +
       '<div style="font-size:11px;color:var(--texto-secundario)">' + escaparHtml(c.nombre_fiscal) + '</div></div></div></td>' +
     '<td>' + escaparHtml(c.nif || '—') + '</td>' +
     '<td>' + escaparHtml(cliDireccionLinea(c)) + '</td>' +
-    '<td>' + escaparHtml(c.mail || '—') + '</td>' +
-    '<td>' + escaparHtml(c.telefono || '—') + '</td>' +
+    '<td>' + enlaceMail(c.mail) + '</td>' +
+    '<td>' + enlaceTelefono(c.telefono) + '</td>' +
     '<td><div class="cli-acciones">' +
       '<button type="button" class="cli-btn-icono" data-editar="' + c.id + '" aria-label="Editar"><i class="ti ti-pencil"></i></button>' +
       '<button type="button" class="cli-btn-icono" data-mas="' + c.id + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
@@ -389,7 +393,7 @@ function abrirFichaContacto(id) {
   fondo.innerHTML =
     '<div class="cli-modal">' +
       '<div class="cli-modal-cabecera">' +
-        '<div class="cli-modal-avatar">' + escaparHtml(cliIniciales(c)) + '</div>' +
+        htmlIconoContacto(c.icono, 44) +
         '<div>' +
           '<p class="cli-modal-titulo">' + escaparHtml(c.nombre_contacto) + '</p>' +
           '<p class="cli-modal-subtitulo">' + metaLinea(c) + '</p>' +
@@ -401,14 +405,11 @@ function abrirFichaContacto(id) {
         '<div class="cli-ficha-dato"><span>NIF</span><span>' + escaparHtml(c.nif || '—') + '</span></div>' +
         '<div class="cli-ficha-dato"><span>Dirección</span><span>' + escaparHtml(cliDireccionLinea(c)) + '</span></div>' +
         '<div class="cli-ficha-dato"><span>Provincia</span><span>' + escaparHtml(c.provincia || '—') + '</span></div>' +
-        '<div class="cli-ficha-dato"><span>Email</span><span>' + escaparHtml(c.mail || '—') + '</span></div>' +
-        '<div class="cli-ficha-dato"><span>Teléfono</span><span>' + escaparHtml(c.telefono || '—') + '</span></div>' +
+        '<div class="cli-ficha-dato"><span>Email</span><span>' + enlaceMail(c.mail) + '</span></div>' +
+        '<div class="cli-ficha-dato"><span>Teléfono</span><span>' + enlaceTelefono(c.telefono) + '</span></div>' +
       '</div>' +
       '<div class="cli-modal-pie">' +
         '<button type="button" class="boton-secundario" id="cli-ficha-editar">Editar</button>' +
-        (cliPuedeSerClienteDePresupuesto(c)
-          ? '<button type="button" class="boton-principal" id="cli-ficha-nuevo-presupuesto">Nuevo presupuesto</button>'
-          : '') +
       '</div>' +
     '</div>';
 
@@ -419,23 +420,6 @@ function abrirFichaContacto(id) {
     fondo.remove();
     abrirFormularioContacto(id);
   });
-  // Presupuestos (mod-presupuestos.js) expone abrirFormularioPresupuesto()
-  // de forma global; si ese módulo aún no está cargado, el botón ni
-  // siquiera se pinta (ver cliPuedeSerClienteDePresupuesto).
-  fondo.querySelector('#cli-ficha-nuevo-presupuesto')?.addEventListener('click', function () {
-    fondo.remove();
-    abrirFormularioPresupuesto(null, { id_cliente_prefill: c.id });
-  });
-}
-
-// Solo contactos activos con rol cliente o "ambos" pueden recibir un
-// presupuesto (mismo filtro que preClientesDisponibles() en
-// mod-presupuestos.js). Si ese módulo todavía no está cargado en esta
-// pantalla, el botón no se ofrece.
-function cliPuedeSerClienteDePresupuesto(c) {
-  if (typeof abrirFormularioPresupuesto !== 'function') return false;
-  if (c.estado !== 'activo') return false;
-  return c.rol === 'cliente' || c.rol === 'ambos';
 }
 
 // ============================================================
@@ -450,7 +434,8 @@ function abrirFormularioContacto(id, prefill) {
   const rolForzado = prefill && prefill.rolForzado;
   const datos = Object.assign({
     nombre_contacto: '', nombre_fiscal: '', nif: '', calle: '', numero: '', codigo_postal: '',
-    poblacion: '', provincia: '', telefono: '', mail: '', tipo: '', rol: rolForzado || 'cliente', estado: 'activo'
+    poblacion: '', provincia: '', telefono: '', mail: '', tipo: '', rol: rolForzado || 'cliente',
+    estado: 'activo', icono: ICONO_CONTACTO_DEFECTO
   }, original || {}, prefill && prefill.valores ? prefill.valores : {});
 
   const titulo = editando ? 'Editar contacto' : (datos.rol === 'proveedor' ? 'Nuevo proveedor' : 'Nuevo cliente');
@@ -465,6 +450,7 @@ function abrirFormularioContacto(id, prefill) {
       '</div>' +
       '<div class="cli-modal-cuerpo">' +
         '<form id="cli-form">' +
+          campoIconoContacto(datos.icono) +
           '<div class="cli-form-grid dos-columnas">' +
             campoForm('nombre_contacto', 'Nombre de contacto', datos.nombre_contacto, true) +
             campoForm('nombre_fiscal', 'Nombre fiscal', datos.nombre_fiscal, true) +
@@ -493,20 +479,17 @@ function abrirFormularioContacto(id, prefill) {
   fondo.querySelector('#cli-form-cancelar').addEventListener('click', function () { fondo.remove(); });
 
   const selectRol = fondo.querySelector('#campo-rol');
-  if (rolForzado) {
-    // Bloqueado de verdad (no se puede abrir ni cambiar), pero sin usar
-    // "disabled": así FormData sigue enviando su valor al guardar.
-    // El aspecto (atenuado, cursor de bloqueado) se aplica aquí mismo
-    // porque no depende de ninguna regla CSS de disabled ya existente.
-    selectRol.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
-    selectRol.addEventListener('keydown', function (ev) { ev.preventDefault(); });
-    selectRol.tabIndex = -1;
-    selectRol.style.opacity = '0.6';
-    selectRol.style.cursor = 'not-allowed';
-  }
   selectRol.addEventListener('change', function () {
     actualizarSelectorTipo(fondo, selectRol.value);
     fondo.querySelector('#cli-form-titulo').textContent = editando ? 'Editar contacto' : (selectRol.value === 'proveedor' ? 'Nuevo proveedor' : 'Nuevo cliente');
+  });
+
+  const campoIcono = fondo.querySelector('#campo-icono-elegido');
+  campoIcono.addEventListener('click', async function () {
+    const elegido = await abrirSelectorIcono(campoIcono.dataset.icono);
+    if (!elegido) return;
+    campoIcono.dataset.icono = elegido;
+    campoIcono.innerHTML = htmlIconoContacto(elegido) + '<span>' + escaparHtml(tituloIconoContacto(elegido)) + ' — toca para cambiarlo</span>';
   });
 
   fondo.querySelector('#cli-form').addEventListener('submit', function (ev) {
@@ -520,6 +503,16 @@ function abrirFormularioContacto(id, prefill) {
   }, 50);
 }
 
+function campoIconoContacto(idIcono) {
+  return '<div class="campo-grupo" style="margin-bottom:12px">' +
+    '<label>Icono</label>' +
+    '<div class="campo-icono-elegido" id="campo-icono-elegido" data-icono="' + escaparHtml(idIcono || ICONO_CONTACTO_DEFECTO) + '">' +
+      htmlIconoContacto(idIcono) +
+      '<span>' + escaparHtml(tituloIconoContacto(idIcono || ICONO_CONTACTO_DEFECTO)) + ' — toca para cambiarlo</span>' +
+    '</div>' +
+  '</div>';
+}
+
 function campoForm(clave, etiqueta, valor, requerido, tipo, claseExtra) {
   return '<div class="campo-grupo' + (claseExtra ? ' ' + claseExtra : '') + '">' +
     '<label for="campo-' + clave + '">' + escaparHtml(etiqueta) + (requerido ? ' *' : '') + '</label>' +
@@ -529,24 +522,12 @@ function campoForm(clave, etiqueta, valor, requerido, tipo, claseExtra) {
   '</div>';
 }
 
-// El rol puede venir "fijado" (al crear rápido un cliente o proveedor
-// desde Presupuestos o Facturas). En ese caso se bloquea para que no
-// se pueda cambiar, PERO sin usar el atributo "disabled" en el propio
-// <select>: un <select> deshabilitado no envía su valor al leer el
-// formulario con FormData, así que el contacto se guardaría siempre
-// con el rol vacío. En su lugar, se deja el <select> habilitado pero
-// se deshabilita cada <option> salvo la elegida: el resultado visual
-// es el mismo (no se puede cambiar), pero el valor sí viaja al guardar.
-function selectorRol(valor, bloqueado) {
+function selectorRol(valor, deshabilitado) {
   const opciones = [['cliente', 'Cliente'], ['proveedor', 'Proveedor'], ['ambos', 'Cliente y proveedor']];
   return '<div class="campo-grupo">' +
     '<label for="campo-rol">Rol *</label>' +
-    '<select class="campo" id="campo-rol" name="rol"' + (bloqueado ? ' aria-readonly="true"' : '') + '>' +
-      opciones.map(function (o) {
-        const esElElegido = o[0] === valor;
-        return '<option value="' + o[0] + '"' + (esElElegido ? ' selected' : '') +
-          (bloqueado && !esElElegido ? ' disabled' : '') + '>' + o[1] + '</option>';
-      }).join('') +
+    '<select class="campo" id="campo-rol" name="rol"' + (deshabilitado ? ' disabled' : '') + '>' +
+      opciones.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === valor ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
     '</select>' +
   '</div>';
 }
@@ -604,6 +585,7 @@ async function procesarGuardadoContacto(fondo, id, original, prefill) {
     mail: (fd.get('mail') || '').trim(),
     rol: fd.get('rol'),
     tipo: fd.get('rol') === 'proveedor' ? '' : (fd.get('tipo') || ''),
+    icono: fondo.querySelector('#campo-icono-elegido').dataset.icono || ICONO_CONTACTO_DEFECTO,
     estado: original ? original.estado : 'activo'
   };
   if (original) datos.id = original.id;

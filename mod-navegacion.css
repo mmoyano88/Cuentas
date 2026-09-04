@@ -50,23 +50,23 @@
   .nav-pc {
     display: flex;
     flex-direction: column;
-    width: 240px;
-    flex: 0 0 240px;
+    width: 160px;
+    flex: 0 0 160px;
     background: var(--gris-oscuro);
-    padding: 20px 0;
+    padding: 16px 0;
     position: sticky;
     top: 0;
     height: 100vh;
     box-sizing: border-box;
   }
   .nav-pc .nav-item {
-    gap: 14px;
-    padding: 14px 22px;
+    gap: 10px;
+    padding: 10px 16px;
     color: rgba(255, 255, 255, .7);
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 500;
   }
-  .nav-pc .nav-item i { font-size: 24px; width: 24px; text-align: center; }
+  .nav-pc .nav-item i { font-size: 18px; width: 18px; text-align: center; }
   .nav-pc .nav-item.activa {
     color: #FFFFFF;
     background: rgba(255, 255, 255, .12);
@@ -85,23 +85,23 @@
     left: 0; right: 0; bottom: 0;
     display: flex;
     background: var(--gris-oscuro);
-    padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
+    padding: 6px 0 8px;
     z-index: 20;
   }
   .nav-movil .nav-item {
     flex: 1;
     flex-direction: column;
-    gap: 5px;
-    padding: 6px 0;
+    gap: 3px;
+    padding: 4px 0;
     color: rgba(255, 255, 255, .7);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
   }
-  .nav-movil .nav-item i { font-size: 26px; }
+  .nav-movil .nav-item i { font-size: 20px; }
   .nav-movil .nav-item.activa { color: #FFFFFF; }
 
   /* Hueco para que la barra inferior no tape el final del contenido */
-  main { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+  main { padding-bottom: 84px; }
 }
 
 /* ---- Panel "Más" (hoja que sube desde abajo, solo en móvil) ---- */

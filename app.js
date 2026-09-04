@@ -392,6 +392,93 @@ function mostrarDialogoOpciones(titulo, mensaje, botones) {
 }
 
 // ============================================================
+// 7.2 ICONO DE CONTACTO Y SU SELECTOR
+// ============================================================
+// Requiere que iconos-contacto.js esté cargado (define
+// CATEGORIAS_ICONOS_CONTACTO, ICONO_CONTACTO_DEFECTO y
+// SVG_ICONOS_CONTACTO). Reutilizable por cualquier módulo que
+// muestre contactos: Clientes hoy, Presupuestos/Facturas más
+// adelante.
+
+function svgIconoContacto(id) {
+  const interior = (typeof SVG_ICONOS_CONTACTO !== 'undefined' && SVG_ICONOS_CONTACTO[id])
+    ? SVG_ICONOS_CONTACTO[id]
+    : (typeof SVG_ICONOS_CONTACTO !== 'undefined' ? SVG_ICONOS_CONTACTO[ICONO_CONTACTO_DEFECTO] : '');
+  return '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + interior + '</svg>';
+}
+
+// Devuelve el HTML del círculo con icono, listo para insertar en
+// cualquier lista o ficha. `tamano` es opcional (por defecto hereda
+// del CSS, ver .icono-contacto).
+function htmlIconoContacto(idIcono, tamanoPx) {
+  const estilo = tamanoPx ? ' style="width:' + tamanoPx + 'px;height:' + tamanoPx + 'px"' : '';
+  return '<div class="icono-contacto"' + estilo + '>' + svgIconoContacto(idIcono || ICONO_CONTACTO_DEFECTO) + '</div>';
+}
+
+function tituloIconoContacto(id) {
+  for (const cat of CATEGORIAS_ICONOS_CONTACTO) {
+    const encontrado = cat.iconos.find(function (i) { return i.id === id; });
+    if (encontrado) return encontrado.titulo;
+  }
+  return 'Icono';
+}
+
+// Abre el selector y devuelve una promesa con el id elegido, o null
+// si se cierra sin elegir nada.
+function abrirSelectorIcono(idActual) {
+  return new Promise(function (resolve) {
+    const fondo = document.createElement('div');
+    fondo.className = 'selector-icono-fondo';
+    fondo.innerHTML =
+      '<div class="selector-icono-caja">' +
+        '<div class="selector-icono-cabecera">' +
+          '<p class="selector-icono-titulo">Elegir icono</p>' +
+          '<button type="button" class="selector-icono-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>' +
+        '</div>' +
+        '<input type="text" class="selector-icono-buscador" placeholder="Buscar (ej. taller, fotografía, ayuntamiento...)">' +
+        '<div class="selector-icono-cuerpo" id="selector-icono-cuerpo"></div>' +
+      '</div>';
+    document.body.appendChild(fondo);
+
+    function cerrar(valor) { fondo.remove(); resolve(valor); }
+    fondo.addEventListener('click', function (ev) { if (ev.target === fondo) cerrar(null); });
+    fondo.querySelector('.selector-icono-cerrar').addEventListener('click', function () { cerrar(null); });
+
+    function pintar(filtro) {
+      const cuerpo = fondo.querySelector('#selector-icono-cuerpo');
+      const texto = normalizarBusqueda(filtro || '');
+      let huboResultados = false;
+      let html = '';
+
+      CATEGORIAS_ICONOS_CONTACTO.forEach(function (cat) {
+        const iconosFiltrados = !texto ? cat.iconos : cat.iconos.filter(function (i) {
+          return normalizarBusqueda(i.titulo + ' ' + i.buscar + ' ' + i.id).indexOf(texto) !== -1;
+        });
+        if (iconosFiltrados.length === 0) return;
+        huboResultados = true;
+        html += '<p class="selector-icono-categoria-titulo">' + escaparHtml(cat.nombre) + '</p>';
+        html += '<div class="selector-icono-rejilla">';
+        html += iconosFiltrados.map(function (i) {
+          return '<button type="button" class="selector-icono-opcion' + (i.id === idActual ? ' seleccionado' : '') +
+            '" data-icono="' + i.id + '" title="' + escaparHtml(i.titulo) + '">' + svgIconoContacto(i.id) + '</button>';
+        }).join('');
+        html += '</div>';
+      });
+
+      cuerpo.innerHTML = huboResultados ? html : '<p class="selector-icono-vacio">Sin resultados para esa búsqueda.</p>';
+      cuerpo.querySelectorAll('[data-icono]').forEach(function (b) {
+        b.addEventListener('click', function () { cerrar(b.dataset.icono); });
+      });
+    }
+
+    pintar('');
+    const buscador = fondo.querySelector('.selector-icono-buscador');
+    buscador.addEventListener('input', function () { pintar(buscador.value); });
+    setTimeout(function () { buscador.focus(); }, 50);
+  });
+}
+
+// ============================================================
 // 8. SINCRONIZACIÓN
 // ============================================================
 
