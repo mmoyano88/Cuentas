@@ -178,6 +178,12 @@
 .ct-tabla tr.ct-fila-tabla:hover td { background: var(--fondo); }
 
 .ct-celda-derecha { text-align: right; white-space: nowrap; }
+/* La regla general ".ct-tabla th" alinea a la izquierda y, por ser
+   más específica, ganaba a la clase de arriba: los títulos Base/IVA/
+   IRPF/Total se quedaban a la izquierda mientras sus cifras iban a la
+   derecha, y la tabla se veía descuadrada. Con esto van igual. */
+.ct-tabla th.ct-celda-derecha,
+.ct-tabla td.ct-celda-derecha { text-align: right; }
 .ct-celda-concepto { max-width: 320px; }
 .ct-concepto-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ct-importe.ingreso { color: var(--verde-texto); }

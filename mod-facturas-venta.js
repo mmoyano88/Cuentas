@@ -121,7 +121,7 @@ function fvClientesDisponibles() {
     if (!estado.modoPrueba && esDePrueba(c)) return false;
     return true;
   }).sort(function (a, b) {
-    return (a.nombre_contacto || '').localeCompare(b.nombre_contacto || '', 'es');
+    return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
   });
 }
 
@@ -640,7 +640,7 @@ function fvTrimestreDeFecha(iso) {
 // Impuestos y Dashboard verían el apunte a cero.
 async function fvCrearApunteCobro(factura) {
   const existente = fvApunteDe(factura.id);
-  const fecha = factura.fecha_cobro || fechaHoyISO();
+  const fecha = normalizarFecha(factura.fecha_cobro || fechaHoyISO());
   const registro = {
     id: existente ? existente.id : fvNuevoId('apu'),
     ambito: 'empresa',
@@ -873,7 +873,7 @@ function abrirFormularioFacturaVenta(id, prefill) {
   if (editando) {
     const existentes = fvLineasDe(id);
     fvLineasForm = existentes.length
-      ? existentes.map(function (l) { return { id: l.id, descripcion: l.descripcion || '', importe: parsearNumero(l.importe) }; })
+      ? existentes.map(function (l) { return { id: l.id, descripcion: String(l.descripcion || ''), importe: parsearNumero(l.importe) }; })
       : [fvLineaVacia()];
   } else if (prefill && prefill.subtotal !== undefined) {
     fvLineasForm = [{ id: '', descripcion: datos.concepto || 'Importe factura', importe: parsearNumero(prefill.subtotal) }];
@@ -1176,12 +1176,12 @@ function fvProcesarGuardado(fondo, original, prefill) {
 
   // Líneas: todas con descripción, al menos una con datos reales.
   const lineasValidas = fvLineasForm.filter(function (l) {
-    return (l.descripcion && l.descripcion.trim()) || parsearNumero(l.importe) > 0;
+    return String(l.descripcion || '').trim() !== '' || parsearNumero(l.importe) > 0;
   });
   if (!lineasValidas.length) {
     alert('Añade al menos una línea con descripción e importe.');
     valido = false;
-  } else if (lineasValidas.some(function (l) { return !l.descripcion || !l.descripcion.trim(); })) {
+  } else if (lineasValidas.some(function (l) { return String(l.descripcion || '').trim() === ''; })) {
     alert('Todas las líneas deben tener una descripción.');
     valido = false;
   }
@@ -1243,7 +1243,7 @@ function fvProcesarGuardado(fondo, original, prefill) {
     return {
       id: l.id || '',
       orden: i + 1,
-      descripcion: l.descripcion.trim(),
+      descripcion: String(l.descripcion || '').trim(),
       importe: roundMoney(parsearNumero(l.importe))
     };
   });

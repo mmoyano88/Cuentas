@@ -84,7 +84,7 @@ function fcProveedoresDisponibles() {
     if (!estado.modoPrueba && esDePrueba(c)) return false;
     return true;
   }).sort(function (a, b) {
-    return (a.nombre_contacto || '').localeCompare(b.nombre_contacto || '', 'es');
+    return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
   });
 }
 
@@ -498,7 +498,7 @@ function fcApunteDe(idFactura) {
 
 async function fcCrearApuntePago(factura) {
   const existente = fcApunteDe(factura.id);
-  const fecha = factura.fecha_pago || fechaHoyISO();
+  const fecha = normalizarFecha(factura.fecha_pago || fechaHoyISO());
   const registro = {
     id: existente ? existente.id : fcNuevoId('apu'),
     ambito: 'empresa',

@@ -224,6 +224,12 @@
 
 .fv-celda-numero { font-weight: 500; white-space: nowrap; }
 .fv-celda-derecha { text-align: right; white-space: nowrap; }
+/* La regla general ".fv-tabla th" alinea a la izquierda y, por ser
+   más específica, ganaba a la clase de arriba: los títulos Base/IVA/
+   IRPF/Total se quedaban a la izquierda mientras sus cifras iban a la
+   derecha, y la tabla se veía descuadrada. Con esto van igual. */
+.fv-tabla th.fv-celda-derecha,
+.fv-tabla td.fv-celda-derecha { text-align: right; }
 .fv-celda-concepto { max-width: 280px; }
 .fv-concepto-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

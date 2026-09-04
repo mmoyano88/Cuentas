@@ -44,13 +44,19 @@ function cliEtiquetaTipo(codigo) {
 
 // Enlaces "tel:" y "mailto:" — abren la app de teléfono/correo del
 // dispositivo. Sin ellos, se muestra un guion como antes.
+// ⚠️ Google Sheets devuelve un teléfono como NÚMERO (666777999), no
+// como texto. Un número no tiene .replace(), así que sin este String()
+// la función reventaba y se llevaba por delante el pintado de toda la
+// lista y de la barra de navegación. Ver diario, 04/09/2026.
 function enlaceTelefono(v) {
   if (!v) return '—';
-  return '<a href="tel:' + escaparHtml(v.replace(/\s/g, '')) + '" onclick="event.stopPropagation()">' + escaparHtml(v) + '</a>';
+  const texto = String(v);
+  return '<a href="tel:' + escaparHtml(texto.replace(/\s/g, '')) + '" onclick="event.stopPropagation()">' + escaparHtml(texto) + '</a>';
 }
 function enlaceMail(v) {
   if (!v) return '—';
-  return '<a href="mailto:' + escaparHtml(v) + '" onclick="event.stopPropagation()">' + escaparHtml(v) + '</a>';
+  const texto = String(v);
+  return '<a href="mailto:' + escaparHtml(texto) + '" onclick="event.stopPropagation()">' + escaparHtml(texto) + '</a>';
 }
 
 function cliDireccionLinea(c) {
@@ -65,7 +71,7 @@ function normaliseNif(v) {
 
 function cliContactosActivosOrdenados() {
   return estado.clientes.slice().sort(function (a, b) {
-    return (a.nombre_contacto || '').localeCompare(b.nombre_contacto || '', 'es');
+    return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
   });
 }
 

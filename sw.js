@@ -12,7 +12,7 @@
  * tirar la copia vieja.
  */
 
-const VERSION = 'cuentas-v16';
+const VERSION = 'cuentas-v17';
 
 const ARCHIVOS = [
   './',

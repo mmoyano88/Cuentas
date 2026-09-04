@@ -222,6 +222,12 @@
 
 .pre-celda-numero { font-weight: 500; white-space: nowrap; }
 .pre-celda-derecha { text-align: right; white-space: nowrap; }
+/* La regla general ".pre-tabla th" alinea a la izquierda y, por ser
+   más específica, ganaba a la clase de arriba: los títulos Base/IVA/
+   IRPF/Total se quedaban a la izquierda mientras sus cifras iban a la
+   derecha, y la tabla se veía descuadrada. Con esto van igual. */
+.pre-tabla th.pre-celda-derecha,
+.pre-tabla td.pre-celda-derecha { text-align: right; }
 .pre-celda-concepto { max-width: 280px; }
 .pre-concepto-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

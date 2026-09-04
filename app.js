@@ -105,7 +105,25 @@ function pintarVistaActiva() {
   if (!vistaActiva || !vistas[vistaActiva]) return;
   const titulo = document.getElementById('titulo-pantalla');
   if (titulo) titulo.textContent = vistas[vistaActiva].titulo;
-  vistas[vistaActiva].pintar();
+
+  // Protegido a propósito: si el pintado de una pantalla falla (por
+  // ejemplo, por un dato con un formato inesperado), el error se queda
+  // aquí y no impide que se repinte la barra de navegación, que se
+  // pinta justo después de llamar a esta función. Antes, un fallo en
+  // una pantalla dejaba la app entera inutilizable, sin menú y sin
+  // forma de salir de esa sección. Ver diario, 04/09/2026.
+  try {
+    vistas[vistaActiva].pintar();
+  } catch (err) {
+    console.error('Error al pintar la vista "' + vistaActiva + '":', err);
+    const contenido = document.getElementById('contenido');
+    if (contenido) {
+      contenido.innerHTML =
+        '<div class="proximamente"><i class="ti ti-alert-triangle"></i>' +
+        '<p>No se ha podido mostrar esta pantalla por un problema con algún dato.<br>' +
+        'Puedes seguir usando el resto de la app desde el menú.</p></div>';
+    }
+  }
 }
 
 function cambiarVista(id) {

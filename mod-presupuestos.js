@@ -253,7 +253,7 @@ function preClientesDisponibles() {
     if (!estado.modoPrueba && esDePrueba(c)) return false;
     return true;
   }).sort(function (a, b) {
-    return (a.nombre_contacto || '').localeCompare(b.nombre_contacto || '', 'es');
+    return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
   });
 }
 
