@@ -549,7 +549,7 @@ function preRepintarLista() {
 
 function preRenderFilaMovil(p) {
   return '<div class="pre-fila" data-id="' + escaparHtml(p.id) + '">' +
-    '<div class="pre-avatar">' + escaparHtml(preIniciales(p.cliente)) + '</div>' +
+    htmlIconoContacto((preClienteDe(p) || {}).icono, 42) +
     '<div class="pre-info">' +
       '<p class="pre-nombre">' + escaparHtml(p.cliente || '—') + '</p>' +
       '<p class="pre-meta">' + escaparHtml(p.numero || '—') + ' · ' + escaparHtml(mostrarFecha(p.fecha)) + '</p>' +
@@ -798,7 +798,7 @@ function abrirFichaPresupuesto(id) {
   fondo.innerHTML =
     '<div class="pre-modal ancho">' +
       '<div class="pre-modal-cabecera">' +
-        '<div class="pre-modal-avatar">' + escaparHtml(preIniciales(p.cliente)) + '</div>' +
+        htmlIconoContacto((preClienteDe(p) || {}).icono, 44) +
         '<div class="pre-modal-texto">' +
           '<p class="pre-modal-titulo">' + escaparHtml(p.numero || 'Presupuesto') + '</p>' +
           '<p class="pre-modal-subtitulo">' + escaparHtml(p.cliente || '—') + ' · ' + escaparHtml(mostrarFecha(p.fecha)) + '</p>' +

@@ -341,7 +341,7 @@ function fvRepintarLista() {
 function fvRenderFilaMovil(f) {
   const inactiva = !fvEstaActiva(f);
   return '<div class="fv-fila' + (inactiva ? ' fv-fila-inactiva' : '') + '" data-id="' + escaparHtml(f.id) + '">' +
-    '<div class="fv-avatar">' + escaparHtml(fvIniciales(f.cliente)) + '</div>' +
+    htmlIconoContacto((fvClienteDe(f) || {}).icono, 42) +
     '<div class="fv-info">' +
       '<p class="fv-nombre">' + escaparHtml(f.cliente || '—') + '</p>' +
       '<p class="fv-meta">' + escaparHtml(f.numero || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + (inactiva ? ' · Inactiva' : '') + '</p>' +
@@ -687,7 +687,7 @@ function abrirFichaFacturaVenta(id) {
   fondo.innerHTML =
     '<div class="fv-modal ancho">' +
       '<div class="fv-modal-cabecera">' +
-        '<div class="fv-modal-avatar">' + escaparHtml(fvIniciales(f.cliente)) + '</div>' +
+        htmlIconoContacto((fvClienteDe(f) || {}).icono, 44) +
         '<div class="fv-modal-texto">' +
           '<p class="fv-modal-titulo">' + escaparHtml(f.numero || 'Factura') + (activa ? '' : ' · Inactiva') + '</p>' +
           '<p class="fv-modal-subtitulo">' + escaparHtml(f.cliente || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + '</p>' +
@@ -1368,3 +1368,30 @@ registrarVista('facturas', {
   titulo: 'Facturas',
   pintar: pintarFacturas
 });
+
+// ============================================================
+// 12. RED DE SEGURIDAD (mapa 11.6) — reconciliador de apuntes
+// ============================================================
+// En cada sincronización general, revisa las facturas de venta
+// pagadas y activas y crea el apunte de cualquiera que se haya
+// quedado sin él (por ejemplo, si la factura se guardó bien pero la
+// llamada que crea el apunte falló justo después). Se engancha al
+// mecanismo `reconciliadores` que ya existe en el núcleo (app.js) sin
+// tocar ese archivo: cualquier módulo puede registrar el suyo.
+
+async function fvReconciliarApuntesCobro() {
+  const pagadasActivas = estado.ventas.filter(function (f) {
+    return fvEstaActiva(f) && String(f.estado) === 'pagada';
+  });
+  for (const f of pagadasActivas) {
+    if (!fvApunteDe(f.id)) {
+      try {
+        await fvCrearApunteCobro(f);
+      } catch (err) {
+        console.error('Reconciliación: no se pudo crear el apunte de la factura ' + f.numero, err);
+      }
+    }
+  }
+}
+
+reconciliadores.push(fvReconciliarApuntesCobro);

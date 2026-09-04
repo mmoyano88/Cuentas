@@ -259,7 +259,6 @@ function renderFilaTabla(c) {
     '<td>' + enlaceMail(c.mail) + '</td>' +
     '<td>' + enlaceTelefono(c.telefono) + '</td>' +
     '<td><div class="cli-acciones">' +
-      '<button type="button" class="cli-btn-icono" data-editar="' + c.id + '" aria-label="Editar"><i class="ti ti-pencil"></i></button>' +
       '<button type="button" class="cli-btn-icono" data-mas="' + c.id + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
     '</div></td>' +
   '</tr>';
@@ -271,13 +270,6 @@ function cablearFilas(contenedor) {
     fila.addEventListener('click', function (ev) {
       if (ev.target.closest('.cli-acciones')) return;
       abrirFichaContacto(fila.dataset.id);
-    });
-  });
-
-  contenedor.querySelectorAll('[data-editar]').forEach(function (b) {
-    b.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      abrirFormularioContacto(b.dataset.editar);
     });
   });
 
@@ -302,7 +294,8 @@ function abrirMenuMas(boton, id) {
   const menu = document.createElement('div');
   menu.className = 'cli-menu-mas';
   menu.innerHTML = contacto.estado === 'activo'
-    ? '<button type="button" data-accion="desactivar">Desactivar</button>'
+    ? '<button type="button" data-accion="editar">Editar</button>' +
+      '<button type="button" data-accion="desactivar">Desactivar</button>'
     : '<button type="button" data-accion="reactivar">Reactivar</button>' +
       '<button type="button" class="peligro" data-accion="eliminar">Eliminar definitivamente</button>';
 
@@ -317,6 +310,7 @@ function abrirMenuMas(boton, id) {
     if (!menu.contains(ev.target)) cerrarMenu();
   }
 
+  menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); abrirFormularioContacto(id); });
   menu.querySelector('[data-accion="desactivar"]')?.addEventListener('click', function () { cerrarMenu(); cambiarEstadoContacto(id, 'inactivo'); });
   menu.querySelector('[data-accion="reactivar"]')?.addEventListener('click', function () { cerrarMenu(); cambiarEstadoContacto(id, 'activo'); });
   menu.querySelector('[data-accion="eliminar"]')?.addEventListener('click', function () { cerrarMenu(); eliminarContactoDefinitivo(id); });

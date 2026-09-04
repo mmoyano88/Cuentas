@@ -88,6 +88,12 @@ function fcProveedoresDisponibles() {
   });
 }
 
+// Busca el contacto real del proveedor (para su icono; el nombre/nif
+// de la factura ya van congelados, pero el icono se lee en vivo).
+function fcProveedorDe(f) {
+  return estado.clientes.find(function (c) { return String(c.id) === String(f.id_proveedor); }) || null;
+}
+
 function fcTextoBusqueda(f) {
   return normalizarBusqueda([
     f.numero, f.proveedor, f.nif, f.concepto, mostrarFecha(f.fecha), f.estado,
@@ -260,7 +266,7 @@ function fcRepintarLista() {
 function fcRenderFilaMovil(f) {
   const inactiva = !fcEstaActiva(f);
   return '<div class="fv-fila' + (inactiva ? ' fv-fila-inactiva' : '') + '" data-id="' + escaparHtml(f.id) + '">' +
-    '<div class="fv-avatar">' + escaparHtml(fvIniciales(f.proveedor)) + '</div>' +
+    htmlIconoContacto((fcProveedorDe(f) || {}).icono, 42) +
     '<div class="fv-info">' +
       '<p class="fv-nombre">' + escaparHtml(f.proveedor || '—') + '</p>' +
       '<p class="fv-meta">' + escaparHtml(f.numero || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + (inactiva ? ' · Inactiva' : '') + '</p>' +
@@ -538,7 +544,7 @@ function abrirFichaFacturaCompra(id) {
   fondo.innerHTML =
     '<div class="fv-modal">' +
       '<div class="fv-modal-cabecera">' +
-        '<div class="fv-modal-avatar">' + escaparHtml(fvIniciales(f.proveedor)) + '</div>' +
+        htmlIconoContacto((fcProveedorDe(f) || {}).icono, 44) +
         '<div class="fv-modal-texto">' +
           '<p class="fv-modal-titulo">' + escaparHtml(f.numero || 'Factura') + (activa ? '' : ' · Inactiva') + '</p>' +
           '<p class="fv-modal-subtitulo">' + escaparHtml(f.proveedor || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + '</p>' +
@@ -954,3 +960,27 @@ function fcReponerLocal(registro) {
   else estado.compras.push(registro);
   guardarEntidadLocal('compras');
 }
+
+// ============================================================
+// RED DE SEGURIDAD (mapa 11.6) — reconciliador de apuntes
+// ============================================================
+// Mismo mecanismo que en Facturas de venta: en cada sincronización
+// general, crea el apunte de pago de cualquier factura de compra
+// pagada y activa que se haya quedado sin él.
+
+async function fcReconciliarApuntesPago() {
+  const pagadasActivas = estado.compras.filter(function (f) {
+    return fcEstaActiva(f) && String(f.estado) === 'pagada';
+  });
+  for (const f of pagadasActivas) {
+    if (!fcApunteDe(f.id)) {
+      try {
+        await fcCrearApuntePago(f);
+      } catch (err) {
+        console.error('Reconciliación: no se pudo crear el apunte de la factura ' + f.numero, err);
+      }
+    }
+  }
+}
+
+reconciliadores.push(fcReconciliarApuntesPago);

@@ -1,0 +1,412 @@
+/* ============================================================
+   MÓDULO APUNTES / CONTABILIDAD — estilos propios
+   Mismo patrón de lista+ficha que Clientes, Presupuestos y Facturas.
+   Diferencia a propósito: sin círculo de icono en las filas (decisión
+   04/09/2026) — en su lugar, el importe total va coloreado según sea
+   ingreso o gasto, que es el dato que más importa de un vistazo.
+   ============================================================ */
+
+/* ---- Cabecera: buscador + filtro ---- */
+.ct-barra {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0;
+}
+.ct-buscador {
+  flex: 1;
+  height: 40px;
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  padding: 0 12px;
+  font-size: 13px;
+  font-family: inherit;
+  background: var(--superficie);
+  color: var(--texto);
+}
+.ct-buscador:focus { outline: none; border-color: var(--rojo); }
+
+.ct-btn-filtro {
+  width: 40px;
+  height: 40px;
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  background: var(--superficie);
+  color: var(--texto-secundario);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ct-btn-filtro.con-filtro { border-color: var(--rojo); color: var(--rojo); }
+
+.ct-filtros-panel {
+  position: absolute;
+  right: 0;
+  top: 46px;
+  background: var(--superficie);
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-tarjeta);
+  padding: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .1);
+  z-index: 15;
+  min-width: 220px;
+  display: none;
+}
+.ct-filtros-panel.abierto { display: block; }
+.ct-filtros-panel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--texto);
+}
+.ct-filtros-panel button:hover { background: var(--fondo); }
+.ct-filtros-panel button.activa { color: var(--rojo); font-weight: 600; }
+
+.ct-filtros-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  text-transform: uppercase;
+  margin: 6px 0 2px;
+  padding: 0 10px;
+}
+.ct-filtros-titulo:first-child { margin-top: 0; }
+
+.ct-flotante {
+  position: fixed;
+  right: 20px;
+  bottom: calc(112px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--rojo);
+  color: #FFFFFF;
+  border: none;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(211, 47, 47, .4);
+  z-index: 15;
+}
+@media (min-width: 900px) {
+  .ct-flotante { position: static; box-shadow: none; width: 40px; height: 40px; font-size: 18px; }
+}
+.ct-cabecera-lista {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ---- Lista, móvil: tarjetas (sin icono de contacto) ---- */
+.ct-lista-movil { display: flex; flex-direction: column; gap: 8px; }
+
+.ct-fila {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.ct-info { flex: 1; min-width: 0; }
+.ct-nombre {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-meta {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: 1px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-etiqueta-ambito {
+  font-size: 11px;
+  color: var(--texto-secundario);
+}
+
+.ct-derecha {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.ct-total-fila { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.ct-total-fila.ingreso { color: var(--verde-texto); }
+.ct-total-fila.gasto { color: var(--rojo-texto); }
+
+/* ---- Lista, PC: tabla ---- */
+.ct-tabla-wrap { display: none; }
+.ct-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  overflow: hidden;
+}
+.ct-tabla th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  text-transform: uppercase;
+  padding: 10px 14px;
+  background: var(--gris-neutro);
+  white-space: nowrap;
+}
+.ct-tabla td {
+  padding: 10px 14px;
+  font-size: 13px;
+  border-top: 1px solid var(--fondo);
+  vertical-align: middle;
+}
+.ct-tabla tr.ct-fila-tabla { cursor: pointer; }
+.ct-tabla tr.ct-fila-tabla:hover td { background: var(--fondo); }
+
+.ct-celda-derecha { text-align: right; white-space: nowrap; }
+.ct-celda-concepto { max-width: 320px; }
+.ct-concepto-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-importe.ingreso { color: var(--verde-texto); }
+.ct-importe.gasto { color: var(--rojo-texto); }
+
+@media (min-width: 900px) {
+  .ct-lista-movil { display: none; }
+  .ct-tabla-wrap { display: block; }
+}
+
+/* ---- Acciones (fila) ---- */
+.ct-acciones { position: relative; display: flex; align-items: center; gap: 4px; }
+.ct-btn-icono {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.ct-btn-icono:hover { background: var(--fondo); }
+
+.ct-menu-mas {
+  position: fixed;
+  background: var(--superficie);
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
+  min-width: 190px;
+  z-index: 25;
+  overflow: hidden;
+}
+.ct-menu-mas button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--texto);
+}
+.ct-menu-mas button:hover { background: var(--fondo); }
+.ct-menu-mas button.peligro { color: var(--rojo-texto); }
+.ct-menu-mas button:disabled { color: #A8A8A2; cursor: default; }
+.ct-menu-mas button:disabled:hover { background: none; }
+
+.ct-vacio {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--texto-secundario);
+  font-size: 13px;
+}
+
+.ct-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.ct-punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.ct-punto.ok        { background: #3E9E4E; }
+.ct-punto.guardando { background: #E0A32E; }
+.ct-punto.error     { background: var(--rojo); }
+.ct-punto.prueba    { background: #B8B6AC; }
+
+/* ---- Modales (misma capa 40 que el resto de la app) ---- */
+.ct-modal-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 40;
+}
+.ct-modal {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ct-modal-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--fondo);
+}
+.ct-modal-cabecera > .ct-modal-texto { flex: 1; min-width: 0; }
+.ct-modal-titulo { font-size: 17px; font-weight: 700; margin: 0; }
+.ct-modal-subtitulo { font-size: 12px; color: var(--texto-secundario); margin: 2px 0 0; }
+.ct-modal-cerrar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ct-modal-cerrar:hover { background: var(--fondo); }
+
+.ct-modal-cuerpo { padding: 16px 20px; overflow-y: auto; }
+
+.ct-modal-pie {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--fondo);
+}
+.ct-modal-pie .boton-principal,
+.ct-modal-pie .boton-secundario { flex: 1; }
+
+/* ---- Ficha de detalle ---- */
+.ct-ficha-dato {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  font-size: 13px;
+  border-top: 1px solid var(--fondo);
+}
+.ct-ficha-dato:first-child { border-top: none; }
+.ct-ficha-dato span:first-child { color: var(--texto-secundario); flex: 0 0 auto; }
+.ct-ficha-dato span:last-child { text-align: right; }
+
+.ct-bloque {
+  background: var(--fondo);
+  border-radius: var(--radio-tarjeta);
+  padding: 14px 16px;
+  margin-top: 14px;
+}
+.ct-bloque-titulo { margin: 0 0 8px; font-size: 15px; font-weight: 500; }
+
+.ct-linea {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--texto-secundario);
+  padding: 4px 0;
+}
+.ct-linea strong { color: var(--texto); font-weight: 500; text-align: right; }
+
+.ct-total-final {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  border-top: 1px solid #E2E2DC;
+  margin-top: 8px;
+  padding-top: 10px;
+}
+.ct-total-final span { font-size: 13px; font-weight: 500; }
+.ct-total-final strong { font-size: 22px; font-weight: 500; }
+.ct-total-final strong.ingreso { color: var(--verde-texto); }
+.ct-total-final strong.gasto { color: var(--rojo-texto); }
+
+.ct-aviso {
+  font-size: 12px;
+  background: var(--ambar-fondo);
+  color: var(--ambar-texto);
+  border-radius: var(--radio-control);
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+
+/* ---- Formulario ---- */
+.ct-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 480px) {
+  .ct-form-grid.dos-columnas { grid-template-columns: 1fr 1fr; }
+}
+
+.ct-campo-grupo { display: flex; flex-direction: column; gap: 4px; }
+.ct-campo-grupo.ancho-total { grid-column: 1 / -1; }
+.ct-campo-grupo label { font-size: 12px; color: var(--texto-secundario); }
+
+.ct-mensaje-error {
+  font-size: 11px;
+  color: var(--rojo-texto);
+  margin: 3px 0 0;
+}
+.ct-campo-error { border-color: var(--rojo) !important; }
+
+.ct-selector {
+  display: inline-flex;
+  background: var(--gris-neutro);
+  border-radius: 20px;
+  padding: 3px;
+  gap: 2px;
+  grid-column: 1 / -1;
+}
+.ct-selector button {
+  flex: 1;
+  border: none;
+  background: none;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  cursor: pointer;
+}
+.ct-selector button.activa { background: var(--superficie); color: var(--texto); }
+.ct-selector button.activa.ingreso { color: var(--verde-texto); }
+.ct-selector button.activa.gasto { color: var(--rojo-texto); }

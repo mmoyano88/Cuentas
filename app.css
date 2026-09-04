@@ -32,6 +32,13 @@
 
 * { box-sizing: border-box; }
 
+/* Fallo reportado (04/09/2026): al tocar una fila en móvil quedaba un
+   marco/fondo azul pegado encima de la ventana emergente que se abría
+   después. Es el resaltado táctil por defecto de Chrome/Android
+   (-webkit-tap-highlight-color), que no respeta el z-index normal de
+   la página. Se quita en toda la app. */
+* { -webkit-tap-highlight-color: transparent; }
+
 html, body {
   margin: 0;
   min-height: 100%;

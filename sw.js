@@ -32,6 +32,8 @@ const ARCHIVOS = [
   './mod-facturas-venta.js',
   './mod-facturas-compra.css',
   './mod-facturas-compra.js',
+  './mod-contabilidad.css',
+  './mod-contabilidad.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
