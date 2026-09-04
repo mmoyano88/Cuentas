@@ -27,7 +27,8 @@
 // 0. ESTADO PROPIO DEL MÓDULO
 // ============================================================
 
-let ctFiltroAmbito = 'todo';   // 'todo' | 'empresa' | 'personal' | 'ingresos' | 'gastos'
+let ctFiltroTipo = 'todos';     // 'todos' | 'ingreso' | 'gasto'
+let ctFiltroAmbito = 'todos';   // 'todos' | 'empresa' | 'personal'
 let ctOrden = 'fecha-desc';
 let ctBusqueda = '';
 
@@ -57,6 +58,24 @@ const CT_PUNTOS = {
 function ctPuntoEstado(a) {
   const info = CT_PUNTOS[ctEstadoSync(a)] || CT_PUNTOS.ok;
   return '<span class="ct-punto ' + info.clase + '" title="' + escaparHtml(info.titulo) + '"></span>';
+}
+
+// Círculo visual del apunte (decisión 04/09/2026, sustituye a "sin
+// icono" de la sesión anterior): el COLOR de fondo dice si es ingreso
+// (verde) o gasto (rojo); el ICONO de dentro dice si es de empresa
+// (calculadora) o personal (persona). Se ve igual en PC y en Android.
+function ctCirculoTipo(a, tamanoPx) {
+  const tam = tamanoPx || 42;
+  const esIngreso = a.tipo === 'ingreso';
+  const esPersonal = a.ambito === 'personal';
+  const fondo = esIngreso ? '#3E9E4E' : 'var(--rojo)';
+  const claseIcono = esPersonal ? 'ti-user' : 'ti-calculator';
+  const tituloTipo = esIngreso ? 'Ingreso' : 'Gasto';
+  const tituloAmbito = esPersonal ? 'personal' : 'de empresa';
+
+  return '<div class="ct-circulo" style="width:' + tam + 'px;height:' + tam + 'px;background:' + fondo + ';font-size:' + Math.round(tam * 0.5) + 'px" ' +
+    'title="' + escaparHtml(tituloTipo + ' ' + tituloAmbito) + '">' +
+    '<i class="ti ' + claseIcono + '"></i></div>';
 }
 
 // ============================================================
@@ -159,7 +178,7 @@ function pintarContabilidad() {
     '</div>' +
     '<div class="ct-barra" style="position:relative">' +
       '<input type="text" class="ct-buscador" id="ct-buscador" placeholder="Buscar..." value="' + escaparHtml(ctBusqueda) + '">' +
-      '<button type="button" class="ct-btn-filtro' + ((ctFiltroAmbito !== 'todo') ? ' con-filtro' : '') + '" id="ct-btn-filtro"><i class="ti ti-filter"></i></button>' +
+      '<button type="button" class="ct-btn-filtro' + ((ctFiltroTipo !== 'todos' || ctFiltroAmbito !== 'todos') ? ' con-filtro' : '') + '" id="ct-btn-filtro"><i class="ti ti-filter"></i></button>' +
       ctRenderFiltrosPanel() +
     '</div>' +
     '<div id="ct-lista-contenedor"></div>';
@@ -171,18 +190,25 @@ function pintarContabilidad() {
 }
 
 function ctRenderFiltrosPanel() {
-  const ambitos = [
-    ['todo', 'Todo'], ['empresa', 'Empresa'], ['personal', 'Personal'],
-    ['ingresos', 'Ingresos'], ['gastos', 'Gastos']
-  ];
+  const tipos = [['todos', 'Todos'], ['ingreso', 'Ingresos'], ['gasto', 'Gastos']];
+  const ambitos = [['todos', 'Todos'], ['empresa', 'Empresa'], ['personal', 'Personal']];
   const ordenes = [
     ['fecha-desc', 'Fecha (más nuevo primero)'],
     ['fecha-asc', 'Fecha (más antiguo primero)'],
     ['total-desc', 'Importe (mayor primero)']
   ];
 
+  // Tipo y Ámbito son dos filtros independientes que se combinan entre
+  // sí (no son pestañas excluyentes entre ellos): se puede marcar
+  // "Ingresos" y "Empresa" a la vez para ver solo los ingresos de
+  // empresa, por ejemplo.
   return '<div class="ct-filtros-panel" id="ct-filtros-panel">' +
-    '<p class="ct-filtros-titulo">Filtrar</p>' +
+    '<p class="ct-filtros-titulo">Tipo</p>' +
+    tipos.map(function (op) {
+      return '<button type="button" data-tipo="' + op[0] + '"' +
+        (op[0] === ctFiltroTipo ? ' class="activa"' : '') + '>' + escaparHtml(op[1]) + '</button>';
+    }).join('') +
+    '<p class="ct-filtros-titulo">Ámbito</p>' +
     ambitos.map(function (op) {
       return '<button type="button" data-ambito="' + op[0] + '"' +
         (op[0] === ctFiltroAmbito ? ' class="activa"' : '') + '>' + escaparHtml(op[1]) + '</button>';
@@ -224,6 +250,9 @@ function ctCablearBarra() {
     }
   });
 
+  panel.querySelectorAll('[data-tipo]').forEach(function (b) {
+    b.addEventListener('click', function () { ctFiltroTipo = b.dataset.tipo; pintarContabilidad(); });
+  });
   panel.querySelectorAll('[data-ambito]').forEach(function (b) {
     b.addEventListener('click', function () { ctFiltroAmbito = b.dataset.ambito; pintarContabilidad(); });
   });
@@ -235,10 +264,12 @@ function ctCablearBarra() {
 function ctListaFiltrada() {
   const texto = normalizarBusqueda(ctBusqueda);
   return estado.apuntes.filter(function (a) {
+    // Tipo y Ámbito se combinan (Y lógico), no son excluyentes entre
+    // sí: se puede pedir "Ingresos" + "Empresa" a la vez.
+    if (ctFiltroTipo === 'ingreso' && a.tipo !== 'ingreso') return false;
+    if (ctFiltroTipo === 'gasto' && a.tipo !== 'gasto') return false;
     if (ctFiltroAmbito === 'empresa' && a.ambito !== 'empresa') return false;
     if (ctFiltroAmbito === 'personal' && a.ambito !== 'personal') return false;
-    if (ctFiltroAmbito === 'ingresos' && a.tipo !== 'ingreso') return false;
-    if (ctFiltroAmbito === 'gastos' && a.tipo !== 'gasto') return false;
     if (texto && ctTextoBusqueda(a).indexOf(texto) === -1) return false;
     return true;
   }).sort(function (a, b) {
@@ -253,7 +284,7 @@ function ctRepintarLista() {
 
   if (lista.length === 0) {
     contenedor.innerHTML = '<p class="ct-vacio">' +
-      (ctBusqueda || ctFiltroAmbito !== 'todo'
+      (ctBusqueda || ctFiltroTipo !== 'todos' || ctFiltroAmbito !== 'todos'
         ? 'No hay resultados con estos filtros.'
         : 'Todavía no hay ningún apunte. Los de facturas pagadas se crean solos; para otros movimientos, usa el botón "+".') +
       '</p>';
@@ -263,7 +294,7 @@ function ctRepintarLista() {
   contenedor.innerHTML =
     '<div class="ct-lista-movil">' + lista.map(ctRenderFilaMovil).join('') + '</div>' +
     '<div class="ct-tabla-wrap"><table class="ct-tabla"><thead><tr>' +
-      '<th>Fecha</th><th>Contacto</th><th>Concepto</th>' +
+      '<th></th><th>Fecha</th><th>Contacto</th><th>Concepto</th>' +
       '<th class="ct-celda-derecha">Base</th><th class="ct-celda-derecha">IVA</th>' +
       '<th class="ct-celda-derecha">IRPF</th><th class="ct-celda-derecha">Total</th><th></th>' +
     '</tr></thead><tbody>' + lista.map(ctRenderFilaTabla).join('') + '</tbody></table></div>';
@@ -274,6 +305,7 @@ function ctRepintarLista() {
 function ctRenderFilaMovil(a) {
   const esIngreso = a.tipo === 'ingreso';
   return '<div class="ct-fila" data-id="' + escaparHtml(a.id) + '">' +
+    ctCirculoTipo(a, 42) +
     '<div class="ct-info">' +
       '<p class="ct-nombre">' + escaparHtml(ctConceptoMostrado(a)) + '</p>' +
       '<p class="ct-meta">' + escaparHtml(ctNombreContacto(a)) + ' · ' + escaparHtml(mostrarFecha(a.fecha)) + '</p>' +
@@ -295,6 +327,7 @@ function ctRenderFilaMovil(a) {
 function ctRenderFilaTabla(a) {
   const esIngreso = a.tipo === 'ingreso';
   return '<tr class="ct-fila-tabla" data-id="' + escaparHtml(a.id) + '">' +
+    '<td>' + ctCirculoTipo(a, 32) + '</td>' +
     '<td>' + escaparHtml(mostrarFecha(a.fecha)) + '</td>' +
     '<td>' + escaparHtml(ctNombreContacto(a)) + '<br><span style="font-size:11px;color:var(--texto-secundario)">' +
       (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</span></td>' +
@@ -461,6 +494,7 @@ function abrirFichaApunte(id) {
   fondo.innerHTML =
     '<div class="ct-modal">' +
       '<div class="ct-modal-cabecera">' +
+        ctCirculoTipo(a, 44) +
         '<div class="ct-modal-texto">' +
           '<p class="ct-modal-titulo">' + escaparHtml(esIngreso ? 'Ingreso' : 'Gasto') + '</p>' +
           '<p class="ct-modal-subtitulo">' + escaparHtml(mostrarFecha(a.fecha)) + ' · ' + (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</p>' +

@@ -160,7 +160,7 @@ function pintarFacturasCompra() {
 
 function fcRenderFiltrosPanel() {
   const estados = [['todos', 'Todos'], ['pendiente', 'Pendientes'], ['pagada', 'Pagadas']];
-  const registros = [['activas', 'Activas'], ['todas', 'Todas'], ['inactivas', 'Inactivas']];
+  const registros = [['activas', 'Activas'], ['inactivas', 'Inactivas'], ['todas', 'Todas']];
   const ordenes = [
     ['fecha-desc', 'Fecha (más nuevo primero)'],
     ['fecha-asc', 'Fecha (más antiguo primero)'],

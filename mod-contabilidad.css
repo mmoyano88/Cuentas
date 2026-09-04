@@ -69,7 +69,7 @@
 
 .ct-filtros-titulo {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 900; /* "black"/ultra bold, a petición (04/09/2026) */
   color: var(--texto-secundario);
   text-transform: uppercase;
   margin: 6px 0 2px;
@@ -116,6 +116,18 @@
   gap: 12px;
   cursor: pointer;
 }
+/* Círculo del apunte: color = ingreso/gasto, icono = empresa/personal.
+   Mismo planteamiento de tamaño por estilo en línea que los avatares
+   de Presupuestos y Facturas, para que combine con esos módulos. */
+.ct-circulo {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  flex: 0 0 auto;
+}
+
 .ct-info { flex: 1; min-width: 0; }
 .ct-nombre {
   font-size: 15px;
