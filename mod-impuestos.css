@@ -1,0 +1,318 @@
+/* ============================================================
+   MÓDULO IMPUESTOS — estilos propios
+
+   Pantalla de tarjetas, no de lista: arriba el selector de periodo
+   (año + trimestre) y debajo las tarjetas de cálculo. El histórico de
+   trimestres cerrados sí usa el patrón de lista de la app (tarjetas en
+   móvil, tabla en PC).
+
+   Sin botón flotante "+" ni buscador: aquí no se crea nada a mano.
+   ============================================================ */
+
+/* ---- Selector de periodo ---- */
+.imp-periodo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 14px 0 6px;
+  flex-wrap: wrap;
+}
+
+.imp-select-anio {
+  width: auto;
+  min-width: 104px;
+  height: 40px;
+  flex: 0 0 auto;
+}
+
+.imp-selector {
+  display: inline-flex;
+  background: var(--gris-neutro);
+  border-radius: 20px;
+  padding: 3px;
+  gap: 2px;
+  flex: 1 1 auto;
+}
+.imp-selector button {
+  flex: 1;
+  border: none;
+  background: none;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  cursor: pointer;
+}
+.imp-selector button.activa {
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+.imp-nota-cabecera {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: 0 0 14px;
+}
+
+/* ---- Tarjetas de cálculo ---- */
+.imp-tarjeta {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.imp-tarjeta-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.imp-tarjeta-titulo {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.imp-tarjeta-cabecera .imp-tarjeta-titulo { margin: 0; }
+
+.imp-linea {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--texto-secundario);
+  padding: 4px 0;
+}
+.imp-linea strong {
+  color: var(--texto);
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+}
+.imp-linea.destacada {
+  border-top: 1px solid var(--fondo);
+  margin-top: 4px;
+  padding-top: 8px;
+  color: var(--texto);
+}
+.imp-linea.destacada strong { font-weight: 600; }
+
+/* Resultado del trimestre: a pagar en rojo de marca, a tu favor en
+   verde. Se muestra siempre el importe en positivo; la etiqueta de la
+   izquierda dice de qué lado cae. */
+.imp-resultado {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  border-top: 1px solid #E2E2DC;
+  margin-top: 8px;
+  padding-top: 10px;
+}
+.imp-resultado span { font-size: 13px; font-weight: 500; }
+.imp-resultado strong { font-size: 22px; font-weight: 500; }
+.imp-resultado strong.pagar { color: var(--rojo); }
+.imp-resultado strong.favor { color: var(--verde-texto); }
+
+.imp-nota {
+  font-size: 11px;
+  color: var(--texto-secundario);
+  line-height: 1.45;
+  margin: 8px 0 0;
+}
+
+/* ---- Tarjeta de total ---- */
+.imp-tarjeta-total .imp-total-final {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  border-top: 1px solid #E2E2DC;
+  margin-top: 8px;
+  padding-top: 10px;
+}
+.imp-tarjeta-total .imp-total-final span { font-size: 13px; font-weight: 500; }
+.imp-tarjeta-total .imp-total-final strong {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--rojo);
+}
+.imp-tarjeta-total .imp-total-final strong.favor { color: var(--verde-texto); }
+
+/* ---- Zona de importe real y fecha ---- */
+.imp-pago {
+  border-top: 1px solid var(--fondo);
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+.imp-pago-campos {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (min-width: 480px) {
+  .imp-pago-campos { grid-template-columns: 1fr 1fr; }
+}
+
+.imp-campo-grupo { display: flex; flex-direction: column; gap: 4px; }
+.imp-campo-grupo label { font-size: 12px; color: var(--texto-secundario); }
+
+.imp-pago .boton-principal,
+.imp-pago .boton-secundario { width: 100%; }
+
+.imp-mensaje-error {
+  font-size: 11px;
+  color: var(--rojo-texto);
+  margin: 8px 0 0;
+}
+
+/* ---- Histórico de trimestres ---- */
+.imp-seccion-titulo {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 22px 0 10px;
+}
+
+.imp-lista-movil { display: flex; flex-direction: column; gap: 8px; }
+
+.imp-fila {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.imp-info { flex: 1; min-width: 0; }
+.imp-nombre { font-size: 15px; font-weight: 500; margin: 0; }
+.imp-meta {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: 1px 0 0;
+}
+.imp-pastillas { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+.imp-tabla-wrap { display: none; overflow-x: auto; }
+.imp-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  overflow: hidden;
+}
+.imp-tabla th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  text-transform: uppercase;
+  padding: 10px 14px;
+  background: var(--gris-neutro);
+  white-space: nowrap;
+}
+.imp-tabla td {
+  padding: 10px 14px;
+  font-size: 13px;
+  border-top: 1px solid var(--fondo);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.imp-tabla tr.imp-fila-tabla { cursor: pointer; }
+.imp-tabla tr.imp-fila-tabla:hover td { background: var(--fondo); }
+
+/* La regla general ".imp-tabla th" alinea a la izquierda y, por ser
+   más específica (elemento + clase), gana a una clase suelta: sin
+   esta combinación los títulos de las columnas de cifras se quedarían
+   pegados a la izquierda mientras sus datos van a la derecha.
+   Ver diario, INTERFAZ/DISEÑO 04/09/2026. */
+.imp-tabla th.imp-celda-derecha,
+.imp-tabla td.imp-celda-derecha { text-align: right; }
+
+.imp-pista-tabla {
+  display: none;
+  font-size: 11px;
+  color: var(--texto-secundario);
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+@media (min-width: 900px) {
+  .imp-lista-movil { display: none; }
+  .imp-tabla-wrap { display: block; }
+  .imp-pista-tabla { display: block; }
+}
+
+.imp-vacio {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--texto-secundario);
+  font-size: 13px;
+}
+
+/* ---- Bloque de control de la fila (tres puntos + punto de estado) ---- */
+.imp-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.imp-btn-icono {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.imp-btn-icono:hover { background: var(--fondo); }
+
+.imp-punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.imp-punto.ok        { background: #3E9E4E; }
+.imp-punto.guardando { background: #E0A32E; }
+.imp-punto.error     { background: var(--rojo); }
+.imp-punto.prueba    { background: #B8B6AC; }
+
+.imp-menu-mas {
+  position: fixed;
+  background: var(--superficie);
+  border: 1px solid #D8D8D2;
+  border-radius: var(--radio-control);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
+  min-width: 190px;
+  z-index: 25;
+  overflow: hidden;
+}
+.imp-menu-mas button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--texto);
+}
+.imp-menu-mas button:hover { background: var(--fondo); }
+.imp-menu-mas button.destacado { color: var(--rojo-texto); font-weight: 600; }

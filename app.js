@@ -519,9 +519,20 @@ async function sincronizar() {
     guardarTodoLocal();
     fusionarDatosDePrueba();
 
+    // La conexión se da por buena AQUÍ, antes de los reconciliadores,
+    // no después. Los reconciliadores reparan datos escribiendo en
+    // Sheets a través de guardarRegistro(), y esa función empieza
+    // comprobando puedeEscribir(), que exige `syncReady`. Con el orden
+    // anterior, cualquier reparación automática (por ejemplo, recrear
+    // el apunte perdido de una factura cobrada o de un impuesto
+    // pagado) se encontraba la escritura bloqueada, sacaba el aviso de
+    // "todavía no hay conexión" y no se hacía nunca. A estas alturas
+    // los datos ya se han cargado del servidor, así que la conexión
+    // está confirmada. Ver diario, 05/09/2026.
+    estado.syncReady = true;
+
     await ejecutarReconciliadores();
 
-    estado.syncReady = true;
     indicador('sincronizado');
   } catch (err) {
     console.error('No se pudo sincronizar:', err);
