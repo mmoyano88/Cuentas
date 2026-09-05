@@ -224,6 +224,28 @@ main {
   padding: 0 var(--padding-pagina) var(--padding-pagina);
 }
 
+/* Hueco al final de la pantalla para el botón flotante «+».
+   El botón va fijo sobre la pantalla (a 112px del fondo y con 56px de
+   alto, así que su borde de arriba queda a 168px), de modo que sin
+   este hueco siempre tapa la última fila del listado y no se puede
+   llegar a su menú de tres puntos: por mucho que se deslice, esa fila
+   se queda debajo del botón. Con el hueco, la lista puede subir lo
+   justo para que el último elemento quede por encima.
+
+   Se aplica a `main`, así que vale para TODOS los listados de la app
+   —Contactos, Presupuestos, Facturas de venta y de compra,
+   Contabilidad— y para los que se construyan después, sin tocar
+   ningún módulo. En Impuestos e Informes, que no tienen botón «+»,
+   solo deja algo de aire al final, que tampoco estorba.
+
+   Solo en móvil: a partir de 900px el botón deja de flotar y pasa a
+   la cabecera de la lista, así que ahí no tapa nada. */
+@media (max-width: 899px) {
+  main {
+    padding-bottom: calc(var(--padding-pagina) + 96px);
+  }
+}
+
 .nota-provisional {
   color: var(--texto-secundario);
   font-size: 13px;
