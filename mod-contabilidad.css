@@ -145,10 +145,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ct-etiqueta-ambito {
-  font-size: 11px;
-  color: var(--texto-secundario);
-}
 
 .ct-derecha {
   display: flex;

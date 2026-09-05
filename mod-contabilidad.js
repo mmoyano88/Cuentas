@@ -60,21 +60,43 @@ function ctPuntoEstado(a) {
   return '<span class="ct-punto ' + info.clase + '" title="' + escaparHtml(info.titulo) + '"></span>';
 }
 
-// Círculo visual del apunte (decisión 04/09/2026, sustituye a "sin
-// icono" de la sesión anterior): el COLOR de fondo dice si es ingreso
-// (verde) o gasto (rojo); el ICONO de dentro dice si es de empresa
-// (calculadora) o personal (persona). Se ve igual en PC y en Android.
+// Círculo visual del apunte (decisión 05/09/2026, sustituye al icono
+// por ámbito de la sesión anterior): el COLOR de fondo sigue diciendo
+// si es ingreso (verde) o gasto (rojo). El ICONO de dentro ahora dice
+// de DÓNDE viene el apunte, para reconocerlo de un vistazo:
+//   · registro de Impuestos           → maletín
+//   · factura de venta o de compra    → símbolo de moneda
+//   · manual, de empresa              → calculadora
+//   · manual, personal                → persona
+// El color ya distingue venta de compra por sí solo: una factura de
+// venta cobrada siempre es ingreso (verde) y una de compra pagada
+// siempre es gasto (rojo), así que no hace falta ningún icono extra
+// para eso.
 function ctCirculoTipo(a, tamanoPx) {
   const tam = tamanoPx || 42;
   const esIngreso = a.tipo === 'ingreso';
   const esPersonal = a.ambito === 'personal';
   const fondo = esIngreso ? '#3E9E4E' : 'var(--rojo)';
-  const claseIcono = esPersonal ? 'ti-user' : 'ti-calculator';
+
+  let claseIcono, origen;
+  if (ctVieneDeImpuesto(a)) {
+    claseIcono = 'ti-briefcase';
+    origen = 'Pago de impuestos';
+  } else if (ctVieneDeFactura(a)) {
+    claseIcono = 'ti-currency-dollar';
+    origen = a.id_factura_venta ? 'Factura de venta' : 'Factura de compra';
+  } else if (esPersonal) {
+    claseIcono = 'ti-user';
+    origen = 'Apunte personal';
+  } else {
+    claseIcono = 'ti-calculator';
+    origen = 'Apunte de empresa';
+  }
+
   const tituloTipo = esIngreso ? 'Ingreso' : 'Gasto';
-  const tituloAmbito = esPersonal ? 'personal' : 'de empresa';
 
   return '<div class="ct-circulo" style="width:' + tam + 'px;height:' + tam + 'px;background:' + fondo + ';font-size:' + Math.round(tam * 0.5) + 'px" ' +
-    'title="' + escaparHtml(tituloTipo + ' ' + tituloAmbito) + '">' +
+    'title="' + escaparHtml(tituloTipo + ' · ' + origen) + '">' +
     '<i class="ti ' + claseIcono + '"></i></div>';
 }
 
@@ -87,13 +109,30 @@ function ctNuevoId(prefijo) {
   return prefijo + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
 }
 
-// Un apunte es automático (viene de una factura) si tiene el vínculo
-// puesto. Estos no se pueden editar ni borrar desde aquí (mapa 11.2).
-// Se incluye también id_impuesto por si el futuro módulo de Impuestos
-// llega a generarlos: mismo criterio de bloqueo, aunque hoy no puede
-// darse todavía.
+// Un apunte es automático si viene de una factura O de un registro de
+// Impuestos: en los dos casos no se puede editar ni borrar desde aquí
+// (mapa 11.2), se modifica desde su origen. Pero el origen concreto sí
+// importa para el mensaje y el botón que se muestran, así que se
+// distingue con dos funciones más finas.
+function ctVieneDeFactura(a) {
+  return !!(a.id_factura_venta || a.id_factura_compra);
+}
+function ctVieneDeImpuesto(a) {
+  return !!a.id_impuesto;
+}
 function ctEsAutomatico(a) {
-  return !!(a.id_factura_venta || a.id_factura_compra || a.id_impuesto);
+  return ctVieneDeFactura(a) || ctVieneDeImpuesto(a);
+}
+
+// Un apunte se puede convertir en factura si es manual (no viene ya de
+// una factura ni es un pago de impuestos), es de empresa y tiene
+// importe. Sirve para cuando cobras o pagas algo antes de tener la
+// factura: el movimiento se apunta ya, y la factura se emite después.
+function ctEsConvertible(a) {
+  if (!a) return false;
+  if (ctEsAutomatico(a)) return false;
+  if (String(a.ambito || '') !== 'empresa') return false;
+  return parsearNumero(a.total) > 0;
 }
 
 function ctContactoDe(a) {
@@ -309,8 +348,6 @@ function ctRenderFilaMovil(a) {
     '<div class="ct-info">' +
       '<p class="ct-nombre">' + escaparHtml(ctConceptoMostrado(a)) + '</p>' +
       '<p class="ct-meta">' + escaparHtml(ctNombreContacto(a)) + ' · ' + escaparHtml(mostrarFecha(a.fecha)) + '</p>' +
-      '<p class="ct-etiqueta-ambito">' + (a.ambito === 'personal' ? 'Personal' : 'Empresa') +
-        (ctEsAutomatico(a) ? ' · Factura vinculada' : '') + '</p>' +
     '</div>' +
     '<div class="ct-derecha">' +
       '<span class="ct-total-fila ' + (esIngreso ? 'ingreso' : 'gasto') + '">' +
@@ -329,12 +366,10 @@ function ctRenderFilaTabla(a) {
   return '<tr class="ct-fila-tabla" data-id="' + escaparHtml(a.id) + '">' +
     '<td>' + ctCirculoTipo(a, 32) + '</td>' +
     '<td>' + escaparHtml(mostrarFecha(a.fecha)) + '</td>' +
-    '<td>' + escaparHtml(ctNombreContacto(a)) + '<br><span style="font-size:11px;color:var(--texto-secundario)">' +
-      (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</span></td>' +
+    '<td>' + escaparHtml(ctNombreContacto(a)) + '</td>' +
     '<td class="ct-celda-concepto">' +
       '<div class="ct-concepto-texto">' + escaparHtml(ctConceptoMostrado(a)) + '</div>' +
-      '<div style="font-size:11px;color:var(--texto-secundario)">' + (esIngreso ? 'Ingreso' : 'Gasto') +
-        (ctEsAutomatico(a) ? ' · Factura vinculada' : '') + '</div>' +
+      '<div style="font-size:11px;color:var(--texto-secundario)">' + (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</div>' +
     '</td>' +
     '<td class="ct-celda-derecha">' + escaparHtml(formatMoney(a.base)) + '</td>' +
     '<td class="ct-celda-derecha">' + (parsearNumero(a.iva) > 0 ? '+' + escaparHtml(formatMoney(a.iva)) : '—') + '</td>' +
@@ -384,8 +419,10 @@ function ctAbrirMenuMas(boton, id) {
       ? '<button type="button" class="destacado" data-accion="reintentar">Reintentar guardado</button>'
       : '') +
     (automatico
-      ? '<button type="button" data-accion="verfactura">Ver factura</button>'
+      ? '<button type="button" data-accion="' + (ctVieneDeImpuesto(a) ? 'verimpuesto' : 'verfactura') + '">' +
+          (ctVieneDeImpuesto(a) ? 'Ver en Impuestos' : 'Ver factura') + '</button>'
       : '<button type="button" data-accion="editar">Editar</button>' +
+        (ctEsConvertible(a) ? '<button type="button" data-accion="convertir">Convertir en factura</button>' : '') +
         '<button type="button" class="peligro" data-accion="eliminar">Eliminar</button>');
 
   document.body.appendChild(menu);
@@ -401,6 +438,8 @@ function ctAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); abrirFormularioApunte(id); });
   menu.querySelector('[data-accion="eliminar"]')?.addEventListener('click', function () { cerrarMenu(); ctEliminar(id); });
   menu.querySelector('[data-accion="verfactura"]')?.addEventListener('click', function () { cerrarMenu(); ctVerFactura(a); });
+  menu.querySelector('[data-accion="verimpuesto"]')?.addEventListener('click', function () { cerrarMenu(); ctVerImpuesto(a); });
+  menu.querySelector('[data-accion="convertir"]')?.addEventListener('click', function () { cerrarMenu(); abrirConversorFactura(id); });
 
   setTimeout(function () { document.addEventListener('click', cerrarSiFuera); }, 0);
 }
@@ -432,11 +471,26 @@ function ctVerFactura(a) {
   alert('Este apunte no tiene una factura de origen disponible.');
 }
 
+// Lleva a Impuestos, al trimestre exacto del registro que generó este
+// apunte. Si el módulo de Impuestos no está cargado (no debería pasar,
+// pero por si acaso), avisa en vez de fallar en silencio.
+function ctVerImpuesto(a) {
+  const r = estado.impuestos.find(function (x) { return String(x.id) === String(a.id_impuesto); });
+  if (!r || typeof impIrAlPeriodoDe !== 'function') {
+    alert('Este apunte no tiene un registro de Impuestos disponible.');
+    return;
+  }
+  if (typeof cambiarVista === 'function') cambiarVista('impuestos');
+  impIrAlPeriodoDe(r.id);
+}
+
 async function ctEliminar(id) {
   const a = estado.apuntes.find(function (x) { return String(x.id) === String(id); });
   if (!a) return;
   if (ctEsAutomatico(a)) {
-    alert('Este apunte viene de una factura y no se puede eliminar desde aquí. Se modifica desde la propia factura.');
+    alert(ctVieneDeImpuesto(a)
+      ? 'Este apunte viene de un pago de impuestos y no se puede eliminar desde aquí. Se modifica desde Impuestos.'
+      : 'Este apunte viene de una factura y no se puede eliminar desde aquí. Se modifica desde la propia factura.');
     return;
   }
   if (!confirm('¿Eliminar este apunte? Esta acción no se puede deshacer.')) return;
@@ -503,9 +557,11 @@ function abrirFichaApunte(id) {
       '</div>' +
 
       '<div class="ct-modal-cuerpo">' +
-        (automatico
-          ? '<p class="ct-aviso">Este apunte viene de una factura y se actualiza solo. Para cambiarlo, edítalo desde la propia factura.</p>'
-          : '') +
+        (ctVieneDeImpuesto(a)
+          ? '<p class="ct-aviso">Este apunte viene de un pago de impuestos y se actualiza solo. Para cambiarlo, edítalo desde Impuestos.</p>'
+          : ctVieneDeFactura(a)
+            ? '<p class="ct-aviso">Este apunte viene de una factura y se actualiza solo. Para cambiarlo, edítalo desde la propia factura.</p>'
+            : '') +
         '<div class="ct-ficha-dato"><span>Concepto</span><span>' + escaparHtml(ctConceptoMostrado(a)) + '</span></div>' +
         '<div class="ct-ficha-dato"><span>Contacto</span><span>' + escaparHtml(contacto ? contacto.nombre_contacto : '—') + '</span></div>' +
         '<div class="ct-ficha-dato"><span>Fecha</span><span>' + escaparHtml(mostrarFecha(a.fecha)) + '</span></div>' +
@@ -525,9 +581,14 @@ function abrirFichaApunte(id) {
       '</div>' +
 
       '<div class="ct-modal-pie">' +
-        (automatico
-          ? '<button type="button" class="boton-principal" id="ct-ficha-verfactura">Ver factura</button>'
-          : '<button type="button" class="boton-principal" id="ct-ficha-editar">Editar</button>') +
+        (ctVieneDeImpuesto(a)
+          ? '<button type="button" class="boton-principal" id="ct-ficha-verimpuesto">Ver en Impuestos</button>'
+          : ctVieneDeFactura(a)
+            ? '<button type="button" class="boton-principal" id="ct-ficha-verfactura">Ver factura</button>'
+            : ctEsConvertible(a)
+              ? '<button type="button" class="boton-secundario" id="ct-ficha-editar">Editar</button>' +
+                '<button type="button" class="boton-principal" id="ct-ficha-convertir">Convertir en factura</button>'
+              : '<button type="button" class="boton-principal" id="ct-ficha-editar">Editar</button>') +
       '</div>' +
     '</div>';
 
@@ -544,7 +605,9 @@ function abrirFichaApunte(id) {
   fondo.querySelector('.ct-modal-cerrar').addEventListener('click', cerrar);
 
   fondo.querySelector('#ct-ficha-verfactura')?.addEventListener('click', function () { cerrar(); ctVerFactura(a); });
+  fondo.querySelector('#ct-ficha-verimpuesto')?.addEventListener('click', function () { cerrar(); ctVerImpuesto(a); });
   fondo.querySelector('#ct-ficha-editar')?.addEventListener('click', function () { cerrar(); abrirFormularioApunte(id); });
+  fondo.querySelector('#ct-ficha-convertir')?.addEventListener('click', function () { cerrar(); abrirConversorFactura(id); });
 }
 
 // ============================================================
@@ -844,7 +907,421 @@ function ctReponerLocal(registro) {
 }
 
 // ============================================================
-// 8. REGISTRO COMO VISTA
+// 8. CONVERTIR UN APUNTE EN FACTURA
+// ============================================================
+// Para cuando el dinero se mueve antes de que exista la factura.
+//
+// Es un conversor BÁSICO a propósito (decisión 05/09/2026): solo base
+// imponible, IVA, IRPF y total, además de los datos de facturación y
+// la fecha. NO aplica el ajuste por tipo de cliente ni descuentos
+// especiales, porque la base que escribiste en el apunte ya es la
+// cifra buena — el ajuste, si lo hubo, ya está dentro.
+//
+// Las DOS fechas son distintas y cada una manda en un sitio:
+//   · la fecha de la FACTURA decide en qué trimestre tributa;
+//   · la fecha del APUNTE es cuando se movió el dinero, y se queda
+//     como fecha de cobro o de pago de la factura.
+//
+// Al guardar, el apunte NO se borra ni se duplica: se engancha a la
+// factura recién creada y pasa a ser su apunte automático, con los
+// importes de la factura y su fecha original de cobro/pago.
+
+// Siguiente número libre de la serie de ventas para un año concreto.
+// `fvSiguienteNumero()` solo sabe del año en curso; aquí hace falta
+// poder emitir con fecha de otro año.
+function ctSiguienteNumeroVenta(anio) {
+  const prefijo = (typeof FV_PREFIJO_SERIE !== 'undefined') ? FV_PREFIJO_SERIE : 'F';
+  const patron = new RegExp('^' + prefijo + anio + '\\/(\\d{4})$');
+  let mayor = 0;
+  estado.ventas.forEach(function (f) {
+    if (String(f.estado_registro || '').toLowerCase() !== 'activo') return;
+    const m = String(f.numero || '').match(patron);
+    if (m) mayor = Math.max(mayor, parseInt(m[1], 10));
+  });
+  return prefijo + anio + '/' + String(mayor + 1).padStart(4, '0');
+}
+
+// Cálculo del conversor: se parte de la base, no del total.
+function ctTotalesDesdeBase(base, ivaPct, irpfPct) {
+  const b = roundMoney(parsearNumero(base));
+  const pIva = parsearNumero(ivaPct);
+  const pIrpf = parsearNumero(irpfPct);
+  const iva = roundMoney(b * pIva / 100);
+  const irpf = roundMoney(b * pIrpf / 100);
+  return { base: b, ivaPct: pIva, iva: iva, irpfPct: pIrpf, irpf: irpf, total: roundMoney(b + iva - irpf) };
+}
+
+function abrirConversorFactura(id) {
+  const apunte = estado.apuntes.find(function (x) { return String(x.id) === String(id); });
+  if (!apunte) return;
+
+  if (!ctEsConvertible(apunte)) {
+    alert('Solo se pueden convertir en factura los apuntes de empresa creados a mano.');
+    return;
+  }
+
+  const esVenta = String(apunte.tipo) === 'ingreso';
+  const contactos = esVenta ? fvClientesDisponibles() : fcProveedoresDisponibles();
+
+  if (contactos.length === 0) {
+    alert(esVenta
+      ? 'No hay ningún cliente activo. Crea el cliente antes de emitir la factura.'
+      : 'No hay ningún proveedor activo. Crea el proveedor antes de registrar la factura.');
+    return;
+  }
+
+  const tiposIva = preTiposIva();
+  const tiposIrpf = preTiposIrpf();
+
+  const fechaApunte = normalizarFecha(apunte.fecha) || fechaHoyISO();
+  const contactoPrevio = contactos.some(function (c) { return String(c.id) === String(apunte.id_contacto); })
+    ? String(apunte.id_contacto) : '';
+
+  const datos = {
+    fecha: fechaApunte,
+    id_contacto: contactoPrevio,
+    concepto: String(apunte.concepto || ''),
+    base: parsearNumero(apunte.base),
+    iva_pct: parsearNumero(apunte.iva_pct),
+    irpf_pct: parsearNumero(apunte.irpf_pct),
+    numero: ''
+  };
+
+  const titulo = esVenta ? 'Convertir en factura de venta' : 'Convertir en factura de compra';
+  const etiquetaContacto = esVenta ? 'Cliente' : 'Proveedor';
+
+  const fondo = document.createElement('div');
+  fondo.className = 'ct-modal-fondo';
+  fondo.innerHTML =
+    '<div class="ct-modal">' +
+      '<div class="ct-modal-cabecera">' +
+        '<div class="ct-modal-texto">' +
+          '<p class="ct-modal-titulo">' + escaparHtml(titulo) + '</p>' +
+          '<p class="ct-modal-subtitulo">El apunte del ' + escaparHtml(mostrarFecha(fechaApunte)) + ' quedará enganchado a esta factura</p>' +
+        '</div>' +
+        '<button type="button" class="ct-modal-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>' +
+      '</div>' +
+
+      '<div class="ct-modal-cuerpo">' +
+        '<form id="ct-conv-form">' +
+          '<div class="ct-form-grid dos-columnas">' +
+
+            '<div class="ct-campo-grupo" id="ct-conv-grupo-numero"></div>' +
+
+            '<div class="ct-campo-grupo"><label for="ct-campo-fecha">Fecha de la factura *</label>' +
+              '<input class="campo" type="date" id="ct-campo-fecha" value="' + escaparHtml(datos.fecha) + '">' +
+              '<p class="ct-mensaje-error" data-error-de="fecha" hidden></p></div>' +
+
+            '<div class="ct-campo-grupo ancho-total">' +
+              '<label for="ct-campo-id_contacto">' + escaparHtml(etiquetaContacto) + ' *</label>' +
+              '<select class="campo" id="ct-campo-id_contacto">' +
+                '<option value="">Selecciona...</option>' +
+                contactos.map(function (c) {
+                  return '<option value="' + escaparHtml(String(c.id)) + '"' +
+                    (String(c.id) === datos.id_contacto ? ' selected' : '') + '>' +
+                    escaparHtml(c.nombre_contacto) + '</option>';
+                }).join('') +
+              '</select>' +
+              '<p class="ct-mensaje-error" data-error-de="id_contacto" hidden></p></div>' +
+
+            ctCampo('concepto', 'Concepto', datos.concepto, { anchoTotal: true, requerido: true }) +
+            ctCampo('base', 'Base imponible', datos.base, { numero: true, requerido: true, anchoTotal: true }) +
+
+            '<div class="ct-form-grid dos-columnas" style="grid-column:1/-1;margin:0">' +
+              ctSelect('iva_pct', 'IVA', [['0', 'Sin IVA']].concat(tiposIva.map(function (x) { return [String(x.porcentaje), x.nombre + ' (' + x.porcentaje + '%)']; })), datos.iva_pct) +
+              ctSelect('irpf_pct', 'IRPF', [['0', 'Sin IRPF']].concat(tiposIrpf.map(function (x) { return [String(x.porcentaje), x.nombre + ' (' + x.porcentaje + '%)']; })), datos.irpf_pct) +
+            '</div>' +
+
+            '<p class="ct-aviso" style="grid-column:1/-1;margin:0">Esta conversión no aplica el ajuste por tipo de cliente ni descuentos: la base que escribas es la definitiva.</p>' +
+          '</div>' +
+
+          '<div class="ct-bloque" id="ct-conv-totales"></div>' +
+          '<p class="ct-aviso" id="ct-conv-aviso-trimestre" style="margin:14px 0 0" hidden></p>' +
+        '</form>' +
+      '</div>' +
+
+      '<div class="ct-modal-pie">' +
+        '<button type="button" class="boton-secundario" id="ct-conv-cancelar">Cancelar</button>' +
+        '<button type="submit" form="ct-conv-form" class="boton-principal">Crear factura</button>' +
+      '</div>' +
+    '</div>';
+
+  document.body.appendChild(fondo);
+
+  // No se cierra al tocar fuera: es un formulario con trabajo dentro.
+  fondo.querySelector('.ct-modal-cerrar').addEventListener('click', function () { fondo.remove(); });
+  fondo.querySelector('#ct-conv-cancelar').addEventListener('click', function () { fondo.remove(); });
+
+  ctConvPintarNumero(fondo, esVenta);
+  ctConvActualizar(fondo, esVenta);
+
+  fondo.querySelectorAll('#ct-conv-form input, #ct-conv-form select').forEach(function (el) {
+    el.addEventListener('input', function () { ctConvActualizar(fondo, esVenta); });
+    el.addEventListener('change', function () { ctConvActualizar(fondo, esVenta); });
+  });
+
+  fondo.querySelector('#ct-conv-form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    ctConvGuardar(fondo, apunte, esVenta);
+  });
+}
+
+// El número de una factura de venta es automático, salvo que la fecha
+// sea de un año distinto al actual: en ese caso la numeración
+// automática no vale y se escribe a mano. En compras lo pone siempre
+// el proveedor.
+function ctConvPintarNumero(fondo, esVenta) {
+  const grupo = fondo.querySelector('#ct-conv-grupo-numero');
+  const fecha = normalizarFecha(fondo.querySelector('#ct-campo-fecha').value) || fechaHoyISO();
+  const anio = parseInt(String(fecha).split('-')[0], 10);
+  const anioActual = new Date().getFullYear();
+  const valorPrevio = fondo.querySelector('#ct-campo-numero') ? fondo.querySelector('#ct-campo-numero').value : '';
+
+  if (!esVenta) {
+    grupo.innerHTML =
+      '<label for="ct-campo-numero">Nº de factura del proveedor *</label>' +
+      '<input class="campo" type="text" id="ct-campo-numero" value="' + escaparHtml(valorPrevio) + '">' +
+      '<p class="ct-mensaje-error" data-error-de="numero" hidden></p>';
+    grupo.querySelector('#ct-campo-numero').addEventListener('input', function () { ctConvActualizar(fondo, esVenta); });
+    return;
+  }
+
+  const automatico = anio === anioActual;
+  const sugerido = ctSiguienteNumeroVenta(anio > 1990 ? anio : anioActual);
+
+  grupo.innerHTML =
+    '<label for="ct-campo-numero">Número' + (automatico ? '' : ' *') + '</label>' +
+    '<input class="campo" type="text" id="ct-campo-numero" value="' +
+      escaparHtml(automatico ? sugerido : (valorPrevio || sugerido)) + '"' +
+      (automatico ? ' readonly' : '') + '>' +
+    (automatico
+      ? ''
+      : '<p class="ct-mensaje-error" data-error-de="numero" hidden></p>' +
+        '<p style="font-size:11px;color:var(--texto-secundario);margin:3px 0 0">La fecha es de ' + anio +
+        ', así que el número no puede ser automático. Comprueba que encaja con tu serie de ese año.</p>');
+
+  if (!automatico) {
+    grupo.querySelector('#ct-campo-numero').addEventListener('input', function () { ctConvActualizar(fondo, esVenta); });
+  }
+}
+
+function ctConvLeer(fondo) {
+  const valor = function (id) {
+    const el = fondo.querySelector('#ct-campo-' + id);
+    return el ? el.value : '';
+  };
+  return {
+    numero: String(valor('numero')).trim(),
+    fecha: valor('fecha'),
+    id_contacto: valor('id_contacto'),
+    concepto: String(valor('concepto')).trim(),
+    base: parsearNumero(valor('base')),
+    iva_pct: parsearNumero(valor('iva_pct')),
+    irpf_pct: parsearNumero(valor('irpf_pct'))
+  };
+}
+
+function ctConvActualizar(fondo, esVenta) {
+  const d = ctConvLeer(fondo);
+  const t = ctTotalesDesdeBase(d.base, d.iva_pct, d.irpf_pct);
+
+  fondo.querySelector('#ct-conv-totales').innerHTML =
+    '<p class="ct-bloque-titulo">La factura quedará así</p>' +
+    '<div class="ct-linea"><span>Base imponible</span><strong>' + escaparHtml(formatMoney(t.base)) + '</strong></div>' +
+    '<div class="ct-linea"><span>IVA (' + t.ivaPct + '%)</span><strong>+' + escaparHtml(formatMoney(t.iva)) + '</strong></div>' +
+    '<div class="ct-linea"><span>Retención IRPF (' + t.irpfPct + '%)</span><strong>−' + escaparHtml(formatMoney(t.irpf)) + '</strong></div>' +
+    '<div class="ct-total-final"><span>TOTAL</span><strong class="' + (esVenta ? 'ingreso' : 'gasto') + '">' +
+      escaparHtml(formatMoney(t.total)) + '</strong></div>';
+
+  // Aviso si la fecha cae en un trimestre ya liquidado: esa estimación
+  // pasada cambiará.
+  const aviso = fondo.querySelector('#ct-conv-aviso-trimestre');
+  const fecha = normalizarFecha(d.fecha);
+  let liquidado = false;
+  if (fecha && typeof impRegistroDe === 'function') {
+    const anio = parseInt(String(fecha).split('-')[0], 10);
+    const trimestre = fvTrimestreDeFecha(fecha);
+    const r = impRegistroDe(anio, trimestre);
+    liquidado = !!(r && (String(r.iva_estado || '').toLowerCase() === 'pagado' ||
+                         String(r.irpf_estado || '').toLowerCase() === 'pagado'));
+    if (liquidado) {
+      aviso.textContent = 'Ojo: ' + trimestre + ' ' + anio + ' ya está marcado como pagado en Impuestos. ' +
+        'Esta factura cambiará la estimación de ese trimestre.';
+    }
+  }
+  aviso.hidden = !liquidado;
+}
+
+async function ctConvGuardar(fondo, apunte, esVenta) {
+  ctLimpiarErrores(fondo);
+  const d = ctConvLeer(fondo);
+
+  let valido = true;
+  if (!d.fecha) { ctMostrarError(fondo, 'fecha', 'Obligatoria'); valido = false; }
+  if (!d.id_contacto) {
+    ctMostrarError(fondo, 'id_contacto', esVenta ? 'Selecciona un cliente.' : 'Selecciona un proveedor.');
+    valido = false;
+  }
+  if (!d.concepto) { ctMostrarError(fondo, 'concepto', 'Escribe un concepto.'); valido = false; }
+  if (!(d.base > 0)) { ctMostrarError(fondo, 'base', 'Escribe la base imponible.'); valido = false; }
+  if (!d.numero) { ctMostrarError(fondo, 'numero', 'Obligatorio'); valido = false; }
+  if (!valido) return;
+
+  const contacto = estado.clientes.find(function (c) { return String(c.id) === String(d.id_contacto); });
+  if (!contacto) {
+    ctMostrarError(fondo, 'id_contacto', 'Ese contacto ya no existe.');
+    return;
+  }
+  if (!estado.modoPrueba && esDePrueba(contacto)) {
+    alert('Ese contacto es de prueba y no puede usarse en una factura real.');
+    return;
+  }
+
+  // Aviso no bloqueante de número repetido en compras, igual que en el
+  // módulo de Facturas de compra.
+  if (!esVenta) {
+    const repetida = estado.compras.some(function (f) {
+      return String(f.id_proveedor) === String(contacto.id) &&
+             String(f.numero || '').trim().toLowerCase() === d.numero.toLowerCase();
+    });
+    if (repetida && !confirm('Ya hay una factura con ese número de este proveedor.\n\n¿Crearla de todas formas?')) return;
+  }
+
+  if (!puedeEscribir()) return;
+
+  const t = ctTotalesDesdeBase(d.base, d.iva_pct, d.irpf_pct);
+  const fechaFactura = normalizarFecha(d.fecha);
+  const fechaMovimiento = normalizarFecha(apunte.fecha) || fechaFactura;
+  const nombre = contacto.nombre_fiscal || contacto.nombre_contacto || '';
+
+  fondo.remove();
+  ctMarcarSync(apunte.id, 'guardando');
+  ctRepintarLista();
+
+  try {
+    if (esVenta) {
+      const idFactura = ctNuevoId('fv');
+      const factura = {
+        id: idFactura,
+        numero: d.numero,
+        fecha: fechaFactura,
+        id_cliente: contacto.id,
+        cliente: nombre,
+        nif: contacto.nif || '',
+        id_presupuesto: '',
+        concepto: d.concepto,
+        subtotal: t.base,
+        ajuste_cliente_pct: 0,
+        ajuste_cliente_importe: 0,
+        compensacion_irpf_pct: 0,
+        compensacion_irpf_importe: 0,
+        descuento_especial_tipo: 'percent',
+        descuento_especial_valor: 0,
+        descuento_especial_importe: 0,
+        base: t.base,
+        iva_pct: t.ivaPct,
+        iva: t.iva,
+        irpf_pct: t.irpfPct,
+        irpf: t.irpf,
+        total: t.total,
+        estado: 'pagada',
+        fecha_cobro: fechaMovimiento,
+        estado_registro: 'activo'
+      };
+
+      const guardada = await guardarRegistro('ventas', factura, null, null);
+      if (guardada.status !== 'success') throw new Error('No se pudo crear la factura');
+
+      const idFinal = (guardada.data && guardada.data.id) || idFactura;
+
+      // Una sola línea con el concepto y la base (guardado en bloque, I9).
+      const resLineas = await llamarBackend({
+        action: 'save', sheet: 'ventas_detalle',
+        data: { id_factura: idFinal, lineas: [{ orden: 1, descripcion: d.concepto, importe: t.base }] }
+      });
+      if (resLineas.status === 'success') {
+        estado.ventas_detalle = estado.ventas_detalle.filter(function (l) { return String(l.id_factura) !== String(idFinal); });
+        (resLineas.lineas || []).forEach(function (l) { estado.ventas_detalle.push(l); });
+        guardarEntidadLocal('ventas_detalle');
+      }
+
+      await ctConvEngancharApunte(apunte, t, fechaMovimiento, contacto.id, {
+        id_factura_venta: idFinal, id_factura_compra: '',
+        concepto: 'Cobro factura ' + d.numero, tipo: 'ingreso'
+      });
+
+    } else {
+      const idFactura = ctNuevoId('fc');
+      const factura = {
+        id: idFactura,
+        numero: d.numero,
+        fecha: fechaFactura,
+        id_proveedor: contacto.id,
+        proveedor: nombre,
+        nif: contacto.nif || '',
+        concepto: d.concepto,
+        base: t.base,
+        iva_pct: t.ivaPct,
+        iva: t.iva,
+        irpf_pct: t.irpfPct,
+        irpf: t.irpf,
+        total: t.total,
+        estado: 'pagada',
+        fecha_pago: fechaMovimiento,
+        estado_registro: 'activo'
+      };
+
+      const guardada = await guardarRegistro('compras', factura, null, null);
+      if (guardada.status !== 'success') throw new Error('No se pudo crear la factura');
+
+      const idFinal = (guardada.data && guardada.data.id) || idFactura;
+
+      await ctConvEngancharApunte(apunte, t, fechaMovimiento, contacto.id, {
+        id_factura_venta: '', id_factura_compra: idFinal,
+        concepto: 'Pago factura ' + d.numero, tipo: 'gasto'
+      });
+    }
+
+    ctMarcarSync(apunte.id, null);
+    pintarContabilidad();
+
+  } catch (err) {
+    console.error('No se pudo convertir el apunte en factura:', err);
+    ctMarcarSync(apunte.id, 'error');
+    ctRepintarLista();
+    alert('No se ha podido crear la factura. El apunte se queda como estaba, no se ha perdido nada.');
+  }
+}
+
+// El apunte no se borra ni se duplica: pasa a ser el apunte automático
+// de la factura, conservando su fecha real de cobro o de pago.
+async function ctConvEngancharApunte(apunte, t, fechaMovimiento, idContacto, vinculo) {
+  const registro = {
+    id: apunte.id,
+    ambito: 'empresa',
+    tipo: vinculo.tipo,
+    fecha: fechaMovimiento,
+    concepto: vinculo.concepto,
+    base: t.base,
+    iva_pct: t.ivaPct,
+    iva: t.iva,
+    irpf_pct: t.irpfPct,
+    irpf: t.irpf,
+    total: t.total,
+    impuesto_tipo: fvTipoImpuestoApunte(t.iva, t.irpf),
+    impuesto_trimestre: fvTrimestreDeFecha(fechaMovimiento),
+    'impuesto_año': fechaMovimiento ? parseInt(fechaMovimiento.split('-')[0], 10) : new Date().getFullYear(),
+    id_factura_venta: vinculo.id_factura_venta,
+    id_factura_compra: vinculo.id_factura_compra,
+    id_impuesto: '',
+    impuesto_pago: '',
+    id_contacto: idContacto || ''
+  };
+  await guardarRegistro('apuntes', registro, null, null);
+}
+
+// ============================================================
+// 9. REGISTRO COMO VISTA
 // ============================================================
 
 registrarVista('contabilidad', {

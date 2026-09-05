@@ -23,7 +23,7 @@ const MENU = [
 ];
 
 // Móvil: 4 accesos directos en la barra inferior + "Más" con el resto.
-const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'facturas', 'impuestos'];
+const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'facturas', 'contabilidad'];
 const MOVIL_MAS = MENU.map(function (m) { return m.id; })
   .filter(function (id) { return MOVIL_DIRECTOS.indexOf(id) === -1; });
 
