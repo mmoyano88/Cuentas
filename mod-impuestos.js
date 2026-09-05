@@ -176,10 +176,18 @@ function impCalcular(anio, trimestre) {
   const gastosManuales = manuales.filter(function (a) { return a.tipo === 'gasto'; });
 
   // --- IVA (modelo 303) ---
-  // Solo facturas, como en la aplicación original: el IVA de un
-  // apunte manual no se considera deducible aquí.
-  const ivaRepercutido = impSuma(ventas, 'iva');
-  const ivaSoportado = impSuma(compras, 'iva');
+  // Facturas de venta y de compra, MÁS los apuntes de empresa que
+  // lleven IVA marcado (decisión 05/09/2026). Un apunte sin IVA —la
+  // cuota de autónomo, una subvención— suma cero y no altera nada; un
+  // recibo de luz o de internet apuntado a mano sí se deduce.
+  //
+  // Lo que NO entra, y es deliberado: los apuntes personales (nunca
+  // tributan), los que vienen de una factura (esa factura ya está
+  // contada arriba y se duplicaría) y los pagos de impuestos (pagar el
+  // IVA no genera más IVA). Los tres quedan fuera en el filtro de
+  // `impApuntesManuales`, así que aquí ya no pueden colarse.
+  const ivaRepercutido = roundMoney(impSuma(ventas, 'iva') + impSuma(ingresosManuales, 'iva'));
+  const ivaSoportado = roundMoney(impSuma(compras, 'iva') + impSuma(gastosManuales, 'iva'));
   const iva = roundMoney(ivaRepercutido - ivaSoportado);
 
   // --- IRPF (modelo 130) ---
@@ -408,7 +416,7 @@ function pintarPantallaImpuestos() {
           return '<option value="' + a + '"' + (a === impAnio ? ' selected' : '') + '>' + a + '</option>';
         }).join('') +
       '</select>' +
-      '<div class="imp-selector" id="imp-trimestres">' +
+      '<div class="imp-selector imp-selector-periodo" id="imp-trimestres">' +
         IMP_TRIMESTRES.map(function (t) {
           return '<button type="button" data-trimestre="' + t + '"' +
             (t === impTrimestre ? ' class="activa"' : '') + '>' + t + '</button>';
@@ -416,8 +424,7 @@ function pintarPantallaImpuestos() {
       '</div>' +
     '</div>' +
     '<p class="imp-nota-cabecera">Estimación orientativa para saber cuánto apartar. Los trimestres oficiales los presenta tu asesor.</p>' +
-    '<div id="imp-detalle"></div>' +
-    '<div id="imp-historico"></div>';
+    '<div id="imp-detalle"></div>';
 
   document.getElementById('imp-anio').addEventListener('change', function (ev) {
     impAnio = parseInt(ev.target.value, 10);
@@ -432,8 +439,14 @@ function pintarPantallaImpuestos() {
   });
 
   impRepintarDetalle();
-  impRepintarHistorico();
 }
+
+// El histórico de trimestres ya no vive aquí (decisión 05/09/2026):
+// Impuestos enseña SOLO el trimestre que estés mirando, y el
+// histórico con sus comparaciones vive en la pestaña Informes. Se
+// conserva esta función vacía porque el flujo de guardado la llama en
+// varios sitios y así no hay que tocar esa parte, ya probada.
+function impRepintarHistorico() { /* el histórico vive ahora en Informes */ }
 
 function impRepintarDetalle() {
   const zona = document.getElementById('imp-detalle');
@@ -444,9 +457,14 @@ function impRepintarDetalle() {
   const adelantar = impAdelantar(impAnio, impTrimestre);
   const registro = impRegistroDe(impAnio, impTrimestre);
 
+  // IVA e IRPF van uno al lado del otro en PC y uno debajo del otro
+  // en móvil (decisión 05/09/2026): en pantalla ancha ocupaban
+  // demasiado alto puestos en vertical.
   zona.innerHTML =
-    impTarjetaIva(c, registro) +
-    impTarjetaIrpf(c, acumulado, registro) +
+    '<div class="imp-columnas">' +
+      impTarjetaIva(c, registro) +
+      impTarjetaIrpf(c, acumulado, registro) +
+    '</div>' +
     impTarjetaTotal(c) +
     impTarjetaAdelantar(adelantar);
 
@@ -472,9 +490,12 @@ function impTarjetaIva(c, registro) {
   return '<div class="imp-tarjeta">' +
     '<div class="imp-tarjeta-cabecera">' +
       '<p class="imp-tarjeta-titulo">IVA · Modelo 303</p>' +
-      (pagado
-        ? '<span class="pastilla ind-verde">Pagado</span>'
-        : '<span class="pastilla ind-ambar">Pendiente</span>') +
+      '<span class="imp-cabecera-estado">' +
+        (pagado
+          ? '<span class="pastilla ind-verde">Pagado</span>'
+          : '<span class="pastilla ind-ambar">Pendiente</span>') +
+        (registro ? impPuntoEstado(registro) : '') +
+      '</span>' +
     '</div>' +
 
     '<div class="imp-linea"><span>IVA repercutido (ventas)</span><strong>+' + escaparHtml(formatMoney(c.ivaRepercutido)) + '</strong></div>' +
@@ -486,24 +507,68 @@ function impTarjetaIva(c, registro) {
   '</div>';
 }
 
+// Porcentaje de la facturación del AÑO que lleva retención de IRPF.
+// Si supera el 70%, es probable que no haya obligación de presentar
+// el modelo 130 (la retención ya la adelantan los clientes). No lo
+// decide la aplicación: se muestra como aviso para consultarlo con el
+// asesor. Ver GUÍA sección 13.
+function impPorcentajeConRetencion(anio) {
+  let conRetencion = 0;
+  let total = 0;
+
+  IMP_TRIMESTRES.forEach(function (t) {
+    impVentasDelPeriodo(anio, t).forEach(function (f) {
+      const base = parsearNumero(f.base);
+      if (base <= 0) return;
+      total += base;
+      if (parsearNumero(f.irpf) > 0) conRetencion += base;
+    });
+  });
+
+  if (total <= 0) return null;
+  return Math.round((conRetencion / total) * 100);
+}
+
 function impTarjetaIrpf(c, acumulado, registro) {
   const pagado = registro && String(registro.irpf_estado || '').toLowerCase() === 'pagado';
+  const pctRetencion = impPorcentajeConRetencion(impAnio);
+
+  // Aviso del 70% (decisión 05/09/2026). Si la mayor parte de la
+  // facturación ya lleva retención, puede no haber obligación de
+  // presentar el 130 — pero el dinero hay que apartarlo igual, porque
+  // entonces se liquida en la declaración de la renta. Por eso la
+  // cifra principal no cambia: solo se avisa.
+  let avisoRetencion = '';
+  if (pctRetencion !== null) {
+    avisoRetencion = pctRetencion >= 70
+      ? '<p class="imp-nota destacada-ok">El ' + pctRetencion + '% de tu facturación de ' + impAnio +
+        ' lleva retención. Por encima del 70% es probable que no tengas que presentar el modelo 130 ' +
+        '(el dinero se liquidaría en la declaración de la renta). Confírmalo con tu asesor.</p>'
+      : '<p class="imp-nota">El ' + pctRetencion + '% de tu facturación de ' + impAnio +
+        ' lleva retención. Por debajo del 70% es probable que sí tengas que presentar el modelo 130.</p>';
+  }
 
   return '<div class="imp-tarjeta">' +
     '<div class="imp-tarjeta-cabecera">' +
-      '<p class="imp-tarjeta-titulo">IRPF · Modelo 130</p>' +
-      (pagado
-        ? '<span class="pastilla ind-verde">Pagado</span>'
-        : '<span class="pastilla ind-ambar">Pendiente</span>') +
+      '<p class="imp-tarjeta-titulo">IRPF · dinero a apartar</p>' +
+      '<span class="imp-cabecera-estado">' +
+        (pagado
+          ? '<span class="pastilla ind-verde">Pagado</span>'
+          : '<span class="pastilla ind-ambar">Pendiente</span>') +
+        (registro ? impPuntoEstado(registro) : '') +
+      '</span>' +
     '</div>' +
+    '<p class="imp-tarjeta-subtitulo">Referencia: modelo 130</p>' +
 
     '<div class="imp-linea"><span>Ingresos del trimestre (base)</span><strong>+' + escaparHtml(formatMoney(c.ingresos)) + '</strong></div>' +
     '<div class="imp-linea"><span>Gastos del trimestre (base)</span><strong>−' + escaparHtml(formatMoney(c.gastos)) + '</strong></div>' +
     '<div class="imp-linea destacada"><span>Rendimiento neto</span><strong>' + escaparHtml(formatMoney(c.rendimiento)) + '</strong></div>' +
     '<div class="imp-linea"><span>' + c.pct + '% sobre el rendimiento</span><strong>' + escaparHtml(formatMoney(c.irpfTeorico)) + '</strong></div>' +
-    '<div class="imp-linea"><span>Retenciones ya soportadas</span><strong>−' + escaparHtml(formatMoney(c.retencionesSoportadas)) + '</strong></div>' +
+    '<div class="imp-linea"><span>Retenciones que ya te han hecho</span><strong>−' + escaparHtml(formatMoney(c.retencionesSoportadas)) + '</strong></div>' +
 
-    impBloqueResultado(c.irpf, 'A pagar este trimestre', 'A tu favor este trimestre') +
+    impBloqueResultado(c.irpf, 'A apartar este trimestre', 'A tu favor este trimestre') +
+
+    avisoRetencion +
 
     '<p class="imp-nota">Acumulado del año hasta ' + escaparHtml(impTrimestre) + ': ' +
       escaparHtml(formatMoney(acumulado.irpf)) + ' sobre un rendimiento de ' +
@@ -511,8 +576,9 @@ function impTarjetaIrpf(c, acumulado, registro) {
       'por si quieres comparar con tu asesor.</p>' +
 
     (c.retencionesTerceros > 0
-      ? '<p class="imp-nota">Además, has retenido ' + escaparHtml(formatMoney(c.retencionesTerceros)) +
-        ' de IRPF a terceros este trimestre (informativo, no entra en el cálculo).</p>'
+      ? '<p class="imp-nota aviso">Has retenido ' + escaparHtml(formatMoney(c.retencionesTerceros)) +
+        ' de IRPF a terceros este trimestre. Ese dinero se lo debes tú a Hacienda por otro modelo ' +
+        '(111 o 115) y NO está incluido en la cifra de arriba. Consúltalo con tu asesor.</p>'
       : '') +
 
     impBloquePago('irpf', registro, pagado) +
@@ -589,98 +655,12 @@ function impCablearDetalle(zona) {
 }
 
 // ============================================================
-// 7. HISTÓRICO DE PERIODOS
+// 7. NAVEGACIÓN A UN PERIODO
 // ============================================================
-
-function impRepintarHistorico() {
-  const zona = document.getElementById('imp-historico');
-  if (!zona) return;
-
-  const registros = estado.impuestos
-    .filter(impVisible)
-    .slice()
-    .sort(function (a, b) {
-      const anioA = parseInt(String(a['año'] || '0'), 10);
-      const anioB = parseInt(String(b['año'] || '0'), 10);
-      if (anioA !== anioB) return anioB - anioA;
-      return IMP_TRIMESTRES.indexOf(String(b.trimestre)) - IMP_TRIMESTRES.indexOf(String(a.trimestre));
-    });
-
-  if (registros.length === 0) {
-    zona.innerHTML = '<p class="imp-vacio">Todavía no has cerrado ningún trimestre. En cuanto marques uno como pagado, aparecerá aquí el histórico.</p>';
-    return;
-  }
-
-  zona.innerHTML =
-    '<p class="imp-seccion-titulo">Trimestres registrados</p>' +
-    '<div class="imp-lista-movil">' + registros.map(impRenderFilaMovil).join('') + '</div>' +
-    '<div class="imp-tabla-wrap"><table class="imp-tabla"><thead><tr>' +
-      '<th>Periodo</th>' +
-      '<th class="imp-celda-derecha">IVA estimado</th><th class="imp-celda-derecha">IVA real</th><th>Estado IVA</th>' +
-      '<th class="imp-celda-derecha">IRPF estimado</th><th class="imp-celda-derecha">IRPF real</th><th>Estado IRPF</th>' +
-      '<th></th>' +
-    '</tr></thead><tbody>' + registros.map(impRenderFilaTabla).join('') + '</tbody></table></div>' +
-    '<p class="imp-pista-tabla">Desliza para ver más</p>';
-
-  impCablearHistorico(zona);
-}
-
-function impPastilla(valor) {
-  return String(valor || '').toLowerCase() === 'pagado'
-    ? '<span class="pastilla ind-verde">Pagado</span>'
-    : '<span class="pastilla ind-ambar">Pendiente</span>';
-}
-
-function impEtiquetaPeriodo(r) {
-  return String(r['año'] || '—') + ' · ' + String(r.trimestre || '—');
-}
-
-function impRenderFilaMovil(r) {
-  return '<div class="imp-fila" data-id="' + escaparHtml(r.id) + '">' +
-    '<div class="imp-info">' +
-      '<p class="imp-nombre">' + escaparHtml(impEtiquetaPeriodo(r)) + '</p>' +
-      '<p class="imp-meta">IVA ' + escaparHtml(formatMoney(parsearNumero(r.iva_real))) +
-        ' · IRPF ' + escaparHtml(formatMoney(parsearNumero(r.irpf_real))) + '</p>' +
-      '<div class="imp-pastillas">' + impPastilla(r.iva_estado) + impPastilla(r.irpf_estado) + '</div>' +
-    '</div>' +
-    '<div class="imp-control">' +
-      '<button type="button" class="imp-btn-icono" data-mas="' + escaparHtml(r.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
-      impPuntoEstado(r) +
-    '</div>' +
-  '</div>';
-}
-
-function impRenderFilaTabla(r) {
-  return '<tr class="imp-fila-tabla" data-id="' + escaparHtml(r.id) + '">' +
-    '<td>' + escaparHtml(impEtiquetaPeriodo(r)) + '</td>' +
-    '<td class="imp-celda-derecha">' + escaparHtml(formatMoney(parsearNumero(r.iva_estimado))) + '</td>' +
-    '<td class="imp-celda-derecha">' + escaparHtml(formatMoney(parsearNumero(r.iva_real))) + '</td>' +
-    '<td>' + impPastilla(r.iva_estado) + '</td>' +
-    '<td class="imp-celda-derecha">' + escaparHtml(formatMoney(parsearNumero(r.irpf_estimado))) + '</td>' +
-    '<td class="imp-celda-derecha">' + escaparHtml(formatMoney(parsearNumero(r.irpf_real))) + '</td>' +
-    '<td>' + impPastilla(r.irpf_estado) + '</td>' +
-    '<td><div class="imp-control">' +
-      '<button type="button" class="imp-btn-icono" data-mas="' + escaparHtml(r.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
-      impPuntoEstado(r) +
-    '</div></td>' +
-  '</tr>';
-}
-
-function impCablearHistorico(zona) {
-  zona.querySelectorAll('.imp-fila, .imp-fila-tabla').forEach(function (fila) {
-    fila.addEventListener('click', function (ev) {
-      if (ev.target.closest('.imp-control')) return;
-      impIrAlPeriodoDe(fila.dataset.id);
-    });
-  });
-
-  zona.querySelectorAll('[data-mas]').forEach(function (b) {
-    b.addEventListener('click', function (ev) {
-      ev.stopPropagation();
-      impAbrirMenuMas(b, b.dataset.mas);
-    });
-  });
-}
+// El histórico de trimestres se movió a la pestaña Informes
+// (decisión 05/09/2026): aquí solo se muestra el trimestre elegido.
+// Se conserva `impIrAlPeriodoDe` porque la usa Contabilidad, desde el
+// botón "Ver en Impuestos" de un apunte de pago de impuestos.
 
 function impIrAlPeriodoDe(id) {
   const r = estado.impuestos.find(function (x) { return String(x.id) === String(id); });
@@ -690,55 +670,6 @@ function impIrAlPeriodoDe(id) {
   if (IMP_TRIMESTRES.indexOf(String(r.trimestre)) !== -1) impTrimestre = String(r.trimestre);
   pintarImpuestos();
   window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// ============================================================
-// 8. MENÚ "MÁS OPCIONES"
-// ============================================================
-
-function impAbrirMenuMas(boton, id) {
-  document.querySelectorAll('.imp-menu-mas').forEach(function (m) { m.remove(); });
-
-  const r = estado.impuestos.find(function (x) { return String(x.id) === String(id); });
-  if (!r) return;
-
-  const menu = document.createElement('div');
-  menu.className = 'imp-menu-mas';
-  menu.innerHTML =
-    (impEstadoSync(r) === 'error'
-      ? '<button type="button" class="destacado" data-accion="reintentar">Reintentar guardado</button>'
-      : '') +
-    '<button type="button" data-accion="ir">Ver este trimestre</button>';
-
-  document.body.appendChild(menu);
-  impPosicionarMenu(menu, boton);
-
-  function cerrarMenu() {
-    menu.remove();
-    document.removeEventListener('click', cerrarSiFuera);
-  }
-  function cerrarSiFuera(ev) { if (!menu.contains(ev.target)) cerrarMenu(); }
-
-  const btnReintentar = menu.querySelector('[data-accion="reintentar"]');
-  if (btnReintentar) {
-    btnReintentar.addEventListener('click', function () { cerrarMenu(); impReintentarGuardado(id); });
-  }
-  menu.querySelector('[data-accion="ir"]').addEventListener('click', function () {
-    cerrarMenu();
-    impIrAlPeriodoDe(id);
-  });
-
-  setTimeout(function () { document.addEventListener('click', cerrarSiFuera); }, 0);
-}
-
-function impPosicionarMenu(menu, boton) {
-  const rect = boton.getBoundingClientRect();
-  const alto = menu.offsetHeight;
-  const espacioAbajo = window.innerHeight - rect.bottom;
-  const arriba = espacioAbajo < alto + 12;
-
-  menu.style.top = arriba ? (rect.top - alto - 4) + 'px' : (rect.bottom + 4) + 'px';
-  menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + 'px';
 }
 
 // ============================================================

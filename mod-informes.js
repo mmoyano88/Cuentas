@@ -301,23 +301,6 @@ function infResumenAnual(anio) {
 }
 
 // ============================================================
-// 5. TOTALIZADOR DEL PDF TRIMESTRAL (sustituye a la comparativa)
-// ============================================================
-
-function infTotalizadorTrimestre(anio, trimestre) {
-  const ventas = infVentasDelTrimestre(anio, trimestre);
-  const compras = infComprasDelTrimestre(anio, trimestre);
-  return {
-    baseVentas: impSuma(ventas, 'base'),
-    ivaVentas: impSuma(ventas, 'iva'),
-    irpfVentas: impSuma(ventas, 'irpf'),
-    basePompras: impSuma(compras, 'base'),
-    ivaCompras: impSuma(compras, 'iva'),
-    irpfCompras: impSuma(compras, 'irpf')
-  };
-}
-
-// ============================================================
 // 6. CONSTRUCCIÓN DEL DOCUMENTO
 // ============================================================
 
@@ -399,7 +382,7 @@ function infTablaFacturas(titulo, filas, conConcepto, vacio) {
       '<th>Nº</th><th>Fecha</th><th>Nombre</th><th>NIF</th><th>Dirección</th>' +
       (conConcepto ? '<th>Concepto</th>' : '') +
       '<th class="inf-num">Base</th><th class="inf-num">IVA</th>' +
-      '<th class="inf-num">IRPF</th><th class="inf-num">Total</th>' +
+      '<th class="inf-num">Retención IRPF</th><th class="inf-num">Total</th>' +
     '</tr></thead><tbody>' +
     filas.map(function (f) {
       return '<tr>' +
@@ -433,7 +416,7 @@ function infTablaApuntes(titulo, filas, conConcepto, vacio) {
       '<th>Fecha</th><th>Ámbito</th><th>Tipo</th><th>Nombre</th><th>NIF</th><th>Dirección</th>' +
       (conConcepto ? '<th>Concepto</th>' : '') +
       '<th class="inf-num">Base</th><th class="inf-num">IVA</th>' +
-      '<th class="inf-num">IRPF</th><th class="inf-num">Total</th>' +
+      '<th class="inf-num">Retención IRPF</th><th class="inf-num">Total</th>' +
     '</tr></thead><tbody>' +
     filas.map(function (f) {
       return '<tr>' +
@@ -522,6 +505,17 @@ function infTablaGastos(r) {
     infFilaResumen('Compras (base de facturas)', [r.comprasBase, null, r.comprasBase]) +
     infFilaResumen('Otros gastos (apuntes)', [r.otrosGastosEmpresa, r.otrosGastosPersonal, roundMoney(r.otrosGastosEmpresa + r.otrosGastosPersonal)]) +
     infFilaResumenDestacada('TOTAL GASTOS', [r.gastosEmpresa, r.gastosPersonal, r.gastosConjunto]) +
+    '</tbody></table>';
+}
+
+// El resultado va en su propia tabla, separado de Gastos: pegado
+// debajo parecía una fila más de la misma tabla y se perdía
+// (comentario del propietario, 05/09/2026).
+function infTablaResultado(r) {
+  return '<h3 class="inf-doc-subseccion">Resultado</h3>' +
+    '<table class="inf-tabla-doc inf-tabla-resumen"><thead><tr>' +
+      '<th>Concepto</th><th class="inf-num">Empresa</th><th class="inf-num">Personal</th><th class="inf-num">Conjunto</th>' +
+    '</tr></thead><tbody>' +
     infFilaResumenDestacada('RESULTADO DEL AÑO', [r.resultadoEmpresa, r.resultadoPersonal, r.resultadoConjunto]) +
     '</tbody></table>';
 }
@@ -555,20 +549,6 @@ function infTablaImpuestosYOtros(r) {
     '</tbody></table>';
 }
 
-function infTablaTotalizador(t) {
-  const netoIva = roundMoney(t.ivaVentas - t.ivaCompras);
-  return '<h2 class="inf-doc-seccion">Resumen de facturación del trimestre</h2>' +
-    '<table class="inf-tabla-doc inf-tabla-resumen-simple"><tbody>' +
-      '<tr><td>Base facturada (ventas)</td><td class="inf-num">' + escaparHtml(formatMoney(t.baseVentas)) + '</td></tr>' +
-      '<tr><td>IVA repercutido (ventas)</td><td class="inf-num">' + escaparHtml(formatMoney(t.ivaVentas)) + '</td></tr>' +
-      '<tr><td>IRPF retenido en ventas</td><td class="inf-num">' + escaparHtml(formatMoney(t.irpfVentas)) + '</td></tr>' +
-      '<tr><td>Base de compras</td><td class="inf-num">' + escaparHtml(formatMoney(t.basePompras)) + '</td></tr>' +
-      '<tr><td>IVA soportado (compras)</td><td class="inf-num">' + escaparHtml(formatMoney(t.ivaCompras)) + '</td></tr>' +
-      '<tr><td>IRPF retenido en compras</td><td class="inf-num">' + escaparHtml(formatMoney(t.irpfCompras)) + '</td></tr>' +
-      '<tr class="inf-fila-destacada"><td>IVA neto del trimestre</td><td class="inf-num' + (netoIva < 0 ? ' inf-negativo' : '') + '">' + escaparHtml(formatMoney(netoIva)) + '</td></tr>' +
-    '</tbody></table>';
-}
-
 function infDocumentoAnual(anio) {
   const ventas = infVentasDelAnio(anio).map(infFilaVenta);
   const compras = infComprasDelAnio(anio).map(infFilaCompra);
@@ -579,10 +559,11 @@ function infDocumentoAnual(anio) {
     '<h2 class="inf-doc-seccion">Resumen del año</h2>' +
     infTablaIngresos(resumen) +
     infTablaGastos(resumen) +
+    infTablaResultado(resumen) +
     infTablaImpuestosYOtros(resumen) +
-    infTablaFacturas('Facturas de venta', ventas, false, 'No hay facturas de venta este año.') +
-    infTablaFacturas('Facturas de compra', compras, false, 'No hay facturas de compra este año.') +
-    infTablaApuntes('Apuntes de contabilidad', apuntes, false, 'No hay apuntes este año.') +
+    infTablaFacturas('Facturas de venta', ventas, true, 'No hay facturas de venta este año.') +
+    infTablaFacturas('Facturas de compra', compras, true, 'No hay facturas de compra este año.') +
+    infTablaApuntes('Apuntes de contabilidad', apuntes, true, 'No hay apuntes este año.') +
     infTablaImpuestos(anio) +
     '<p class="inf-doc-pie">Documento generado por Cuentas como copia de seguridad del ejercicio ' + anio +
       '. Los gastos figuran en negativo. No incluye presupuestos ni el detalle de líneas de las facturas.</p>';
@@ -592,10 +573,8 @@ function infDocumentoTrimestral(anio, trimestre) {
   const ventas = infVentasDelTrimestre(anio, trimestre).map(infFilaVenta);
   const compras = infComprasDelTrimestre(anio, trimestre).map(infFilaCompra);
   const apuntes = infApuntesEmpresaDelTrimestre(anio, trimestre).map(infFilaApunte);
-  const totalizador = infTotalizadorTrimestre(anio, trimestre);
 
   return infCabeceraDoc('Informe trimestral', trimestre + ' · ' + anio) +
-    infTablaTotalizador(totalizador) +
     infTablaFacturas('Facturas de venta', ventas, true, 'No hay facturas de venta en este trimestre.') +
     infTablaFacturas('Facturas de compra', compras, true, 'No hay facturas de compra en este trimestre.') +
     infTablaApuntes('Apuntes de empresa', apuntes, true, 'No hay apuntes de empresa en este trimestre.') +
@@ -694,15 +673,31 @@ function pintarInformes() {
 }
 
 function infResumenPantallaHtml(resumen) {
+  // Cada trimestre muestra el estimado Y el real, para poder
+  // compararlos de un vistazo (petición del propietario, 05/09/2026).
+  // Si aún no está pagado, el real se muestra como «—» en vez de un
+  // cero, que haría pensar que se pagó cero.
+  const bloque = function (etiqueta, estimado, real, pagado) {
+    return '<div class="inf-resumen-bloque">' +
+      '<div class="inf-resumen-bloque-cabecera">' +
+        '<span>' + etiqueta + '</span>' +
+        (pagado
+          ? '<span class="pastilla ind-verde">Pagado</span>'
+          : '<span class="pastilla ind-ambar">Pendiente</span>') +
+      '</div>' +
+      '<div class="inf-resumen-par">' +
+        '<span class="inf-resumen-dato"><small>Estimado</small>' + escaparHtml(formatMoney(estimado)) + '</span>' +
+        '<span class="inf-resumen-dato"><small>Pagado</small>' +
+          (pagado ? escaparHtml(formatMoney(real)) : '—') + '</span>' +
+      '</div>' +
+    '</div>';
+  };
+
   const filaTrimestre = function (f) {
-    const estadoIva = f.ivaPagado ? '<span class="pastilla ind-verde">Pagado</span>' : '<span class="pastilla ind-ambar">Pendiente</span>';
-    const estadoIrpf = f.irpfPagado ? '<span class="pastilla ind-verde">Pagado</span>' : '<span class="pastilla ind-ambar">Pendiente</span>';
     return '<div class="inf-resumen-trimestre">' +
       '<p class="inf-resumen-trimestre-titulo">' + f.trimestre + '</p>' +
-      '<div class="inf-resumen-linea"><span>IVA</span>' +
-        '<span class="inf-resumen-cifras">' + escaparHtml(formatMoney(f.ivaPagado ? f.ivaReal : f.ivaEstimado)) + ' ' + estadoIva + '</span></div>' +
-      '<div class="inf-resumen-linea"><span>IRPF</span>' +
-        '<span class="inf-resumen-cifras">' + escaparHtml(formatMoney(f.irpfPagado ? f.irpfReal : f.irpfEstimado)) + ' ' + estadoIrpf + '</span></div>' +
+      bloque('IVA', f.ivaEstimado, f.ivaReal, f.ivaPagado) +
+      bloque('IRPF', f.irpfEstimado, f.irpfReal, f.irpfPagado) +
     '</div>';
   };
 
@@ -735,17 +730,22 @@ function infResumenPantallaHtml(resumen) {
 // "(21%)" añadido junto al IVA/IRPF alargaba esa celda más que su
 // cabecera y desalineaba toda la columna.
 
+// Anchos pensados para que quepa el contenido real sin apreturas:
+// Dirección y Concepto son los que más texto llevan, y las columnas
+// de cifras necesitan sitio para el importe más el porcentaje.
 function infColgroupFacturas(conConcepto) {
+  // Nº · Fecha · Nombre · NIF · Dirección · [Concepto] · Base · IVA · Retención IRPF · Total
   const anchos = conConcepto
-    ? ['6%', '7%', '12%', '8%', '13%', '13%', '9%', '11%', '11%', '10%']
-    : ['7%', '7%', '15%', '9%', '24%', '9%', '10%', '10%', '9%'];
+    ? ['7%', '8%', '13%', '9%', '15%', '14%', '8%', '9%', '9%', '8%']
+    : ['8%', '9%', '17%', '11%', '22%', '8%', '9%', '9%', '7%'];
   return '<colgroup>' + anchos.map(function (a) { return '<col style="width:' + a + '">'; }).join('') + '</colgroup>';
 }
 
 function infColgroupApuntes(conConcepto) {
+  // Fecha · Ámbito · Tipo · Nombre · NIF · Dirección · [Concepto] · Base · IVA · Retención IRPF · Total
   const anchos = conConcepto
-    ? ['7%', '7%', '6%', '12%', '8%', '14%', '13%', '8%', '8%', '8%', '9%']
-    : ['8%', '8%', '7%', '14%', '9%', '17%', '9%', '9%', '9%', '10%'];
+    ? ['8%', '7%', '6%', '12%', '9%', '13%', '15%', '8%', '8%', '8%', '6%']
+    : ['9%', '8%', '7%', '15%', '10%', '17%', '9%', '9%', '9%', '7%'];
   return '<colgroup>' + anchos.map(function (a) { return '<col style="width:' + a + '">'; }).join('') + '</colgroup>';
 }
 
@@ -788,10 +788,18 @@ const INF_CSS_IMPRESION =
     ' overflow-wrap: break-word; word-break: break-word; }' +
   'table.inf-tabla-doc td.inf-num { white-space: nowrap; }' +
   'table.inf-tabla-doc tfoot td { font-weight: bold; border-top: 1px solid #1A1A1A; border-bottom: none; }' +
+  // El pie sale UNA sola vez, al final. Sin esto el navegador lo
+  // trata como pie fijo y repite la fila TOTAL en cada hoja cuando
+  // la tabla se parte entre páginas (fallo detectado 05/09/2026).
+  'table.inf-tabla-doc tfoot { display: table-row-group; }' +
   'table.inf-tabla-doc tr { break-inside: avoid; }' +
   'table.inf-tabla-doc thead { display: table-header-group; }' +
-  '.inf-num { text-align: right; }' +
-  'th.inf-num, td.inf-num { text-align: right; }' +
+  // Todo a la izquierda, cifras incluidas (decisión 05/09/2026): con
+  // las cifras a la derecha y los títulos a la izquierda las columnas
+  // se veían descompensadas. Ahora título y dato arrancan en la
+  // misma vertical.
+  '.inf-num { text-align: left; }' +
+  'th.inf-num, td.inf-num { text-align: left; }' +
   '.inf-negativo { color: #A3241F; }' +
   '.inf-nd { color: #9A9A94; }' +
   '.inf-pct { color: #6A6A6A; font-size: 7.5px; }' +

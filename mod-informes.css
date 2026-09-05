@@ -58,28 +58,42 @@
   font-weight: 700;
   margin: 0 0 6px;
 }
-.inf-resumen-linea {
+.inf-resumen-bloque {
+  margin-top: 8px;
+}
+.inf-resumen-bloque-cabecera {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: baseline;
   gap: 6px;
   font-size: 11px;
+  font-weight: 600;
   color: var(--texto-secundario);
-  padding: 2px 0;
+  margin-bottom: 4px;
 }
-.inf-resumen-linea span:first-child { flex: 0 0 auto; }
-.inf-resumen-cifras {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  color: var(--texto);
-  font-weight: 500;
-}
-.inf-resumen-cifras .pastilla {
+.inf-resumen-bloque-cabecera .pastilla {
   font-size: 9px;
   padding: 1px 7px;
+}
+
+/* Estimado y pagado, uno al lado del otro, para compararlos de un
+   vistazo (petición del propietario, 05/09/2026). */
+.inf-resumen-par {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.inf-resumen-dato {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--texto);
+}
+.inf-resumen-dato small {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--texto-secundario);
 }
 
 .inf-resumen-total {

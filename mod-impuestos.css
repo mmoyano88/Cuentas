@@ -35,31 +35,43 @@
   flex: 0 0 auto;
 }
 
+/* Selector base. Por defecto se ajusta a su contenido, como los de
+   Presupuestos, Clientes y Facturas. El de trimestres sí reparte el
+   ancho entre sus 4 botones (ver .imp-selector-periodo más abajo):
+   el `flex` iba antes en esta regla base y estiraba también el
+   selector de sección a toda la pantalla. */
 .imp-selector {
   display: inline-flex;
   background: var(--gris-neutro);
   border-radius: 20px;
   padding: 3px;
   gap: 2px;
-  flex: 1 1 auto;
 }
 .imp-selector button {
-  flex: 1;
   border: none;
   background: none;
   height: 34px;
-  padding: 0 14px;
+  padding: 0 18px;
   border-radius: 18px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 600;
   color: var(--texto-secundario);
   cursor: pointer;
+  white-space: nowrap;
 }
 .imp-selector button.activa {
   background: var(--superficie);
   color: var(--texto);
 }
+
+/* El selector de trimestres (Q1–Q4) sí ocupa el ancho disponible y
+   reparte sus botones a partes iguales. */
+.imp-selector-periodo {
+  display: flex;
+  flex: 1 1 auto;
+}
+.imp-selector-periodo button { flex: 1; padding: 0 14px; }
 
 .imp-nota-cabecera {
   font-size: 12px;
@@ -183,113 +195,37 @@
   margin: 8px 0 0;
 }
 
-/* ---- Histórico de trimestres ---- */
-.imp-seccion-titulo {
-  font-size: 15px;
-  font-weight: 500;
-  margin: 22px 0 10px;
-}
 
-.imp-lista-movil { display: flex; flex-direction: column; gap: 8px; }
-
-.imp-fila {
-  background: var(--superficie);
-  border-radius: var(--radio-tarjeta);
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
+/* ---- IVA e IRPF en dos columnas (decisión 05/09/2026) ---- */
+/* En móvil van uno debajo del otro; en PC, uno al lado del otro:
+   en vertical ocupaban demasiado alto en pantalla ancha. Las dos
+   tarjetas se estiran a la misma altura para que no queden
+   descuadradas cuando una tiene más texto que la otra. */
+.imp-columnas {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
-  cursor: pointer;
+  align-items: stretch;
 }
-.imp-info { flex: 1; min-width: 0; }
-.imp-nombre { font-size: 15px; font-weight: 500; margin: 0; }
-.imp-meta {
-  font-size: 12px;
-  color: var(--texto-secundario);
-  margin: 1px 0 0;
-}
-.imp-pastillas { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-
-.imp-tabla-wrap { display: none; overflow-x: auto; }
-.imp-tabla {
-  width: 100%;
-  border-collapse: collapse;
-  background: var(--superficie);
-  border-radius: var(--radio-tarjeta);
-  overflow: hidden;
-}
-.imp-tabla th {
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--texto-secundario);
-  text-transform: uppercase;
-  padding: 10px 14px;
-  background: var(--gris-neutro);
-  white-space: nowrap;
-}
-.imp-tabla td {
-  padding: 10px 14px;
-  font-size: 13px;
-  border-top: 1px solid var(--fondo);
-  vertical-align: middle;
-  white-space: nowrap;
-}
-.imp-tabla tr.imp-fila-tabla { cursor: pointer; }
-.imp-tabla tr.imp-fila-tabla:hover td { background: var(--fondo); }
-
-/* La regla general ".imp-tabla th" alinea a la izquierda y, por ser
-   más específica (elemento + clase), gana a una clase suelta: sin
-   esta combinación los títulos de las columnas de cifras se quedarían
-   pegados a la izquierda mientras sus datos van a la derecha.
-   Ver diario, INTERFAZ/DISEÑO 04/09/2026. */
-.imp-tabla th.imp-celda-derecha,
-.imp-tabla td.imp-celda-derecha { text-align: right; }
-
-.imp-pista-tabla {
-  display: none;
-  font-size: 11px;
-  color: var(--texto-secundario);
-  text-align: center;
-  margin: 8px 0 0;
-}
-
 @media (min-width: 900px) {
-  .imp-lista-movil { display: none; }
-  .imp-tabla-wrap { display: block; }
-  .imp-pista-tabla { display: block; }
+  .imp-columnas { grid-template-columns: 1fr 1fr; }
 }
-
-.imp-vacio {
-  text-align: center;
-  padding: 30px 20px;
-  color: var(--texto-secundario);
-  font-size: 13px;
-}
-
-/* ---- Bloque de control de la fila (tres puntos + punto de estado) ---- */
-.imp-control {
+.imp-columnas .imp-tarjeta {
+  margin-bottom: 0;
   display: flex;
+  flex-direction: column;
+}
+/* La zona de pago se pega abajo, así los botones de las dos tarjetas
+   quedan a la misma altura aunque el texto de arriba sea distinto. */
+.imp-columnas .imp-pago { margin-top: auto; }
+
+/* ---- Estado en la cabecera de la tarjeta ---- */
+.imp-cabecera-estado {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  justify-content: flex-end;
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-.imp-btn-icono {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: none;
-  color: var(--texto-secundario);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex: 0 0 auto;
 }
-.imp-btn-icono:hover { background: var(--fondo); }
 
 .imp-punto {
   width: 9px;
@@ -302,27 +238,18 @@
 .imp-punto.error     { background: var(--rojo); }
 .imp-punto.prueba    { background: #B8B6AC; }
 
-.imp-menu-mas {
-  position: fixed;
-  background: var(--superficie);
-  border: 1px solid #D8D8D2;
-  border-radius: var(--radio-control);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, .12);
-  min-width: 190px;
-  z-index: 25;
-  overflow: hidden;
+.imp-tarjeta-subtitulo {
+  font-size: 11px;
+  color: var(--texto-secundario);
+  margin: -4px 0 10px;
 }
-.imp-menu-mas button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: none;
-  background: none;
-  padding: 10px 14px;
-  font-family: inherit;
-  font-size: 13px;
-  cursor: pointer;
-  color: var(--texto);
+
+/* ---- Avisos dentro de las notas ---- */
+.imp-nota.destacada-ok {
+  color: var(--verde-texto);
+  font-weight: 500;
 }
-.imp-menu-mas button:hover { background: var(--fondo); }
-.imp-menu-mas button.destacado { color: var(--rojo-texto); font-weight: 600; }
+.imp-nota.aviso {
+  color: var(--ambar-texto);
+  font-weight: 500;
+}
