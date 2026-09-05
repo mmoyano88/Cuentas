@@ -42,6 +42,12 @@
 html, body {
   margin: 0;
   min-height: 100%;
+  /* Sin rebote elástico al llegar al principio o al final de la
+     página, y sin "tirar hacia abajo para recargar". En una app
+     instalada ese rebote hace que las barras fijas de arriba y de
+     abajo parezcan estirarse o aplastarse al deslizar, y el gesto de
+     recargar no hace falta: para eso está el botón de sincronizar. */
+  overscroll-behavior: none;
 }
 
 body {
@@ -225,24 +231,32 @@ main {
 }
 
 /* Hueco al final de la pantalla para el botón flotante «+».
-   El botón va fijo sobre la pantalla (a 112px del fondo y con 56px de
-   alto, así que su borde de arriba queda a 168px), de modo que sin
-   este hueco siempre tapa la última fila del listado y no se puede
-   llegar a su menú de tres puntos: por mucho que se deslice, esa fila
-   se queda debajo del botón. Con el hueco, la lista puede subir lo
-   justo para que el último elemento quede por encima.
+   El botón va fijo sobre la pantalla, a 112px del fondo y con 56px de
+   alto, así que su borde de arriba queda a 168px. Sin este hueco
+   siempre tapa la última fila del listado y no se puede llegar a su
+   menú de tres puntos: por mucho que se deslice, esa fila se queda
+   debajo del botón.
 
-   Se aplica a `main`, así que vale para TODOS los listados de la app
-   —Contactos, Presupuestos, Facturas de venta y de compra,
-   Contabilidad— y para los que se construyan después, sin tocar
-   ningún módulo. En Impuestos e Informes, que no tienen botón «+»,
-   solo deja algo de aire al final, que tampoco estorba.
+   Se apunta al elemento por su IDENTIFICADOR (`#contenido`) y no por
+   su etiqueta (`main`). Es a propósito: `mod-navegacion.css` se carga
+   después que este archivo y ya fija `main { padding-bottom: 104px }`
+   para que la barra inferior no tape el contenido. Entre dos reglas
+   con la misma fuerza gana la última cargada, así que una regla sobre
+   `main` escrita aquí no serviría de nada. El identificador pesa más
+   y gana siempre, cargue lo que cargue después.
+
+   Como esto SUSTITUYE a esa regla, el valor incluye ya el espacio de
+   la barra inferior: 168px del botón + 24px de aire.
+
+   Vale para TODOS los listados —Contactos, Presupuestos, Facturas de
+   venta y de compra, Contabilidad— y para los que se construyan
+   después, sin tocar ningún módulo.
 
    Solo en móvil: a partir de 900px el botón deja de flotar y pasa a
    la cabecera de la lista, así que ahí no tapa nada. */
 @media (max-width: 899px) {
-  main {
-    padding-bottom: calc(var(--padding-pagina) + 96px);
+  #contenido {
+    padding-bottom: calc(192px + env(safe-area-inset-bottom));
   }
 }
 
