@@ -2,38 +2,49 @@
  * MÓDULO INFORMES
  * ------------------------------------------------------------
  * Vive dentro de la sección Impuestos, en la pestaña «Informes»
- * (decisión de navegación del 31/08/2026). El selector lo pinta
- * `mod-impuestos.js`, que llama aquí a `pintarInformes()`.
+ * (decisión de navegación del 31/08/2026). El selector Impuestos ⇄
+ * Informes lo pinta `mod-impuestos.js`, que llama aquí a
+ * `pintarInformes()`.
  *
- * Dos informes:
+ * REDISEÑO 05/09/2026, a petición del propietario: la PANTALLA y el
+ * PDF dejan de mostrar lo mismo. Son tres cosas distintas con
+ * público distinto, y cada una enseña solo lo suyo:
  *
- * - TRIMESTRAL (mapa 13): ventas y compras del trimestre, otros
- *   movimientos, y la comparativa entre lo estimado y lo realmente
- *   pagado. Es el informe de trabajo.
+ * - PANTALLA (esta vista): un resumen simplificado de los impuestos
+ *   del año elegido — los cuatro trimestres, pagados o no, con
+ *   estimado/real/estado, y el total del año. Nada de facturas, nada
+ *   de apuntes, nada de PDF embebido. Es la vista rápida de "cómo va
+ *   el año". El detalle línea a línea de cada trimestre ya vive en la
+ *   pestaña Impuestos; el detalle del Dashboard vive en el Dashboard.
+ *   Aquí solo el resumen.
  *
- * - ANUAL (decisión 05/09/2026): todos los registros del año como
- *   copia de seguridad para guardar a principios del año siguiente.
- *   Incluye ventas, compras, apuntes (de empresa Y personales) e
- *   impuestos, más un resumen con las cifras del año separadas en
- *   tres columnas: empresa, personal y conjunto.
- *   No incluye presupuestos, ni líneas de detalle, ni el concepto de
- *   las facturas.
+ * - PDF TRIMESTRAL: documento para el asesor. Solo lo que puede
+ *   necesitar para presentar el modelo: facturas de venta, facturas
+ *   de compra, apuntes de empresa del trimestre y un totalizador de
+ *   facturación. Sin comparativa estimado/real — el asesor no la
+ *   necesita, es una herramienta interna de la aplicación.
  *
- * PDF: igual que en la aplicación original (mapa 15.1). No hay
- * librería de PDF. Se abre una ventana nueva con el documento
- * maquetado en A4 y se imprime a PDF desde el navegador. Funciona
- * igual en el PC y en Android, y sigue funcionando sin conexión.
+ * - PDF ANUAL: copia de seguridad de fin de año. Facturas, apuntes
+ *   (de empresa y personales) e impuestos del año completo, más un
+ *   resumen dividido en tablas pequeñas y claras.
  *
- * Los apuntes que se listan son solo los MANUALES: los que vienen de
- * una factura son la contrapartida de una factura ya listada arriba, y
- * saldrían dos veces; los pagos de impuestos tienen su propia tabla.
+ * El selector Anual/Trimestral que antes decidía qué VER en pantalla
+ * ahora decide solo qué PDF descargar — la pantalla ya no cambia de
+ * contenido al tocarlo.
+ *
+ * PDF: sin librería, igual que la app original (mapa 15.1). Se abre
+ * una ventana nueva con el documento maquetado para impresión y se
+ * llama a print(). La paginación es NATURAL: el navegador reparte el
+ * contenido en tantas hojas como haga falta, sin saltos forzados —
+ * el propietario elige vertical/horizontal en el propio diálogo de
+ * impresión.
  */
 
 // ============================================================
 // 0. ESTADO PROPIO DEL MÓDULO
 // ============================================================
 
-let infTipo = 'anual';        // 'anual' | 'trimestral'
+let infPdfTipo = 'trimestral';  // 'trimestral' | 'anual' — solo decide qué PDF se descarga
 let infAnio = null;
 let infTrimestre = null;
 
@@ -41,8 +52,6 @@ let infTrimestre = null;
 // 1. UTILIDADES
 // ============================================================
 
-// Todo lo que llega de Sheets puede venir como número. Se pasa por
-// String() antes de tocarlo (regla del núcleo, 04/09/2026).
 function infTexto(v) {
   return String(v === null || v === undefined ? '' : v).trim();
 }
@@ -69,7 +78,6 @@ function infContactoPorId(id) {
   return estado.clientes.find(function (c) { return String(c.id) === String(id); }) || null;
 }
 
-// «Calle Número, CP Población, Provincia», saltándose lo que falte.
 function infDireccionDe(contacto) {
   if (!contacto) return '';
   const calle = [infTexto(contacto.calle), infTexto(contacto.numero)].filter(Boolean).join(' ');
@@ -82,8 +90,6 @@ function infNombreDe(contacto) {
   return infTexto(contacto.nombre_fiscal) || infTexto(contacto.nombre_contacto);
 }
 
-// Fila normalizada para las tablas del informe. Cada origen (venta,
-// compra, apunte) se reduce a la misma forma.
 function infFilaVenta(f) {
   const c = infContactoPorId(f.id_cliente);
   return {
@@ -120,8 +126,6 @@ function infFilaCompra(f) {
   };
 }
 
-// Un apunte no tiene número: esa casilla va vacía. El nombre, el NIF y
-// la dirección se completan desde el contacto si el apunte tiene uno.
 function infFilaApunte(a) {
   const c = infContactoPorId(a.id_contacto);
   const esIngreso = infTexto(a.tipo) === 'ingreso';
@@ -148,9 +152,6 @@ function infFilaApunte(a) {
 // ============================================================
 // 2. RECOGIDA DE DATOS
 // ============================================================
-// Se reutilizan los filtros ya construidos en mod-impuestos.js
-// (`impVisible`, `impEnTrimestre`, `impRegistroDe`, `impCalcular`),
-// para que ambos módulos vean exactamente los mismos datos.
 
 function infVentasDelAnio(anio) {
   return infOrdenarPorFecha(estado.ventas.filter(function (f) {
@@ -164,8 +165,6 @@ function infComprasDelAnio(anio) {
   }));
 }
 
-// Apuntes manuales (sin factura vinculada y sin ser un pago de
-// impuestos), de los dos ámbitos: empresa y personal.
 function infApuntesDelAnio(anio) {
   return infOrdenarPorFecha(estado.apuntes.filter(function (a) {
     if (a.id_factura_venta || a.id_factura_compra || a.id_impuesto) return false;
@@ -182,8 +181,11 @@ function infComprasDelTrimestre(anio, trimestre) {
   return infOrdenarPorFecha(impComprasDelPeriodo(anio, trimestre));
 }
 
-function infApuntesDelTrimestre(anio, trimestre) {
+// Solo de EMPRESA (GUÍA 14.1): el PDF trimestral es para el asesor,
+// no lleva movimiento personal.
+function infApuntesEmpresaDelTrimestre(anio, trimestre) {
   return infOrdenarPorFecha(estado.apuntes.filter(function (a) {
+    if (String(a.ambito || '') !== 'empresa') return false;
     if (a.id_factura_venta || a.id_factura_compra || a.id_impuesto) return false;
     if (!impVisible(a)) return false;
     return impEnTrimestre(a.fecha, anio, trimestre);
@@ -191,7 +193,42 @@ function infApuntesDelTrimestre(anio, trimestre) {
 }
 
 // ============================================================
-// 3. RESUMEN ANUAL — tres columnas: empresa, personal y conjunto
+// 3. RESUMEN DE LA PANTALLA — solo impuestos del año
+// ============================================================
+
+function infResumenPantalla(anio) {
+  const filas = IMP_TRIMESTRES.map(function (t) {
+    const r = impRegistroDe(anio, t);
+    const c = impCalcular(anio, t);
+
+    const ivaEstimado = r && parsearNumero(r.iva_estimado) !== 0 ? parsearNumero(r.iva_estimado) : c.iva;
+    const irpfEstimado = r && parsearNumero(r.irpf_estimado) !== 0 ? parsearNumero(r.irpf_estimado) : c.irpf;
+    const ivaPagado = r && infTexto(r.iva_estado).toLowerCase() === 'pagado';
+    const irpfPagado = r && infTexto(r.irpf_estado).toLowerCase() === 'pagado';
+
+    return {
+      trimestre: t,
+      ivaEstimado: ivaEstimado,
+      ivaReal: r ? parsearNumero(r.iva_real) : 0,
+      ivaPagado: ivaPagado,
+      irpfEstimado: irpfEstimado,
+      irpfReal: r ? parsearNumero(r.irpf_real) : 0,
+      irpfPagado: irpfPagado,
+      completo: ivaPagado && irpfPagado
+    };
+  });
+
+  const totalEstimado = roundMoney(filas.reduce(function (s, f) { return s + f.ivaEstimado + f.irpfEstimado; }, 0));
+  const totalPagado = roundMoney(filas.reduce(function (s, f) {
+    return s + (f.ivaPagado ? f.ivaReal : 0) + (f.irpfPagado ? f.irpfReal : 0);
+  }, 0));
+  const trimestresPendientes = filas.filter(function (f) { return !f.completo; }).length;
+
+  return { filas: filas, totalEstimado: totalEstimado, totalPagado: totalPagado, trimestresPendientes: trimestresPendientes };
+}
+
+// ============================================================
+// 4. RESUMEN DEL PDF ANUAL — tres tablas separadas, claras
 // ============================================================
 
 function infResumenAnual(anio) {
@@ -216,8 +253,6 @@ function infResumenAnual(anio) {
   const ingresosEmpresa = roundMoney(facturacion + otrosIngresosEmpresa);
   const gastosEmpresa = roundMoney(comprasBase + otrosGastosEmpresa);
 
-  // Impuestos realmente pagados durante el año (los cuatro trimestres
-  // marcados como pagados). Un importe negativo es una devolución.
   let impuestosPagados = 0;
   IMP_TRIMESTRES.forEach(function (t) {
     const r = impRegistroDe(anio, t);
@@ -255,64 +290,38 @@ function infResumenAnual(anio) {
     irpfSoportado: impSuma(ventas, 'irpf'),
     irpfTerceros: impSuma(compras, 'irpf'),
     impuestosPagados: roundMoney(impuestosPagados),
+    pendienteCobro: impSuma(sinCobrar, 'total'),
 
     numVentas: ventas.length,
     numCompras: compras.length,
     numApuntesEmpresa: apEmpresa.length,
     numApuntesPersonal: apPersonal.length,
-
-    numSinCobrar: sinCobrar.length,
-    pendienteCobro: impSuma(sinCobrar, 'total')
+    numSinCobrar: sinCobrar.length
   };
 }
 
 // ============================================================
-// 4. COMPARATIVA ESTIMADO / REAL 🔒 (mapa 13.3)
+// 5. TOTALIZADOR DEL PDF TRIMESTRAL (sustituye a la comparativa)
 // ============================================================
-// Informativa: no modifica ninguna estimación.
 
-function infComparativaFila(etiqueta, estimado, real, estadoTexto) {
-  const pagado = infTexto(estadoTexto).toLowerCase() === 'pagado';
-  const tieneReal = parsearNumero(real) !== 0;
-  const diferencia = roundMoney(parsearNumero(real) - parsearNumero(estimado));
-  const base = Math.abs(parsearNumero(estimado));
-  const desviacion = base > 0 ? Math.round((diferencia / base) * 1000) / 10 : null;
-
+function infTotalizadorTrimestre(anio, trimestre) {
+  const ventas = infVentasDelTrimestre(anio, trimestre);
+  const compras = infComprasDelTrimestre(anio, trimestre);
   return {
-    etiqueta: etiqueta,
-    estimado: parsearNumero(estimado),
-    real: parsearNumero(real),
-    diferencia: diferencia,
-    desviacion: desviacion,
-    estado: pagado ? 'Pagado' : (tieneReal ? 'Real indicado · pendiente de pago' : 'Pendiente'),
-    clase: pagado ? 'ok' : (tieneReal ? 'aviso' : 'neutro')
+    baseVentas: impSuma(ventas, 'base'),
+    ivaVentas: impSuma(ventas, 'iva'),
+    irpfVentas: impSuma(ventas, 'irpf'),
+    basePompras: impSuma(compras, 'base'),
+    ivaCompras: impSuma(compras, 'iva'),
+    irpfCompras: impSuma(compras, 'irpf')
   };
 }
 
-function infComparativa(anio, trimestre) {
-  const registro = impRegistroDe(anio, trimestre);
-  const calculo = impCalcular(anio, trimestre);
-
-  const ivaEstimado = registro && parsearNumero(registro.iva_estimado) !== 0
-    ? parsearNumero(registro.iva_estimado) : calculo.iva;
-  const irpfEstimado = registro && parsearNumero(registro.irpf_estimado) !== 0
-    ? parsearNumero(registro.irpf_estimado) : calculo.irpf;
-
-  return [
-    infComparativaFila('IVA · Modelo 303', ivaEstimado, registro ? registro.iva_real : 0, registro ? registro.iva_estado : ''),
-    infComparativaFila('IRPF · Modelo 130', irpfEstimado, registro ? registro.irpf_real : 0, registro ? registro.irpf_estado : '')
-  ];
-}
-
 // ============================================================
-// 5. CONSTRUCCIÓN DEL DOCUMENTO
+// 6. CONSTRUCCIÓN DEL DOCUMENTO
 // ============================================================
-// El mismo HTML se usa para la vista en pantalla y para la ventana de
-// impresión, así que lo que ves es exactamente lo que se imprime.
 
 function infDatosEmisor() {
-  // Sin valores por defecto escritos a fuego (decisión M4): si un
-  // campo está vacío, se queda vacío.
   const direccion = [
     [cfgTexto('fiscal_calle'), cfgTexto('fiscal_numero')].filter(Boolean).join(' '),
     [cfgTexto('fiscal_codigo_postal'), cfgTexto('fiscal_poblacion')].filter(Boolean).join(' '),
@@ -357,6 +366,16 @@ function infCeldaNum(valor, conSigno) {
   return '<td' + clase + '>' + escaparHtml(formatMoney(n)) + '</td>';
 }
 
+// El % va en un <span> pequeño en línea, dentro de una celda de ancho
+// FIJO (ver infColgroup* más abajo): así el porcentaje ya no alarga
+// la columna más que su cabecera y descuadra el título.
+function infCeldaNumConPct(valor, pct) {
+  const n = parsearNumero(valor);
+  const clase = n < 0 ? ' class="inf-num inf-negativo"' : ' class="inf-num"';
+  return '<td' + clase + '>' + escaparHtml(formatMoney(n)) +
+    (pct ? ' <span class="inf-pct">(' + pct + '%)</span>' : '') + '</td>';
+}
+
 function infTablaTotales(filas) {
   return {
     base: roundMoney(filas.reduce(function (s, f) { return s + f.base; }, 0)),
@@ -366,8 +385,6 @@ function infTablaTotales(filas) {
   };
 }
 
-// Tabla de facturas. `conConcepto` solo se activa en el informe
-// trimestral: el anual va sin concepto, a petición del propietario.
 function infTablaFacturas(titulo, filas, conConcepto, vacio) {
   if (filas.length === 0) {
     return '<h2 class="inf-doc-seccion">' + escaparHtml(titulo) + '</h2>' +
@@ -378,7 +395,7 @@ function infTablaFacturas(titulo, filas, conConcepto, vacio) {
 
   return '<h2 class="inf-doc-seccion">' + escaparHtml(titulo) +
       ' <span class="inf-doc-cuenta">(' + filas.length + ')</span></h2>' +
-    '<table class="inf-tabla-doc"><thead><tr>' +
+    '<table class="inf-tabla-doc inf-tabla-facturas' + (conConcepto ? ' con-concepto' : '') + '"><thead><tr>' +
       '<th>Nº</th><th>Fecha</th><th>Nombre</th><th>NIF</th><th>Dirección</th>' +
       (conConcepto ? '<th>Concepto</th>' : '') +
       '<th class="inf-num">Base</th><th class="inf-num">IVA</th>' +
@@ -390,10 +407,8 @@ function infTablaFacturas(titulo, filas, conConcepto, vacio) {
         infCelda(f.nif) + infCelda(f.direccion) +
         (conConcepto ? infCelda(f.concepto) : '') +
         infCeldaNum(f.base, true) +
-        '<td class="inf-num">' + escaparHtml(formatMoney(f.iva)) +
-          (f.ivaPct ? ' <span class="inf-pct">(' + f.ivaPct + '%)</span>' : '') + '</td>' +
-        '<td class="inf-num">' + escaparHtml(formatMoney(f.irpf)) +
-          (f.irpfPct ? ' <span class="inf-pct">(' + f.irpfPct + '%)</span>' : '') + '</td>' +
+        infCeldaNumConPct(f.iva, f.ivaPct) +
+        infCeldaNumConPct(f.irpf, f.irpfPct) +
         infCeldaNum(f.total, true) +
       '</tr>';
     }).join('') +
@@ -404,8 +419,6 @@ function infTablaFacturas(titulo, filas, conConcepto, vacio) {
     '</tr></tfoot></table>';
 }
 
-// Tabla de apuntes. Los gastos van en negativo (mapa 13.5), y se
-// añaden dos columnas propias: ámbito y tipo.
 function infTablaApuntes(titulo, filas, conConcepto, vacio) {
   if (filas.length === 0) {
     return '<h2 class="inf-doc-seccion">' + escaparHtml(titulo) + '</h2>' +
@@ -416,7 +429,7 @@ function infTablaApuntes(titulo, filas, conConcepto, vacio) {
 
   return '<h2 class="inf-doc-seccion">' + escaparHtml(titulo) +
       ' <span class="inf-doc-cuenta">(' + filas.length + ')</span></h2>' +
-    '<table class="inf-tabla-doc"><thead><tr>' +
+    '<table class="inf-tabla-doc inf-tabla-apuntes' + (conConcepto ? ' con-concepto' : '') + '"><thead><tr>' +
       '<th>Fecha</th><th>Ámbito</th><th>Tipo</th><th>Nombre</th><th>NIF</th><th>Dirección</th>' +
       (conConcepto ? '<th>Concepto</th>' : '') +
       '<th class="inf-num">Base</th><th class="inf-num">IVA</th>' +
@@ -456,7 +469,7 @@ function infTablaImpuestos(anio) {
   });
 
   return '<h2 class="inf-doc-seccion">Impuestos del año</h2>' +
-    '<table class="inf-tabla-doc"><thead><tr>' +
+    '<table class="inf-tabla-doc inf-tabla-impuestos"><thead><tr>' +
       '<th>Trimestre</th>' +
       '<th class="inf-num">IVA estimado</th><th class="inf-num">IVA real</th><th>Estado IVA</th><th>Fecha</th>' +
       '<th class="inf-num">IRPF estimado</th><th class="inf-num">IRPF real</th><th>Estado IRPF</th><th>Fecha</th>' +
@@ -473,86 +486,88 @@ function infTablaImpuestos(anio) {
     '</tbody></table>';
 }
 
-// Resumen a tres columnas. Las filas que solo tienen sentido en la
-// actividad (IVA, retenciones, impuestos) llevan «—» en personal.
-function infTablaResumen(r) {
-  const fila = function (etiqueta, empresa, personal, conjunto, destacada) {
-    const celda = function (v) {
+// ---- Resumen anual: TRES tablas separadas (rediseño 05/09/2026) ----
+
+function infFilaResumen(etiqueta, valores) {
+  return '<tr>' +
+    '<td>' + escaparHtml(etiqueta) + '</td>' +
+    valores.map(function (v) {
       if (v === null) return '<td class="inf-num inf-nd">—</td>';
       const n = parsearNumero(v);
       return '<td class="inf-num' + (n < 0 ? ' inf-negativo' : '') + '">' + escaparHtml(formatMoney(n)) + '</td>';
-    };
-    return '<tr' + (destacada ? ' class="inf-fila-destacada"' : '') + '>' +
-      '<td>' + escaparHtml(etiqueta) + '</td>' +
-      celda(empresa) + celda(personal) + celda(conjunto) +
-    '</tr>';
-  };
+    }).join('') +
+  '</tr>';
+}
 
-  const filaTexto = function (etiqueta, empresa, personal, conjunto) {
-    return '<tr>' +
-      '<td>' + escaparHtml(etiqueta) + '</td>' +
-      '<td class="inf-num">' + escaparHtml(empresa) + '</td>' +
-      '<td class="inf-num">' + escaparHtml(personal) + '</td>' +
-      '<td class="inf-num">' + escaparHtml(conjunto) + '</td>' +
-    '</tr>';
-  };
+function infFilaResumenDestacada(etiqueta, valores) {
+  return infFilaResumen(etiqueta, valores).replace('<tr>', '<tr class="inf-fila-destacada">');
+}
 
-  return '<h2 class="inf-doc-seccion">Resumen del año</h2>' +
+function infTablaIngresos(r) {
+  return '<h3 class="inf-doc-subseccion">Ingresos</h3>' +
     '<table class="inf-tabla-doc inf-tabla-resumen"><thead><tr>' +
       '<th>Concepto</th><th class="inf-num">Empresa</th><th class="inf-num">Personal</th><th class="inf-num">Conjunto</th>' +
     '</tr></thead><tbody>' +
-
-    fila('Facturación (base de ventas)', r.facturacion, null, r.facturacion) +
-    fila('Otros ingresos (apuntes)', r.otrosIngresosEmpresa, r.otrosIngresosPersonal,
-         roundMoney(r.otrosIngresosEmpresa + r.otrosIngresosPersonal)) +
-    fila('TOTAL INGRESOS', r.ingresosEmpresa, r.ingresosPersonal, r.ingresosConjunto, true) +
-
-    fila('Compras (base de facturas)', r.comprasBase, null, r.comprasBase) +
-    fila('Otros gastos (apuntes)', r.otrosGastosEmpresa, r.otrosGastosPersonal,
-         roundMoney(r.otrosGastosEmpresa + r.otrosGastosPersonal)) +
-    fila('TOTAL GASTOS', r.gastosEmpresa, r.gastosPersonal, r.gastosConjunto, true) +
-
-    fila('RESULTADO DEL AÑO', r.resultadoEmpresa, r.resultadoPersonal, r.resultadoConjunto, true) +
-
-    fila('IVA repercutido (ventas)', r.ivaRepercutido, null, r.ivaRepercutido) +
-    fila('IVA soportado (compras)', r.ivaSoportado, null, r.ivaSoportado) +
-    fila('IVA neto del año', r.ivaNeto, null, r.ivaNeto) +
-    fila('IRPF retenido en tus facturas', r.irpfSoportado, null, r.irpfSoportado) +
-    fila('IRPF retenido por ti a terceros', r.irpfTerceros, null, r.irpfTerceros) +
-    fila('Impuestos pagados en el año', r.impuestosPagados, null, r.impuestosPagados) +
-
-    fila('Pendiente de cobro a fin de año', r.pendienteCobro, null, r.pendienteCobro) +
-
-    filaTexto('Nº de facturas emitidas', String(r.numVentas), '—', String(r.numVentas)) +
-    filaTexto('Nº de facturas recibidas', String(r.numCompras), '—', String(r.numCompras)) +
-    filaTexto('Nº de apuntes', String(r.numApuntesEmpresa), String(r.numApuntesPersonal),
-              String(r.numApuntesEmpresa + r.numApuntesPersonal)) +
-    filaTexto('Nº de facturas sin cobrar', String(r.numSinCobrar), '—', String(r.numSinCobrar)) +
-
+    infFilaResumen('Facturación (base de ventas)', [r.facturacion, null, r.facturacion]) +
+    infFilaResumen('Otros ingresos (apuntes)', [r.otrosIngresosEmpresa, r.otrosIngresosPersonal, roundMoney(r.otrosIngresosEmpresa + r.otrosIngresosPersonal)]) +
+    infFilaResumenDestacada('TOTAL INGRESOS', [r.ingresosEmpresa, r.ingresosPersonal, r.ingresosConjunto]) +
     '</tbody></table>';
 }
 
-function infTablaComparativa(anio, trimestre) {
-  const filas = infComparativa(anio, trimestre);
-
-  return '<h2 class="inf-doc-seccion">Estimado frente a real</h2>' +
-    '<table class="inf-tabla-doc"><thead><tr>' +
-      '<th>Impuesto</th><th class="inf-num">Estimado</th><th class="inf-num">Real</th>' +
-      '<th class="inf-num">Diferencia</th><th class="inf-num">Desviación</th><th>Estado</th>' +
+function infTablaGastos(r) {
+  return '<h3 class="inf-doc-subseccion">Gastos</h3>' +
+    '<table class="inf-tabla-doc inf-tabla-resumen"><thead><tr>' +
+      '<th>Concepto</th><th class="inf-num">Empresa</th><th class="inf-num">Personal</th><th class="inf-num">Conjunto</th>' +
     '</tr></thead><tbody>' +
-    filas.map(function (f) {
-      return '<tr>' +
-        infCelda(f.etiqueta) +
-        infCeldaNum(f.estimado, true) + infCeldaNum(f.real, true) + infCeldaNum(f.diferencia, true) +
-        '<td class="inf-num">' + (f.desviacion === null ? '—' : escaparHtml(f.desviacion + ' %')) + '</td>' +
-        '<td><span class="inf-estado ' + f.clase + '">' + escaparHtml(f.estado) + '</span></td>' +
-      '</tr>';
-    }).join('') +
-    '</tbody></table>' +
-    '<p class="inf-doc-nota">Informativo: comparar lo estimado por la aplicación con lo que se ha pagado de verdad. No modifica ninguna estimación.</p>';
+    infFilaResumen('Compras (base de facturas)', [r.comprasBase, null, r.comprasBase]) +
+    infFilaResumen('Otros gastos (apuntes)', [r.otrosGastosEmpresa, r.otrosGastosPersonal, roundMoney(r.otrosGastosEmpresa + r.otrosGastosPersonal)]) +
+    infFilaResumenDestacada('TOTAL GASTOS', [r.gastosEmpresa, r.gastosPersonal, r.gastosConjunto]) +
+    infFilaResumenDestacada('RESULTADO DEL AÑO', [r.resultadoEmpresa, r.resultadoPersonal, r.resultadoConjunto]) +
+    '</tbody></table>';
 }
 
-// ---- Documento completo ----
+// Solo EMPRESA (el IVA y los impuestos no tienen versión personal):
+// una sola columna de importe, sin repetir Empresa/Personal/Conjunto
+// con dos columnas en blanco que no aportarían nada.
+function infTablaImpuestosYOtros(r) {
+  const fila = function (etiqueta, valor) {
+    const n = parsearNumero(valor);
+    return '<tr><td>' + escaparHtml(etiqueta) + '</td>' +
+      '<td class="inf-num' + (n < 0 ? ' inf-negativo' : '') + '">' + escaparHtml(formatMoney(n)) + '</td></tr>';
+  };
+  const filaTexto = function (etiqueta, valor) {
+    return '<tr><td>' + escaparHtml(etiqueta) + '</td><td class="inf-num">' + escaparHtml(valor) + '</td></tr>';
+  };
+
+  return '<h3 class="inf-doc-subseccion">Impuestos y otros datos del año (empresa)</h3>' +
+    '<table class="inf-tabla-doc inf-tabla-resumen-simple"><tbody>' +
+      fila('IVA repercutido (ventas)', r.ivaRepercutido) +
+      fila('IVA soportado (compras)', r.ivaSoportado) +
+      fila('IVA neto del año', r.ivaNeto) +
+      fila('IRPF retenido en tus facturas', r.irpfSoportado) +
+      fila('IRPF retenido por ti a terceros', r.irpfTerceros) +
+      fila('Impuestos pagados en el año', r.impuestosPagados) +
+      fila('Pendiente de cobro a fin de año', r.pendienteCobro) +
+      filaTexto('Nº de facturas emitidas', String(r.numVentas)) +
+      filaTexto('Nº de facturas recibidas', String(r.numCompras)) +
+      filaTexto('Nº de apuntes (empresa / personal)', r.numApuntesEmpresa + ' / ' + r.numApuntesPersonal) +
+      filaTexto('Nº de facturas sin cobrar', String(r.numSinCobrar)) +
+    '</tbody></table>';
+}
+
+function infTablaTotalizador(t) {
+  const netoIva = roundMoney(t.ivaVentas - t.ivaCompras);
+  return '<h2 class="inf-doc-seccion">Resumen de facturación del trimestre</h2>' +
+    '<table class="inf-tabla-doc inf-tabla-resumen-simple"><tbody>' +
+      '<tr><td>Base facturada (ventas)</td><td class="inf-num">' + escaparHtml(formatMoney(t.baseVentas)) + '</td></tr>' +
+      '<tr><td>IVA repercutido (ventas)</td><td class="inf-num">' + escaparHtml(formatMoney(t.ivaVentas)) + '</td></tr>' +
+      '<tr><td>IRPF retenido en ventas</td><td class="inf-num">' + escaparHtml(formatMoney(t.irpfVentas)) + '</td></tr>' +
+      '<tr><td>Base de compras</td><td class="inf-num">' + escaparHtml(formatMoney(t.basePompras)) + '</td></tr>' +
+      '<tr><td>IVA soportado (compras)</td><td class="inf-num">' + escaparHtml(formatMoney(t.ivaCompras)) + '</td></tr>' +
+      '<tr><td>IRPF retenido en compras</td><td class="inf-num">' + escaparHtml(formatMoney(t.irpfCompras)) + '</td></tr>' +
+      '<tr class="inf-fila-destacada"><td>IVA neto del trimestre</td><td class="inf-num' + (netoIva < 0 ? ' inf-negativo' : '') + '">' + escaparHtml(formatMoney(netoIva)) + '</td></tr>' +
+    '</tbody></table>';
+}
 
 function infDocumentoAnual(anio) {
   const ventas = infVentasDelAnio(anio).map(infFilaVenta);
@@ -561,7 +576,10 @@ function infDocumentoAnual(anio) {
   const resumen = infResumenAnual(anio);
 
   return infCabeceraDoc('Informe anual', 'Ejercicio ' + anio) +
-    infTablaResumen(resumen) +
+    '<h2 class="inf-doc-seccion">Resumen del año</h2>' +
+    infTablaIngresos(resumen) +
+    infTablaGastos(resumen) +
+    infTablaImpuestosYOtros(resumen) +
     infTablaFacturas('Facturas de venta', ventas, false, 'No hay facturas de venta este año.') +
     infTablaFacturas('Facturas de compra', compras, false, 'No hay facturas de compra este año.') +
     infTablaApuntes('Apuntes de contabilidad', apuntes, false, 'No hay apuntes este año.') +
@@ -573,28 +591,29 @@ function infDocumentoAnual(anio) {
 function infDocumentoTrimestral(anio, trimestre) {
   const ventas = infVentasDelTrimestre(anio, trimestre).map(infFilaVenta);
   const compras = infComprasDelTrimestre(anio, trimestre).map(infFilaCompra);
-  const apuntes = infApuntesDelTrimestre(anio, trimestre).map(infFilaApunte);
+  const apuntes = infApuntesEmpresaDelTrimestre(anio, trimestre).map(infFilaApunte);
+  const totalizador = infTotalizadorTrimestre(anio, trimestre);
 
   return infCabeceraDoc('Informe trimestral', trimestre + ' · ' + anio) +
-    infTablaComparativa(anio, trimestre) +
+    infTablaTotalizador(totalizador) +
     infTablaFacturas('Facturas de venta', ventas, true, 'No hay facturas de venta en este trimestre.') +
     infTablaFacturas('Facturas de compra', compras, true, 'No hay facturas de compra en este trimestre.') +
-    infTablaApuntes('Otros movimientos', apuntes, true, 'No hay otros movimientos en este trimestre.') +
-    '<p class="inf-doc-pie">Los gastos figuran en negativo. Los movimientos que provienen de una factura no se repiten en «Otros movimientos».</p>';
+    infTablaApuntes('Apuntes de empresa', apuntes, true, 'No hay apuntes de empresa en este trimestre.') +
+    '<p class="inf-doc-pie">Los gastos figuran en negativo. Documento pensado para revisar con tu asesor: no incluye estimaciones internas de la aplicación, solo los datos con los que presentar el trimestre.</p>';
 }
 
 function infDocumentoActual() {
-  if (infTipo === 'trimestral') return infDocumentoTrimestral(infAnio, infTrimestre);
-  return infDocumentoAnual(infAnio);
+  if (infPdfTipo === 'anual') return infDocumentoAnual(infAnio);
+  return infDocumentoTrimestral(infAnio, infTrimestre);
 }
 
 function infTituloActual() {
-  if (infTipo === 'trimestral') return 'Informe trimestral ' + infTrimestre + ' ' + infAnio;
-  return 'Informe anual ' + infAnio;
+  if (infPdfTipo === 'anual') return 'Informe anual ' + infAnio;
+  return 'Informe trimestral ' + infTrimestre + ' ' + infAnio;
 }
 
 // ============================================================
-// 6. PANTALLA
+// 7. PANTALLA — solo el resumen de impuestos del año
 // ============================================================
 
 function pintarInformes() {
@@ -610,19 +629,28 @@ function pintarInformes() {
   }
   if (IMP_TRIMESTRES.indexOf(infTrimestre) === -1) infTrimestre = fvTrimestreDeFecha(fechaHoyISO());
 
-  zona.innerHTML =
-    '<div class="inf-selector" id="inf-selector-tipo">' +
-      '<button type="button" data-tipo="anual"' + (infTipo === 'anual' ? ' class="activa"' : '') + '>Anual</button>' +
-      '<button type="button" data-tipo="trimestral"' + (infTipo === 'trimestral' ? ' class="activa"' : '') + '>Trimestral</button>' +
-    '</div>' +
+  const resumen = infResumenPantalla(infAnio);
 
+  zona.innerHTML =
     '<div class="inf-periodo">' +
       '<select class="campo inf-select-anio" id="inf-anio">' +
         anios.map(function (a) {
           return '<option value="' + a + '"' + (a === infAnio ? ' selected' : '') + '>' + a + '</option>';
         }).join('') +
       '</select>' +
-      (infTipo === 'trimestral'
+    '</div>' +
+
+    '<p class="inf-nota-cabecera">Resumen de los impuestos de ' + infAnio + '. El detalle de cada trimestre está en la pestaña Impuestos.</p>' +
+
+    infResumenPantallaHtml(resumen) +
+
+    '<div class="inf-descarga">' +
+      '<p class="inf-descarga-titulo">Descargar un informe en PDF</p>' +
+      '<div class="inf-selector" id="inf-selector-tipo">' +
+        '<button type="button" data-tipo="trimestral"' + (infPdfTipo === 'trimestral' ? ' class="activa"' : '') + '>Trimestral</button>' +
+        '<button type="button" data-tipo="anual"' + (infPdfTipo === 'anual' ? ' class="activa"' : '') + '>Anual</button>' +
+      '</div>' +
+      (infPdfTipo === 'trimestral'
         ? '<div class="inf-selector inf-selector-trimestres" id="inf-trimestres">' +
             IMP_TRIMESTRES.map(function (t) {
               return '<button type="button" data-trimestre="' + t + '"' +
@@ -633,25 +661,23 @@ function pintarInformes() {
       '<button type="button" class="boton-principal inf-btn-pdf" id="inf-btn-pdf">' +
         '<i class="ti ti-file-type-pdf"></i> Descargar PDF' +
       '</button>' +
-    '</div>' +
+      '<p class="inf-descarga-nota">' +
+        (infPdfTipo === 'trimestral'
+          ? 'Facturas, apuntes de empresa y el resumen de facturación del trimestre, para tu asesor.'
+          : 'Copia de seguridad completa del año: facturas, apuntes (empresa y personal) e impuestos.') +
+      '</p>' +
+    '</div>';
 
-    (infTipo === 'anual'
-      ? '<p class="inf-nota-cabecera">Copia de seguridad del año completo: facturas, apuntes de empresa y personales, e impuestos.</p>'
-      : '<p class="inf-nota-cabecera">Resumen del trimestre para revisar con tu asesor.</p>') +
-
-    '<div class="inf-doc-wrap"><div class="inf-doc" id="inf-doc">' + infDocumentoActual() + '</div></div>' +
-    '<p class="inf-pista-tabla">Desliza las tablas para ver todas las columnas</p>';
+  document.getElementById('inf-anio').addEventListener('change', function (ev) {
+    infAnio = parseInt(ev.target.value, 10);
+    pintarInformes();
+  });
 
   zona.querySelector('#inf-selector-tipo').querySelectorAll('[data-tipo]').forEach(function (b) {
     b.addEventListener('click', function () {
-      infTipo = b.dataset.tipo;
+      infPdfTipo = b.dataset.tipo;
       pintarInformes();
     });
-  });
-
-  zona.querySelector('#inf-anio').addEventListener('change', function (ev) {
-    infAnio = parseInt(ev.target.value, 10);
-    pintarInformes();
   });
 
   const trimestres = zona.querySelector('#inf-trimestres');
@@ -667,42 +693,111 @@ function pintarInformes() {
   zona.querySelector('#inf-btn-pdf').addEventListener('click', infImprimir);
 }
 
+function infResumenPantallaHtml(resumen) {
+  const filaTrimestre = function (f) {
+    const estadoIva = f.ivaPagado ? '<span class="pastilla ind-verde">Pagado</span>' : '<span class="pastilla ind-ambar">Pendiente</span>';
+    const estadoIrpf = f.irpfPagado ? '<span class="pastilla ind-verde">Pagado</span>' : '<span class="pastilla ind-ambar">Pendiente</span>';
+    return '<div class="inf-resumen-trimestre">' +
+      '<p class="inf-resumen-trimestre-titulo">' + f.trimestre + '</p>' +
+      '<div class="inf-resumen-linea"><span>IVA</span>' +
+        '<span class="inf-resumen-cifras">' + escaparHtml(formatMoney(f.ivaPagado ? f.ivaReal : f.ivaEstimado)) + ' ' + estadoIva + '</span></div>' +
+      '<div class="inf-resumen-linea"><span>IRPF</span>' +
+        '<span class="inf-resumen-cifras">' + escaparHtml(formatMoney(f.irpfPagado ? f.irpfReal : f.irpfEstimado)) + ' ' + estadoIrpf + '</span></div>' +
+    '</div>';
+  };
+
+  return '<div class="inf-resumen-anual">' +
+    '<div class="inf-resumen-trimestres">' + resumen.filas.map(filaTrimestre).join('') + '</div>' +
+    '<div class="inf-resumen-total">' +
+      '<div class="inf-resumen-total-linea"><span>Pagado en el año</span><strong>' + escaparHtml(formatMoney(resumen.totalPagado)) + '</strong></div>' +
+      '<div class="inf-resumen-total-linea"><span>Estimado total del año</span><strong>' + escaparHtml(formatMoney(resumen.totalEstimado)) + '</strong></div>' +
+      (resumen.trimestresPendientes > 0
+        ? '<p class="inf-resumen-pendiente">' + resumen.trimestresPendientes + ' de 4 trimestres pendientes de cerrar</p>'
+        : '<p class="inf-resumen-pendiente ok">Los 4 trimestres del año están cerrados</p>') +
+    '</div>' +
+  '</div>';
+}
+
 // ============================================================
-// 7. IMPRESIÓN / PDF (mapa 15.1)
+// 8. IMPRESIÓN / PDF (mapa 15.1)
 // ============================================================
-// Sin librería de PDF: se abre una ventana nueva con el documento
-// maquetado en A4 apaisado y se imprime desde el navegador. En Android
-// se hace desde Chrome → Imprimir → Guardar como PDF.
+// PAGINACIÓN NATURAL (rediseño 05/09/2026): ya no se fuerza @page en
+// A4 apaisado ni se cortan tablas con reglas de salto fijas. El
+// tamaño y la orientación del papel los elige el propietario en el
+// propio diálogo de impresión, y el navegador reparte el contenido en
+// tantas hojas como haga falta. Solo se evita partir una fila de
+// tabla por la mitad (`break-inside: avoid`), y se repite la cabecera
+// de cada tabla si continúa en la siguiente página.
+//
+// ANCHO DE COLUMNAS FIJO (arregla el descuadre de título/datos): cada
+// tabla reserva un ancho fijo por columna con <colgroup>, en vez de
+// dejar que lo decida el contenido más largo de cada celda. Antes, el
+// "(21%)" añadido junto al IVA/IRPF alargaba esa celda más que su
+// cabecera y desalineaba toda la columna.
+
+function infColgroupFacturas(conConcepto) {
+  const anchos = conConcepto
+    ? ['6%', '7%', '12%', '8%', '13%', '13%', '9%', '11%', '11%', '10%']
+    : ['7%', '7%', '15%', '9%', '24%', '9%', '10%', '10%', '9%'];
+  return '<colgroup>' + anchos.map(function (a) { return '<col style="width:' + a + '">'; }).join('') + '</colgroup>';
+}
+
+function infColgroupApuntes(conConcepto) {
+  const anchos = conConcepto
+    ? ['7%', '7%', '6%', '12%', '8%', '14%', '13%', '8%', '8%', '8%', '9%']
+    : ['8%', '8%', '7%', '14%', '9%', '17%', '9%', '9%', '9%', '10%'];
+  return '<colgroup>' + anchos.map(function (a) { return '<col style="width:' + a + '">'; }).join('') + '</colgroup>';
+}
+
+// Inserta los <colgroup> en el HTML ya construido, justo tras la
+// apertura de cada <table>, sin tener que rehacer las funciones de
+// arriba (que ya estaban probadas).
+function infInsertarColgroups(html) {
+  return html
+    .replace(/<table class="inf-tabla-doc inf-tabla-facturas con-concepto">/g,
+      '<table class="inf-tabla-doc inf-tabla-facturas con-concepto">' + infColgroupFacturas(true))
+    .replace(/<table class="inf-tabla-doc inf-tabla-facturas">/g,
+      '<table class="inf-tabla-doc inf-tabla-facturas">' + infColgroupFacturas(false))
+    .replace(/<table class="inf-tabla-doc inf-tabla-apuntes con-concepto">/g,
+      '<table class="inf-tabla-doc inf-tabla-apuntes con-concepto">' + infColgroupApuntes(true))
+    .replace(/<table class="inf-tabla-doc inf-tabla-apuntes">/g,
+      '<table class="inf-tabla-doc inf-tabla-apuntes">' + infColgroupApuntes(false));
+}
 
 const INF_CSS_IMPRESION =
-  '@page { size: A4 landscape; margin: 10mm; }' +
-  'body { font-family: Arial, Helvetica, sans-serif; color: #1A1A1A; font-size: 9px; margin: 0; }' +
+  '@page { margin: 12mm; }' +
+  'body { font-family: Arial, Helvetica, sans-serif; color: #1A1A1A; font-size: 9.5px; margin: 0; }' +
   '.inf-doc-cabecera { display: flex; justify-content: space-between; align-items: flex-start;' +
     ' gap: 24px; border-bottom: 2px solid #1A1A1A; padding-bottom: 10px; margin-bottom: 14px; }' +
-  '.inf-doc-emisor p { margin: 0 0 2px; font-size: 9px; color: #3A3A3A; }' +
-  '.inf-doc-emisor-nombre { font-weight: bold; font-size: 11px; color: #1A1A1A; }' +
+  '.inf-doc-emisor p { margin: 0 0 2px; font-size: 9.5px; color: #3A3A3A; }' +
+  '.inf-doc-emisor-nombre { font-weight: bold; font-size: 12px; color: #1A1A1A; }' +
   '.inf-doc-titulo-zona { text-align: right; }' +
-  '.inf-doc-titulo { margin: 0; font-size: 16px; font-weight: bold; }' +
-  '.inf-doc-subtitulo { margin: 2px 0 0; font-size: 11px; color: #3A3A3A; }' +
+  '.inf-doc-titulo { margin: 0; font-size: 17px; font-weight: bold; }' +
+  '.inf-doc-subtitulo { margin: 2px 0 0; font-size: 12px; color: #3A3A3A; }' +
   '.inf-doc-generado { margin: 2px 0 0; font-size: 8px; color: #6A6A6A; }' +
-  '.inf-doc-seccion { font-size: 11px; margin: 16px 0 6px; padding-bottom: 3px;' +
-    ' border-bottom: 1px solid #C8C8C2; page-break-after: avoid; }' +
+  '.inf-doc-seccion { font-size: 13px; font-weight: 800; margin: 18px 0 8px; padding-bottom: 4px;' +
+    ' border-bottom: 2px solid #1A1A1A; break-after: avoid; }' +
+  '.inf-doc-subseccion { font-size: 11px; font-weight: 800; margin: 12px 0 5px; break-after: avoid; }' +
   '.inf-doc-cuenta { font-weight: normal; color: #6A6A6A; font-size: 9px; }' +
-  '.inf-doc-vacio { font-size: 9px; color: #6A6A6A; margin: 4px 0 0; }' +
-  'table.inf-tabla-doc { width: 100%; border-collapse: collapse; margin-bottom: 6px; }' +
+  '.inf-doc-vacio { font-size: 9px; color: #6A6A6A; margin: 4px 0 10px; }' +
+  'table.inf-tabla-doc { width: 100%; table-layout: fixed; border-collapse: collapse; margin-bottom: 10px; }' +
   'table.inf-tabla-doc th { background: #EAEAE6; text-align: left; font-size: 8px;' +
-    ' text-transform: uppercase; padding: 4px 5px; border-bottom: 1px solid #C8C8C2; }' +
-  'table.inf-tabla-doc td { padding: 4px 5px; border-bottom: 1px solid #E8E8E2; font-size: 9px; }' +
+    ' text-transform: uppercase; padding: 4px 5px; border-bottom: 1px solid #C8C8C2;' +
+    ' overflow: hidden; white-space: nowrap; }' +
+  'table.inf-tabla-doc td { padding: 4px 5px; border-bottom: 1px solid #E8E8E2; font-size: 9.5px;' +
+    ' overflow-wrap: break-word; word-break: break-word; }' +
+  'table.inf-tabla-doc td.inf-num { white-space: nowrap; }' +
   'table.inf-tabla-doc tfoot td { font-weight: bold; border-top: 1px solid #1A1A1A; border-bottom: none; }' +
-  'table.inf-tabla-doc tr { page-break-inside: avoid; }' +
-  'thead { display: table-header-group; }' +
-  '.inf-num { text-align: right; white-space: nowrap; }' +
+  'table.inf-tabla-doc tr { break-inside: avoid; }' +
+  'table.inf-tabla-doc thead { display: table-header-group; }' +
+  '.inf-num { text-align: right; }' +
   'th.inf-num, td.inf-num { text-align: right; }' +
   '.inf-negativo { color: #A3241F; }' +
   '.inf-nd { color: #9A9A94; }' +
-  '.inf-pct { color: #6A6A6A; font-size: 8px; }' +
+  '.inf-pct { color: #6A6A6A; font-size: 7.5px; }' +
   '.inf-fila-destacada td { font-weight: bold; background: #F2F2EE; }' +
-  '.inf-estado { font-size: 8px; }' +
+  '.inf-tabla-resumen td:first-child, .inf-tabla-resumen-simple td:first-child { white-space: normal; }' +
+  '.inf-tabla-resumen-simple { max-width: 340px; }' +
   '.inf-doc-nota, .inf-doc-pie { font-size: 8px; color: #6A6A6A; margin-top: 8px; }';
 
 function infImprimir() {
@@ -713,19 +808,18 @@ function infImprimir() {
   }
 
   const titulo = infTituloActual();
+  const documento = infInsertarColgroups(infDocumentoActual());
 
   ventana.document.open();
   ventana.document.write(
     '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
     '<title>' + escaparHtml(titulo) + '</title>' +
     '<style>' + INF_CSS_IMPRESION + '</style>' +
-    '</head><body>' + infDocumentoActual() + '</body></html>'
+    '</head><body>' + documento + '</body></html>'
   );
   ventana.document.close();
   ventana.focus();
 
-  // Se deja un momento para que la ventana termine de maquetar antes
-  // de abrir el diálogo de impresión.
   setTimeout(function () {
     try { ventana.print(); } catch (err) { console.error('No se pudo imprimir:', err); }
   }, 400);

@@ -10,12 +10,14 @@
    ============================================================ */
 
 /* ---- Selector de sección: Impuestos / Informes ---- */
+/* Mismo tamaño ajustado al contenido que el resto de selectores de
+   sección de la app (Ventas/Compras en Facturas, Presupuestos/
+   Calculadora): sin flex-grow, para que no se estire a todo el ancho. */
 .imp-cabecera-seccion {
   display: flex;
   align-items: center;
   margin: 14px 0 0;
 }
-.imp-selector-area { flex: 1 1 auto; }
 
 /* ---- Selector de periodo ---- */
 .imp-periodo {
