@@ -12,7 +12,7 @@
  * tirar la copia vieja.
  */
 
-const VERSION = 'cuentas-v19';
+const VERSION = 'cuentas-v20';
 
 const ARCHIVOS = [
   './',
@@ -36,6 +36,8 @@ const ARCHIVOS = [
   './mod-contabilidad.js',
   './mod-impuestos.css',
   './mod-impuestos.js',
+  './mod-informes.css',
+  './mod-informes.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

@@ -9,6 +9,14 @@
    Sin botón flotante "+" ni buscador: aquí no se crea nada a mano.
    ============================================================ */
 
+/* ---- Selector de sección: Impuestos / Informes ---- */
+.imp-cabecera-seccion {
+  display: flex;
+  align-items: center;
+  margin: 14px 0 0;
+}
+.imp-selector-area { flex: 1 1 auto; }
+
 /* ---- Selector de periodo ---- */
 .imp-periodo {
   display: flex;

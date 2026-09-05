@@ -1,0 +1,190 @@
+/* ============================================================
+   MÓDULO INFORMES — estilos propios
+
+   Vive dentro de la sección Impuestos. Dos partes:
+
+   1. Los controles (tipo de informe, periodo y botón de PDF), con el
+      mismo lenguaje visual que el resto de la app.
+   2. El documento en sí (`.inf-doc`), que es una previsualización en
+      pantalla de lo que va a salir impreso. Sus estilos de impresión
+      viven dentro de mod-informes.js, en la constante
+      INF_CSS_IMPRESION: la ventana de impresión es un documento
+      aparte y no hereda esta hoja de estilos.
+   ============================================================ */
+
+/* ---- Controles ---- */
+.inf-selector {
+  display: inline-flex;
+  background: var(--gris-neutro);
+  border-radius: 20px;
+  padding: 3px;
+  gap: 2px;
+  margin: 14px 0 0;
+}
+.inf-selector button {
+  border: none;
+  background: none;
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  cursor: pointer;
+}
+.inf-selector button.activa {
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+.inf-periodo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0 6px;
+}
+.inf-periodo .inf-selector { margin: 0; }
+.inf-selector-trimestres { flex: 1 1 auto; }
+.inf-selector-trimestres button { flex: 1; padding: 0 14px; }
+
+.inf-select-anio {
+  width: auto;
+  min-width: 104px;
+  height: 40px;
+  flex: 0 0 auto;
+}
+
+.inf-btn-pdf {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.inf-nota-cabecera {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: 0 0 14px;
+}
+
+.inf-pista-tabla {
+  font-size: 11px;
+  color: var(--texto-secundario);
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+/* ---- Previsualización del documento ---- */
+.inf-doc-wrap {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 16px;
+  overflow-x: auto;
+}
+
+.inf-doc { font-size: 12px; color: var(--texto); }
+
+.inf-doc-cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+  border-bottom: 2px solid var(--texto);
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+}
+.inf-doc-emisor p {
+  margin: 0 0 2px;
+  font-size: 11px;
+  color: var(--texto-secundario);
+}
+.inf-doc-emisor-nombre {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--texto);
+}
+.inf-doc-titulo-zona { text-align: right; margin-left: auto; }
+.inf-doc-titulo { margin: 0; font-size: 18px; font-weight: 700; }
+.inf-doc-subtitulo { margin: 2px 0 0; font-size: 13px; color: var(--texto-secundario); }
+.inf-doc-generado { margin: 2px 0 0; font-size: 11px; color: var(--texto-secundario); }
+
+.inf-doc-seccion {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 20px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #D8D8D2;
+}
+.inf-doc-cuenta { font-weight: 400; color: var(--texto-secundario); font-size: 12px; }
+
+.inf-doc-vacio {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: 6px 0 0;
+}
+
+/* ---- Tablas del documento ---- */
+table.inf-tabla-doc {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 6px;
+}
+table.inf-tabla-doc th {
+  background: var(--gris-neutro);
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  text-transform: uppercase;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+table.inf-tabla-doc td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--fondo);
+  font-size: 12px;
+  white-space: nowrap;
+}
+table.inf-tabla-doc tfoot td {
+  font-weight: 600;
+  border-top: 1px solid var(--texto);
+  border-bottom: none;
+}
+
+/* Las columnas de cifras se alinean a la derecha. La regla general
+   "table.inf-tabla-doc th" es más específica que una clase suelta, así
+   que hay que combinarlas o los títulos se quedan a la izquierda
+   mientras sus datos van a la derecha. Ver diario, INTERFAZ/DISEÑO
+   04/09/2026. */
+.inf-num { text-align: right; white-space: nowrap; }
+table.inf-tabla-doc th.inf-num,
+table.inf-tabla-doc td.inf-num { text-align: right; }
+
+.inf-negativo { color: var(--rojo-texto); }
+.inf-nd { color: #9A9A94; }
+.inf-pct { color: var(--texto-secundario); font-size: 10px; }
+
+.inf-fila-destacada td {
+  font-weight: 700;
+  background: var(--fondo);
+}
+
+.inf-tabla-resumen td:first-child { white-space: normal; }
+
+.inf-estado { font-size: 11px; font-weight: 600; }
+.inf-estado.ok { color: var(--verde-texto); }
+.inf-estado.aviso { color: var(--ambar-texto); }
+.inf-estado.neutro { color: var(--texto-secundario); }
+
+.inf-doc-nota,
+.inf-doc-pie {
+  font-size: 11px;
+  color: var(--texto-secundario);
+  line-height: 1.45;
+  margin-top: 10px;
+}

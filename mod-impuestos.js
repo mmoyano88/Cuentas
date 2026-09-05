@@ -34,6 +34,11 @@
 
 const IMP_TRIMESTRES = ['Q1', 'Q2', 'Q3', 'Q4'];
 
+// Esta pantalla comparte la sección "Impuestos" con Informes
+// (decisión de navegación del 31/08/2026), igual que Facturas comparte
+// la suya entre Ventas y Compras.
+let impArea = 'impuestos';   // 'impuestos' | 'informes'
+
 let impAnio = null;        // se decide al pintar por primera vez
 let impTrimestre = null;
 
@@ -345,12 +350,47 @@ function impPeriodoPorDefecto() {
 }
 
 // ============================================================
-// 6. PINTADO PRINCIPAL
+// 6. PINTADO PRINCIPAL (selector Impuestos / Informes)
 // ============================================================
+// El selector de la sección se pinta aquí; el contenido de cada área
+// va dentro de #imp-zona. Informes vive en mod-informes.js, que se
+// carga después de este archivo.
 
 function pintarImpuestos() {
   const contenido = document.getElementById('contenido');
   if (!contenido) return;
+
+  contenido.innerHTML =
+    '<div class="imp-cabecera-seccion">' +
+      '<div class="imp-selector imp-selector-area" id="imp-selector-area">' +
+        '<button type="button" data-area="impuestos">Impuestos</button>' +
+        '<button type="button" data-area="informes">Informes</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="imp-zona"></div>';
+
+  document.getElementById('imp-selector-area').querySelectorAll('[data-area]').forEach(function (b) {
+    b.classList.toggle('activa', b.dataset.area === impArea);
+    b.addEventListener('click', function () {
+      if (b.dataset.area === 'informes' && typeof pintarInformes !== 'function') {
+        alert('El módulo de Informes todavía no está construido.');
+        return;
+      }
+      impArea = b.dataset.area;
+      pintarImpuestos();
+    });
+  });
+
+  if (impArea === 'informes' && typeof pintarInformes === 'function') {
+    pintarInformes();
+  } else {
+    pintarPantallaImpuestos();
+  }
+}
+
+function pintarPantallaImpuestos() {
+  const zona = document.getElementById('imp-zona');
+  if (!zona) return;
 
   const anios = impAniosDisponibles();
 
@@ -361,7 +401,7 @@ function pintarImpuestos() {
   }
   if (IMP_TRIMESTRES.indexOf(impTrimestre) === -1) impTrimestre = impTrimestreActual();
 
-  contenido.innerHTML =
+  zona.innerHTML =
     '<div class="imp-periodo">' +
       '<select class="campo imp-select-anio" id="imp-anio">' +
         anios.map(function (a) {
@@ -381,13 +421,13 @@ function pintarImpuestos() {
 
   document.getElementById('imp-anio').addEventListener('change', function (ev) {
     impAnio = parseInt(ev.target.value, 10);
-    pintarImpuestos();
+    pintarPantallaImpuestos();
   });
 
   document.getElementById('imp-trimestres').querySelectorAll('[data-trimestre]').forEach(function (b) {
     b.addEventListener('click', function () {
       impTrimestre = b.dataset.trimestre;
-      pintarImpuestos();
+      pintarPantallaImpuestos();
     });
   });
 
