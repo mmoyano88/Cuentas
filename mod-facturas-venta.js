@@ -442,7 +442,7 @@ function fvAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="reintentar"]')?.addEventListener('click', function () { cerrarMenu(); fvReintentarGuardado(id); });
   menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); abrirFormularioFacturaVenta(id); });
   menu.querySelector('[data-accion="cobro"]')?.addEventListener('click', function () { cerrarMenu(); fvCambiarCobro(id); });
-  menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); fvBotonDePrueba('Descargar PDF'); });
+  menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); pdfDocAbrirFactura(id); });
   menu.querySelector('[data-accion="desactivar"]')?.addEventListener('click', function () { cerrarMenu(); fvDesactivar(id); });
   menu.querySelector('[data-accion="reactivar"]')?.addEventListener('click', function () { cerrarMenu(); fvReactivar(id); });
 
@@ -731,7 +731,7 @@ function abrirFichaFacturaVenta(id) {
   document.addEventListener('keydown', alPulsarTecla);
   fondo.querySelector('.fv-modal-cerrar').addEventListener('click', cerrar);
 
-  fondo.querySelector('#fv-ficha-pdf').addEventListener('click', function () { fvBotonDePrueba('Descargar PDF'); });
+  fondo.querySelector('#fv-ficha-pdf').addEventListener('click', function () { pdfDocAbrirFactura(id); });
   fondo.querySelector('#fv-ficha-editar')?.addEventListener('click', function () {
     cerrar();
     abrirFormularioFacturaVenta(id);

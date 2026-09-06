@@ -1,0 +1,68 @@
+/* ============================================================
+   AÑADIDO A mod-configuracion.css — zona de imagen de cabecera del PDF
+
+   Este bloque es NUEVO (06/09/2026): añade la zona de subida de la
+   imagen de cabecera de los PDF en la pestaña Datos Fiscales. No se
+   ha tocado el resto de mod-configuracion.css porque no estaba
+   disponible en este chat — Miguel debe PEGAR este bloque al final
+   de su mod-configuracion.css real (o donde prefiera dentro de ese
+   archivo) y no sustituir el archivo entero.
+
+   Reutiliza el mismo patrón visual que ya existe para la foto de
+   perfil (avatar-editor / avatar-preview): vista previa a la
+   izquierda, botones a la derecha. Aquí la vista previa es
+   panorámica (ratio 1240×260) en vez de circular, porque la cabecera
+   del PDF es una franja, no un avatar.
+   ============================================================ */
+
+.config-subtitulo {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 24px 0 4px;
+}
+
+.config-ayuda {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.cabecera-pdf-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+/* Vista previa con la misma proporción que la franja real del PDF
+   (1240×260 ≈ 4,77:1), para que Miguel vea cómo va a quedar recortada
+   antes de guardar, no solo la imagen entera sin contexto. */
+.cabecera-pdf-preview {
+  width: 100%;
+  max-width: 420px;
+  aspect-ratio: 1240 / 260;
+  border-radius: var(--radio-control);
+  background: var(--gris-neutro, #EAEAE6);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #D8D8D2;
+}
+.cabecera-pdf-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cabecera-pdf-vacio {
+  font-size: 12px;
+  color: var(--texto-secundario);
+}
+
+.cabecera-pdf-botones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

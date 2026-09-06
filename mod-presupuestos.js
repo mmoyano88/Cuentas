@@ -671,7 +671,7 @@ function preAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); preAbrirEdicion(id); });
   menu.querySelector('[data-accion="estado"]')?.addEventListener('click', function () { cerrarMenu(); preCambiarEstado(id); });
   menu.querySelector('[data-accion="duplicar"]')?.addEventListener('click', function () { cerrarMenu(); preDuplicar(id); });
-  menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); preBotonDePrueba('Descargar PDF'); });
+  menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); pdfDocAbrirPresupuesto(id); });
   menu.querySelector('[data-accion="factura"]')?.addEventListener('click', function () {
     cerrarMenu();
     if (typeof convertirPresupuestoEnFactura !== 'function') {
@@ -839,7 +839,7 @@ function abrirFichaPresupuesto(id) {
   document.addEventListener('keydown', alPulsarTecla);
   fondo.querySelector('.pre-modal-cerrar').addEventListener('click', cerrar);
 
-  fondo.querySelector('#pre-ficha-pdf').addEventListener('click', function () { preBotonDePrueba('Descargar PDF'); });
+  fondo.querySelector('#pre-ficha-pdf').addEventListener('click', function () { pdfDocAbrirPresupuesto(id); });
   fondo.querySelector('#pre-ficha-editar')?.addEventListener('click', function () {
     cerrar();
     preAbrirEdicion(id);
