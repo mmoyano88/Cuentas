@@ -161,15 +161,39 @@
   margin: 0;
 }
 
+/* Los cuatro donuts van emparejados a propósito: clientes junto a
+   proveedores (las dos concentraciones), e ingresos junto a gastos
+   por ámbito (las dos comparativas empresa/personal). En móvil, dos
+   filas de dos, de forma que cada pareja quede junta; en PC, los
+   cuatro en una sola fila (decisión del propietario, 06/09/2026). */
 .dash-donuts {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-@media (min-width: 700px) {
-  .dash-donuts { grid-template-columns: 1fr 1fr; }
+@media (min-width: 1000px) {
+  .dash-donuts { grid-template-columns: repeat(4, 1fr); }
 }
-.dash-donuts .dash-grafico-caja { margin-bottom: 0; }
+.dash-donuts .dash-grafico-caja {
+  margin-bottom: 0;
+  /* Sin esto la columna no se encoge por debajo del ancho del lienzo:
+     en una rejilla CSS las columnas tienen `min-width: auto` por
+     defecto, así que el gráfico impone su tamaño y la pantalla acaba
+     desbordando en horizontal. Con `min-width: 0` manda la rejilla y
+     el gráfico se adapta a ella, que es lo que queremos. */
+  min-width: 0;
+}
+.dash-donuts .dash-lienzo { min-width: 0; }
+
+/* Con cuatro donuts por fila hay menos ancho para cada uno: se
+   reducen el alto y el relleno para que el círculo siga viéndose
+   proporcionado y la leyenda no se coma el espacio del gráfico. */
+.dash-donuts .dash-lienzo { height: 190px; }
+@media (max-width: 480px) {
+  .dash-donuts .dash-grafico-caja { padding: 12px 10px; }
+  .dash-donuts .dash-grafico-titulo { font-size: 13px; }
+  .dash-donuts .dash-lienzo { height: 200px; }
+}
 
 .dash-nota {
   font-size: 11px;
