@@ -56,16 +56,23 @@
    en una sola columna las seis tarjetas ocupaban demasiado alto y
    obligaban a deslizar antes de ver los gráficos. Con los datos que
    llevan (un título corto, una cifra y una línea pequeña) caben
-   cómodamente de dos en dos. En PC, tres por fila. */
+   cómodamente de dos en dos. En PC, tres por fila.
+
+   Ancladas a `#contenido` por el mismo motivo que los donuts: hay
+   siete archivos de módulo que se cargan después de este. */
 .dash-tarjetas {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-bottom: 20px;
 }
-@media (min-width: 1000px) {
-  .dash-tarjetas { grid-template-columns: repeat(3, 1fr); }
+#contenido .dash-tarjetas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
+@media (min-width: 1000px) {
+  #contenido .dash-tarjetas { grid-template-columns: repeat(3, 1fr); }
+}
+#contenido .dash-tarjetas .dash-tarjeta { min-width: 0; }
 
 .dash-tarjeta {
   border-radius: var(--radio-tarjeta);
@@ -165,16 +172,28 @@
    proveedores (las dos concentraciones), e ingresos junto a gastos
    por ámbito (las dos comparativas empresa/personal). En móvil, dos
    filas de dos, de forma que cada pareja quede junta; en PC, los
-   cuatro en una sola fila (decisión del propietario, 06/09/2026). */
+   cuatro en una sola fila (decisión del propietario, 06/09/2026).
+
+   ⚠️ Las reglas de reparto van ancladas a `#contenido` a propósito.
+   `mod-dashboard.css` se carga de los primeros en index.html, y
+   después de él vienen SIETE archivos de módulo más. Entre reglas de
+   la misma fuerza gana la última cargada, así que una regla suelta
+   sobre `.dash-donuts` puede quedar pisada por cualquiera de esos
+   archivos sin que se note el motivo. Con el identificador delante,
+   esta regla pesa más y gana siempre. Es la misma lección que dejó el
+   hueco del botón flotante (ver diario, INTERFAZ/DISEÑO). */
 .dash-donuts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-@media (min-width: 1000px) {
-  .dash-donuts { grid-template-columns: repeat(4, 1fr); }
+#contenido .dash-donuts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
-.dash-donuts .dash-grafico-caja {
+@media (min-width: 1000px) {
+  #contenido .dash-donuts { grid-template-columns: repeat(4, 1fr); }
+}
+#contenido .dash-donuts .dash-grafico-caja {
   margin-bottom: 0;
   /* Sin esto la columna no se encoge por debajo del ancho del lienzo:
      en una rejilla CSS las columnas tienen `min-width: auto` por
@@ -183,16 +202,16 @@
      el gráfico se adapta a ella, que es lo que queremos. */
   min-width: 0;
 }
-.dash-donuts .dash-lienzo { min-width: 0; }
+#contenido .dash-donuts .dash-lienzo { min-width: 0; }
 
 /* Con cuatro donuts por fila hay menos ancho para cada uno: se
    reducen el alto y el relleno para que el círculo siga viéndose
    proporcionado y la leyenda no se coma el espacio del gráfico. */
-.dash-donuts .dash-lienzo { height: 190px; }
+#contenido .dash-donuts .dash-lienzo { height: 190px; }
 @media (max-width: 480px) {
-  .dash-donuts .dash-grafico-caja { padding: 12px 10px; }
-  .dash-donuts .dash-grafico-titulo { font-size: 13px; }
-  .dash-donuts .dash-lienzo { height: 200px; }
+  #contenido .dash-donuts .dash-grafico-caja { padding: 12px 10px; }
+  #contenido .dash-donuts .dash-grafico-titulo { font-size: 13px; }
+  #contenido .dash-donuts .dash-lienzo { height: 200px; }
 }
 
 .dash-nota {
