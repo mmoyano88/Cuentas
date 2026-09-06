@@ -644,9 +644,15 @@ function dashGraficoDonut(idCanvas, datos, textoVacio) {
       maintainAspectRatio: false,
       cutout: '58%',
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 }, padding: 8 } },
+        // Sin leyenda (decisión del propietario, 06/09/2026): ocupaba
+        // mucho, variaba de alto según cuántos nombres hubiera —lo que
+        // descolocaba unos círculos respecto a otros— y la información
+        // ya sale al pulsar cada sección del gráfico.
+        legend: { display: false },
         tooltip: {
+          displayColors: false,
           callbacks: {
+            title: function () { return ''; },
             label: function (ctx) {
               const total = ctx.dataset.data.reduce(function (s, v) { return s + v; }, 0);
               const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0;

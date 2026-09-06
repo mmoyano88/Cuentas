@@ -204,14 +204,28 @@
 }
 #contenido .dash-donuts .dash-lienzo { min-width: 0; }
 
+/* Título de altura EXACTA de dos líneas, aunque el texto solo ocupe
+   una. Los títulos de los cuatro donuts no miden lo mismo, y al ir
+   cada uno en su caja los círculos empezaban a distinta altura y
+   quedaban desalineados entre columnas. Se fija la altura del bloque
+   (no un mínimo: con `min-height` dos títulos de dos líneas podían
+   seguir difiriendo unos píxeles) reservando siempre el espacio de
+   dos renglones. */
+#contenido .dash-donuts .dash-grafico-titulo {
+  line-height: 1.3;
+  height: 2.6em;
+  margin: 0 0 10px;
+  overflow: hidden;
+}
+
 /* Con cuatro donuts por fila hay menos ancho para cada uno: se
    reducen el alto y el relleno para que el círculo siga viéndose
-   proporcionado y la leyenda no se coma el espacio del gráfico. */
-#contenido .dash-donuts .dash-lienzo { height: 190px; }
+   proporcionado. */
+#contenido .dash-donuts .dash-lienzo { height: 170px; }
 @media (max-width: 480px) {
   #contenido .dash-donuts .dash-grafico-caja { padding: 12px 10px; }
   #contenido .dash-donuts .dash-grafico-titulo { font-size: 13px; }
-  #contenido .dash-donuts .dash-lienzo { height: 200px; }
+  #contenido .dash-donuts .dash-lienzo { height: 165px; }
 }
 
 .dash-nota {
