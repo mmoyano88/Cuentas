@@ -503,9 +503,13 @@ function dashRepintarTarjetas() {
   const media = dashMediaMensual(movimientos);
   const imp = dashImpuestos();
 
+  // La etiqueta de la cifra pequeña cambia según la tarjeta: "En
+  // banco" solo tiene sentido donde el dinero entra o queda. Para
+  // gastos es dinero que sale, y decir "en banco" confundía
+  // (comentario del propietario, 06/09/2026).
   zona.innerHTML =
-    dashTarjeta('ingresos',  'Ingresos ' + anio,  t.ingresos,  'En banco:', t.tesIngresos) +
-    dashTarjeta('gastos',    'Gastos ' + anio,    t.gastos,    'En banco:', t.tesGastos) +
+    dashTarjeta('ingresos',  'Ingresos ' + anio,  t.ingresos,  'Cobrado:', t.tesIngresos) +
+    dashTarjeta('gastos',    'Gastos ' + anio,    t.gastos,    'Pagado:',  t.tesGastos) +
     dashTarjeta('beneficio', 'Beneficio ' + anio, t.beneficio, 'En banco:', t.tesNeta) +
     dashTarjeta('media',
       'Media mensual' + (media.meses > 0 && media.meses < 12 ? ' (' + media.meses + ' meses)' : ''),

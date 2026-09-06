@@ -52,14 +52,16 @@
 }
 
 /* ---- Tarjetas ---- */
+/* Dos columnas ya desde móvil (decisión del propietario, 06/09/2026):
+   en una sola columna las seis tarjetas ocupaban demasiado alto y
+   obligaban a deslizar antes de ver los gráficos. Con los datos que
+   llevan (un título corto, una cifra y una línea pequeña) caben
+   cómodamente de dos en dos. En PC, tres por fila. */
 .dash-tarjetas {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-bottom: 20px;
-}
-@media (min-width: 560px) {
-  .dash-tarjetas { grid-template-columns: 1fr 1fr; }
 }
 @media (min-width: 1000px) {
   .dash-tarjetas { grid-template-columns: repeat(3, 1fr); }
