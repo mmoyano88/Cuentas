@@ -1,0 +1,177 @@
+/* ============================================================
+   MÓDULO DASHBOARD — estilos propios
+
+   Pantalla de inicio: seis tarjetas de color con icono y un bloque de
+   gráficos. Es la pantalla más visual de la app y la única que rompe
+   a propósito la paleta neutra del resto: aquí el color no decora,
+   codifica el significado de cada cifra (verde ingreso, rojo gasto,
+   azul resultado, ámbar impuestos), igual que ya hacen las pastillas
+   de estado y los círculos de Contabilidad.
+   ============================================================ */
+
+/* ---- Selector de perspectiva ---- */
+/* Igual que los demás selectores de sección de la app: ajustado a su
+   contenido, nunca estirado a todo el ancho (ver diario,
+   INTERFAZ/DISEÑO — regla general sobre flex-grow en selectores). */
+.dash-cabecera {
+  display: flex;
+  align-items: center;
+  margin: 14px 0 16px;
+}
+
+.dash-selector {
+  display: inline-flex;
+  background: var(--gris-neutro);
+  border-radius: 20px;
+  padding: 3px;
+  gap: 2px;
+}
+.dash-selector button {
+  border: none;
+  background: none;
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto-secundario);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dash-selector button.activa {
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+/* Versión reducida, la que va encima del gráfico grande. */
+.dash-selector.pequeno button {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+/* ---- Tarjetas ---- */
+.dash-tarjetas {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+@media (min-width: 560px) {
+  .dash-tarjetas { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 1000px) {
+  .dash-tarjetas { grid-template-columns: repeat(3, 1fr); }
+}
+
+.dash-tarjeta {
+  border-radius: var(--radio-tarjeta);
+  padding: 14px 16px;
+  color: #FFFFFF;
+  min-height: 104px;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-tarjeta-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.dash-tarjeta-titulo {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: .92;
+}
+.dash-tarjeta-cabecera i {
+  font-size: 20px;
+  opacity: .85;
+  flex: 0 0 auto;
+}
+
+.dash-tarjeta-valor {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.15;
+}
+
+/* La cifra de tesorería va en pequeño debajo: es el dato secundario,
+   la principal es siempre la económica. */
+.dash-tarjeta-tesoreria {
+  font-size: 11px;
+  opacity: .85;
+  margin: auto 0 0;
+  padding-top: 8px;
+}
+
+/* Colores por significado, no por decoración. Verde/rojo para
+   ingreso/gasto es la misma convención que ya usa toda la app. */
+.dash-tarjeta.verde        { background: #3E9E4E; }
+.dash-tarjeta.rojo         { background: var(--rojo); }
+.dash-tarjeta.azul         { background: #2F6FB5; }
+.dash-tarjeta.azul-suave   { background: #4A87C7; }
+.dash-tarjeta.ambar        { background: #D69B27; }
+.dash-tarjeta.ambar-fuerte { background: #C0761F; }
+
+/* ---- Gráficos ---- */
+.dash-grafico-grande,
+.dash-grafico-caja {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.dash-grafico-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.dash-grafico-titulo {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+.dash-grafico-cabecera .dash-grafico-titulo { margin: 0; }
+
+/* Chart.js necesita que el contenedor tenga altura propia: el lienzo
+   se adapta a ella, no al revés. Sin esto el gráfico crece sin
+   control en cada repintado. */
+.dash-lienzo {
+  position: relative;
+  height: 220px;
+}
+.dash-lienzo.alto { height: 280px; }
+
+.dash-grafico-vacio {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  text-align: center;
+  padding: 40px 16px;
+  margin: 0;
+}
+
+.dash-donuts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 700px) {
+  .dash-donuts { grid-template-columns: 1fr 1fr; }
+}
+.dash-donuts .dash-grafico-caja { margin-bottom: 0; }
+
+.dash-nota {
+  font-size: 11px;
+  color: var(--texto-secundario);
+  line-height: 1.45;
+  margin: 16px 0 0;
+}

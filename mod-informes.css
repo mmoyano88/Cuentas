@@ -175,3 +175,12 @@
   margin: 10px 0 0;
   line-height: 1.45;
 }
+
+/* Aviso de que la estimación congelada al pagar ya no coincide con la
+   de hoy (se añadieron datos de ese trimestre después de pagarlo). */
+.inf-resumen-desfase {
+  font-size: 10px;
+  color: var(--ambar-texto);
+  margin: 4px 0 0;
+  line-height: 1.35;
+}

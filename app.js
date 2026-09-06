@@ -92,7 +92,7 @@ async function ejecutarReconciliadores() {
 // los nombres de los módulos, solo esta lista.
 
 const LS_VISTA_ACTIVA = 'cuentas_vista_v1';
-const VISTA_INICIAL = 'configuracion'; // cambiar a 'dashboard' cuando exista ese módulo
+const VISTA_INICIAL = 'dashboard';
 
 const vistas = {};
 let vistaActiva = null;
@@ -746,7 +746,12 @@ async function arrancarAplicacion() {
   cargarTodoLocal();
   fusionarDatosDePrueba();
 
-  vistaActiva = localStorage.getItem(LS_VISTA_ACTIVA) || VISTA_INICIAL;
+  // La app abre SIEMPRE en el Dashboard, no en la última pantalla que
+  // se estuviera mirando (decisión del propietario, 06/09/2026): es la
+  // pantalla de resumen y quiere verla cada vez que entra. La última
+  // vista se sigue guardando en `LS_VISTA_ACTIVA` para que el resto de
+  // la app pueda consultarla, simplemente no se usa para arrancar.
+  vistaActiva = VISTA_INICIAL;
   pintarVistaActiva();
   ejecutarPintadores();
 

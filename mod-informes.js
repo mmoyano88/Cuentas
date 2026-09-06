@@ -201,17 +201,45 @@ function infResumenPantalla(anio) {
     const r = impRegistroDe(anio, t);
     const c = impCalcular(anio, t);
 
-    const ivaEstimado = r && parsearNumero(r.iva_estimado) !== 0 ? parsearNumero(r.iva_estimado) : c.iva;
-    const irpfEstimado = r && parsearNumero(r.irpf_estimado) !== 0 ? parsearNumero(r.irpf_estimado) : c.irpf;
+    // La estimación que se muestra es SIEMPRE la calculada en vivo,
+    // igual que en la pestaña Impuestos (corrección 06/09/2026).
+    //
+    // Antes se mostraba el valor guardado en el registro fiscal cuando
+    // ese registro existía, y solo se recalculaba si no existía. Eso
+    // hacía que un mismo trimestre enseñara dos cifras distintas de
+    // IRPF en Impuestos y en Informes, sin ninguna explicación: el
+    // campo `irpf_estimado` se congela a propósito al marcar el
+    // trimestre como pagado (mapa 12.7), así que se queda desfasado en
+    // cuanto se añaden apuntes o facturas de ese trimestre después de
+    // haber pagado.
+    //
+    // El valor congelado no se pierde: se conserva aparte y, si no
+    // coincide con el de hoy, se avisa en la tarjeta. Es un dato
+    // histórico útil ("esto estimaba la app el día que pagaste"), pero
+    // no es la cifra que hay que enseñar como estimación actual.
     const ivaPagado = r && infTexto(r.iva_estado).toLowerCase() === 'pagado';
     const irpfPagado = r && infTexto(r.irpf_estado).toLowerCase() === 'pagado';
 
+    const ivaGuardado = r ? parsearNumero(r.iva_estimado) : 0;
+    const irpfGuardado = r ? parsearNumero(r.irpf_estimado) : 0;
+
+    // Solo tiene sentido comparar si el trimestre está pagado (es
+    // cuando se congeló la cifra) y hay algo guardado con lo que
+    // comparar. Se usa un margen de un céntimo para no avisar por
+    // diferencias de redondeo.
+    const ivaDesfasado = ivaPagado && ivaGuardado !== 0 && Math.abs(ivaGuardado - c.iva) > 0.01;
+    const irpfDesfasado = irpfPagado && irpfGuardado !== 0 && Math.abs(irpfGuardado - c.irpf) > 0.01;
+
     return {
       trimestre: t,
-      ivaEstimado: ivaEstimado,
+      ivaEstimado: c.iva,
+      ivaGuardado: ivaGuardado,
+      ivaDesfasado: ivaDesfasado,
       ivaReal: r ? parsearNumero(r.iva_real) : 0,
       ivaPagado: ivaPagado,
-      irpfEstimado: irpfEstimado,
+      irpfEstimado: c.irpf,
+      irpfGuardado: irpfGuardado,
+      irpfDesfasado: irpfDesfasado,
       irpfReal: r ? parsearNumero(r.irpf_real) : 0,
       irpfPagado: irpfPagado,
       completo: ivaPagado && irpfPagado
@@ -677,7 +705,7 @@ function infResumenPantallaHtml(resumen) {
   // compararlos de un vistazo (petición del propietario, 05/09/2026).
   // Si aún no está pagado, el real se muestra como «—» en vez de un
   // cero, que haría pensar que se pagó cero.
-  const bloque = function (etiqueta, estimado, real, pagado) {
+  const bloque = function (etiqueta, estimado, real, pagado, guardado, desfasado) {
     return '<div class="inf-resumen-bloque">' +
       '<div class="inf-resumen-bloque-cabecera">' +
         '<span>' + etiqueta + '</span>' +
@@ -690,14 +718,21 @@ function infResumenPantallaHtml(resumen) {
         '<span class="inf-resumen-dato"><small>Pagado</small>' +
           (pagado ? escaparHtml(formatMoney(real)) : '—') + '</span>' +
       '</div>' +
+      // La cifra que se congeló al pagar ya no coincide con la de hoy:
+      // se han añadido facturas o apuntes de ese trimestre después de
+      // marcarlo como pagado. Se enseñan las dos para que no parezca
+      // un error.
+      (desfasado
+        ? '<p class="inf-resumen-desfase">Al pagar se estimó ' + escaparHtml(formatMoney(guardado)) + '</p>'
+        : '') +
     '</div>';
   };
 
   const filaTrimestre = function (f) {
     return '<div class="inf-resumen-trimestre">' +
       '<p class="inf-resumen-trimestre-titulo">' + f.trimestre + '</p>' +
-      bloque('IVA', f.ivaEstimado, f.ivaReal, f.ivaPagado) +
-      bloque('IRPF', f.irpfEstimado, f.irpfReal, f.irpfPagado) +
+      bloque('IVA', f.ivaEstimado, f.ivaReal, f.ivaPagado, f.ivaGuardado, f.ivaDesfasado) +
+      bloque('IRPF', f.irpfEstimado, f.irpfReal, f.irpfPagado, f.irpfGuardado, f.irpfDesfasado) +
     '</div>';
   };
 

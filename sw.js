@@ -12,7 +12,7 @@
  * tirar la copia vieja.
  */
 
-const VERSION = 'cuentas-v20';
+const VERSION = 'cuentas-v21';
 
 const ARCHIVOS = [
   './',
@@ -22,6 +22,8 @@ const ARCHIVOS = [
   './iconos-contacto.js',
   './mod-navegacion.css',
   './mod-navegacion.js',
+  './mod-dashboard.css',
+  './mod-dashboard.js',
   './mod-configuracion.css',
   './mod-configuracion.js',
   './mod-clientes.css',
@@ -41,7 +43,8 @@ const ARCHIVOS = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css'
+  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
 ];
 
 self.addEventListener('install', function (evento) {
