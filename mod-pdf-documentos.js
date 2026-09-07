@@ -46,10 +46,16 @@
  * 06/09/2026: si quiere mostrar la forma de pago, la escribe él mismo
  * en el texto de observaciones de Configuración.
  *
- * La imagen de cabecera (antes un hueco sin resolver, marcado como
- * "IMAGEN DE CABECERA" en el HTML original) se lee de
- * `pdf_imagen_cabecera` en Configuración → Datos Fiscales, donde el
- * propietario la sube una vez como cualquier otro campo.
+ * La imagen de cabecera vivía en `pdf_imagen_cabecera` (Configuración
+ * → Datos Fiscales), guardada en base64 dentro de la hoja de cálculo.
+ * El propietario detectó que no llegaba a guardarse de forma fiable
+ * y tuvo que volver a subirla varias veces. Se sustituye por una URL
+ * FIJA alojada en su propio repositorio de GitHub (06/09/2026): la
+ * imagen deja de depender de que la sincronización con Sheets
+ * funcione, y de paso el registro de configuración pesa mucho menos
+ * al no llevar una imagen en base64 dentro. Para cambiarla, el
+ * propietario solo tiene que subir un archivo con este mismo nombre
+ * a esa carpeta de GitHub — no hace falta tocar la app.
  */
 
 // ============================================================
@@ -62,6 +68,15 @@ function pdfDocTexto(v) {
 
 // Sin valor por defecto escrito a fuego (corrige mapa 15.3): si el
 // campo está vacío en Configuración, sale vacío en el PDF.
+// URL fija de la imagen de cabecera, alojada en el repositorio de
+// GitHub del propietario. Para cambiarla basta con subir un archivo
+// nuevo con este mismo nombre a esa carpeta — no hace falta tocar la
+// app ni la configuración. Se sirve desde raw.githubusercontent.com,
+// que es la dirección que da acceso directo al archivo (a diferencia
+// de github.com/.../blob/..., que es la página que lo muestra, no el
+// archivo en sí). Verificado que carga correctamente (1240×260px).
+const PDF_DOC_URL_CABECERA = 'https://raw.githubusercontent.com/mmoyano88/Cuentas/main/20260906_145914_0000.png';
+
 function pdfDocDatosEmisor() {
   const calle = [pdfDocTexto(cfgTexto('fiscal_calle')), pdfDocTexto(cfgTexto('fiscal_numero'))].filter(Boolean).join(' ');
   const poblacion = [pdfDocTexto(cfgTexto('fiscal_codigo_postal')), pdfDocTexto(cfgTexto('fiscal_poblacion'))].filter(Boolean).join(' ');
@@ -73,8 +88,7 @@ function pdfDocDatosEmisor() {
     nif: pdfDocTexto(cfgTexto('fiscal_nif')),
     direccion: direccion,
     telefono: pdfDocTexto(cfgTexto('perfil_telefono')),
-    email: pdfDocTexto(cfgTexto('perfil_email')),
-    imagenCabecera: pdfDocTexto(cfgTexto('pdf_imagen_cabecera'))
+    email: pdfDocTexto(cfgTexto('perfil_email'))
   };
 }
 
@@ -243,8 +257,8 @@ function pdfDocConstruir(registro, contacto, tipo) {
     '<style>' + pdfDocCss(acento) + '</style>' +
     '</head><body>' +
     '<div class="page">' +
-      (emisor.imagenCabecera
-        ? '<div class="header"><img src="' + escaparHtml(emisor.imagenCabecera) + '" alt=""></div>'
+      (PDF_DOC_URL_CABECERA
+        ? '<div class="header"><img src="' + escaparHtml(PDF_DOC_URL_CABECERA) + '" alt=""></div>'
         : '<div class="header header-vacio"></div>') +
       '<div class="content">' +
         // Cabecera en FILAS alineadas, no en dos bloques sueltos: cada

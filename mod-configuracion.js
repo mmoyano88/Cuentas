@@ -22,7 +22,6 @@ const CONFIG_PESTANAS = [
 
 let configPestanaActiva = 'mis-datos';
 let configFotoPendiente = null; // base64 nueva, mientras no se guarde
-let configCabeceraPendiente = null; // base64 nueva de la imagen de cabecera del PDF, mientras no se guarde
 
 // ============================================================
 // 1. UTILIDADES DE CONFIGURACIÓN
@@ -86,7 +85,6 @@ function pintarPestanas() {
     boton.addEventListener('click', function () {
       configPestanaActiva = boton.dataset.tab;
       configFotoPendiente = null;
-      configCabeceraPendiente = null;
       pintarPestanas();
       pintarPanelActivo();
     });
@@ -138,8 +136,6 @@ function renderMisDatos() {
 // ============================================================
 
 function renderDatosFiscales() {
-  const cabeceraPendiente = configCabeceraPendiente === 'BORRAR' ? '' : configCabeceraPendiente;
-  const cabecera = cabeceraPendiente || (configCabeceraPendiente === 'BORRAR' ? '' : cfgTexto('pdf_imagen_cabecera'));
   return (
     '<h2>Datos Fiscales</h2>' +
     '<div class="config-grid dos-columnas">' +
@@ -154,29 +150,17 @@ function renderDatosFiscales() {
     '</div>' +
     '<div class="direccion-preview" id="direccion-preview">' + escaparHtml(construirDireccionPreview()) + '</div>' +
 
+    // La imagen de cabecera de los PDF ya NO se sube desde aquí
+    // (06/09/2026): subirla como campo de configuración no se estaba
+    // guardando de forma fiable y el propietario tenía que repetirlo
+    // varias veces. Ahora es una URL fija alojada en su repositorio
+    // de GitHub (ver mod-pdf-documentos.js, PDF_DOC_URL_CABECERA).
+    // Para cambiarla, sube un archivo con el mismo nombre a esa
+    // carpeta de GitHub — no hace falta tocar la app.
     '<h3 class="config-subtitulo" style="font-size:15px;font-weight:600;margin:24px 0 4px">Imagen de cabecera de los PDF</h3>' +
-    '<p class="config-ayuda" style="font-size:12px;color:var(--texto-secundario);margin:0 0 12px;line-height:1.4">Franja que aparece arriba de los presupuestos y facturas de venta en PDF. Medida recomendada: 1240 × 260 px.</p>' +
-    // Los estilos van escritos aquí dentro a propósito, no en una hoja
-    // aparte: si el CSS no llega a cargarse, la imagen se pintaría a su
-    // tamaño real (1240px de ancho) y desbordaría el ancho de TODA la
-    // app, descolocando el menú y dejándola inservible. Con las medidas
-    // puestas en el propio elemento eso no puede pasar nunca.
-    '<div class="cabecera-pdf-editor" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start;max-width:100%">' +
-      '<div class="cabecera-pdf-preview" id="cabecera-pdf-preview"' +
-        ' style="width:100%;max-width:360px;aspect-ratio:1240/260;border-radius:8px;background:#EAEAE6;' +
-        'overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid #D8D8D2">' +
-        (cabecera
-          ? '<img src="' + escaparHtml(cabecera) + '" alt="Imagen de cabecera" style="width:100%;height:100%;object-fit:cover;display:block">'
-          : '<span style="font-size:12px;color:var(--texto-secundario)">Sin imagen todavía</span>') +
-      '</div>' +
-      '<div class="cabecera-pdf-botones" style="display:flex;gap:8px;flex-wrap:wrap">' +
-        '<button type="button" class="boton-secundario" id="btn-cambiar-cabecera">' +
-          (cabecera ? 'Cambiar imagen' : 'Subir imagen') +
-        '</button>' +
-        (cabecera ? '<button type="button" class="boton-secundario" id="btn-quitar-cabecera">Quitar</button>' : '') +
-        '<input type="file" accept="image/*" id="input-cabecera" hidden>' +
-      '</div>' +
-    '</div>' +
+    '<p class="config-ayuda" style="font-size:12px;color:var(--texto-secundario);margin:0 0 12px;line-height:1.4">' +
+      'Ya no se sube desde aquí. Vive como archivo fijo en tu repositorio de GitHub — para cambiarla, sube uno nuevo con el mismo nombre a esa carpeta.' +
+    '</p>' +
 
     piePanelGuardar()
   );
@@ -559,28 +543,6 @@ function cablearPanelActivo(panel) {
     });
   }
 
-  const btnCabecera = document.getElementById('btn-cambiar-cabecera');
-  if (btnCabecera) {
-    const inputCabecera = document.getElementById('input-cabecera');
-    btnCabecera.addEventListener('click', function () { inputCabecera.click(); });
-    inputCabecera.addEventListener('change', function () {
-      const archivo = inputCabecera.files[0];
-      if (!archivo) return;
-      procesarImagenCabecera(archivo, function (base64) {
-        configCabeceraPendiente = base64;
-        pintarPanelActivo();
-      });
-    });
-  }
-  const btnQuitarCabecera = document.getElementById('btn-quitar-cabecera');
-  if (btnQuitarCabecera) {
-    btnQuitarCabecera.addEventListener('click', function () {
-      if (!confirm('¿Quitar la imagen de cabecera de los PDF? Los presupuestos y facturas dejarán de llevarla hasta que subas otra.')) return;
-      configCabeceraPendiente = 'BORRAR';
-      pintarPanelActivo();
-    });
-  }
-
   const btnGuardar = document.getElementById('btn-guardar-config');
   if (btnGuardar) btnGuardar.addEventListener('click', function () { guardarConfiguracionActual(btnGuardar); });
 
@@ -600,30 +562,6 @@ function cablearPanelActivo(panel) {
 // ============================================================
 // 12. FOTO DE PERFIL
 // ============================================================
-// Máximo 256px por el lado mayor, JPEG calidad 0.82, base64.
-
-// Igual que la foto de perfil (JPEG, base64), pero SIN recortar a
-// cuadrado: la cabecera es una franja panorámica (1240×260, ratio
-// ≈4,77) y forzarla a un lado igual la deformaría. Se reduce solo si
-// es más ancha de 1240px, conservando su proporción original.
-function procesarImagenCabecera(archivo, callback) {
-  const lector = new FileReader();
-  lector.onload = function (ev) {
-    const img = new Image();
-    img.onload = function () {
-      const anchoMax = 1240;
-      let w = img.width, h = img.height;
-      if (w > anchoMax) { h = Math.round(h * anchoMax / w); w = anchoMax; }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.85));
-    };
-    img.src = ev.target.result;
-  };
-  lector.readAsDataURL(archivo);
-}
-
 // Máximo 256px por el lado mayor, recortada a cuadrado con CSS
 // (background-image + background-size:cover en el avatar). JPEG
 // calidad 0.82, base64.
@@ -674,8 +612,6 @@ async function guardarConfiguracionActual(boton) {
   if (panel.querySelector('#array-serviciosExtra')) payload.servicios_extra = JSON.stringify(recogerArray('serviciosExtra'));
 
   if (configFotoPendiente) payload.perfil_foto = configFotoPendiente;
-  if (configCabeceraPendiente === 'BORRAR') payload.pdf_imagen_cabecera = '';
-  else if (configCabeceraPendiente) payload.pdf_imagen_cabecera = configCabeceraPendiente;
 
   const textoOriginal = boton.textContent;
   boton.disabled = true;
@@ -689,7 +625,6 @@ async function guardarConfiguracionActual(boton) {
     estado.configuracion = payload;
     guardarTodoLocal();
     configFotoPendiente = null;
-    configCabeceraPendiente = null;
     indicador('sincronizado');
     pintarPanelActivo();
   } catch (err) {
