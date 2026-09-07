@@ -291,12 +291,20 @@ function pdfDocConstruir(registro, contacto, tipo) {
           '<div class="desc-body">' + pdfDocFilasHtml(lineas, esFactura) + '</div>' +
         '</div>' +
 
-        // Totales y observaciones van SIEMPRE al fondo de la hoja
-        // (petición del propietario, 06/09/2026). `margin-top:auto`
-        // dentro de una página de altura mínima A4 los empuja abajo
-        // cuando el documento cabe en una hoja, y los deja al final
-        // del contenido cuando ocupa varias.
-        '<div class="pie-doc">' +
+        // Totales y observaciones van SIEMPRE al fondo de la ÚLTIMA
+        // hoja del documento (petición del propietario, 06/09/2026).
+        // `margin-top:auto` solo funciona cuando el documento cabe en
+        // una página: en cuanto la tabla obliga a una segunda hoja,
+        // `@page` corta el flujo en páginas físicas independientes y
+        // ya no hay ningún "contenedor de la última hoja" al que
+        // aplicar ese margen — el pie se quedaba pegado justo debajo
+        // de la tabla, en cualquier página que tocara. Por eso aquí no
+        // se usa margin-top:auto: hay un DIV vacío justo antes del pie
+        // (`#pdf-relleno`) cuya altura se calcula en JavaScript, una
+        // vez que el navegador ya maquetó el documento entero y se
+        // sabe cuánto sitio real sobra en la última hoja.
+        '<div id="pdf-relleno"></div>' +
+        '<div class="pie-doc" id="pdf-pie">' +
           '<div class="summary-box">' + pdfDocFilasTotales(registro) + '</div>' +
           '<div class="observations">' +
             '<div class="observations-title">OBSERVACIONES</div>' +
@@ -305,7 +313,7 @@ function pdfDocConstruir(registro, contacto, tipo) {
         '</div>' +
       '</div>' +
     '</div>' +
-    '<script>window.addEventListener("load",function(){setTimeout(function(){window.print();},250);});<\/script>' +
+    '<script>' + pdfDocScriptRelleno() + '<\/script>' +
     '</body></html>';
 }
 
@@ -320,22 +328,31 @@ function pdfDocConstruir(registro, contacto, tipo) {
 
 function pdfDocCss(acento) {
   return '' +
-  '@page{size:A4 portrait;margin:0}' +
+  // Margen superior e inferior en CADA hoja física, no solo al
+  // principio y al final del documento entero: `@page { margin }`
+  // se repite automáticamente en todas las páginas que el navegador
+  // vaya generando, así ningún texto queda pegado al borde de una
+  // página 2, 3... (fallo detectado por el propietario, 06/09/2026:
+  // antes el padding vivía solo en `.content`, un bloque continuo que
+  // el navegador corta a mitad sin repetir su margen en la hoja
+  // siguiente). El lateral se queda igual, ya en el 8% pedido desde
+  // el principio.
+  '@page{size:A4 portrait;margin:10mm 0}' +
   '*{box-sizing:border-box}' +
   'html,body{margin:0;padding:0;width:210mm;background:#ffffff}' +
   'body{font-family:"Inter",Arial,sans-serif;color:#172033;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
-  // La página es una columna flexible de alto mínimo A4: así el pie
-  // (totales + observaciones) se puede empujar al fondo de la hoja
-  // con margin-top:auto cuando el documento cabe en una página.
-  '.page{position:relative;width:210mm;min-height:297mm;background:#ffffff;display:flex;flex-direction:column}' +
+  '.page{position:relative;width:210mm;min-height:277mm;background:#ffffff;display:flex;flex-direction:column}' +
 
-  // Cabecera: franja panorámica de la imagen subida en Configuración.
-  // Ratio recomendado 1240×260 (≈4,77).
-  '.header{width:100%;height:38mm;overflow:hidden;background:#e8e8e4;flex:0 0 auto}' +
+  // Cabecera: sigue pegada al borde, a propósito — es la única pieza
+  // que debe llegar hasta el filo de la hoja (confirmado por el
+  // propietario). Como el margen ahora vive en `@page`, aquí se
+  // compensa con un margen negativo igual para que la imagen sí toque
+  // el borde real del papel.
+  '.header{width:100%;height:38mm;overflow:hidden;background:#e8e8e4;flex:0 0 auto;margin:-10mm 0 0}' +
   '.header img{width:100%;height:100%;display:block;object-fit:cover}' +
-  '.header-vacio{background:#f2f2ee;height:0}' +
+  '.header-vacio{background:#f2f2ee;height:0;margin:0}' +
 
-  '.content{flex:1 1 auto;display:flex;flex-direction:column;padding:7mm 8% 12mm}' +
+  '.content{flex:1 1 auto;display:flex;flex-direction:column;padding:7mm 8% 0}' +
 
   // Cabecera del documento en DOS COLUMNAS reales, no posiciones
   // absolutas: con un nombre fiscal largo, el título ("PRESUPUESTO")
@@ -379,7 +396,17 @@ function pdfDocCss(acento) {
   '.detail-qty,.detail-price,.detail-amount{text-align:right;white-space:nowrap}' +
 
   // El pie se pega al fondo de la hoja cuando sobra sitio.
-  '.pie-doc{margin-top:auto;padding-top:8mm}' +
+  '#pdf-relleno{flex:0 0 auto}' +
+  // Sin `break-inside: avoid` aquí a propósito: esa regla hace que el
+  // MOTOR DE IMPRESIÓN reserve un salto de página completo por su
+  // cuenta si decide que el bloque no cabe, ANTES de que el relleno
+  // calculado en JavaScript se haya aplicado — así que el navegador
+  // y el script de relleno acababan calculando posiciones distintas
+  // y el pie caía una página más abajo de lo previsto, con una hoja
+  // en blanco de por medio. El relleno medido ya garantiza que el
+  // pie cabe entero en el hueco que le hemos dejado, así que esta
+  // protección no hace falta y solo estorbaba.
+  '.pie-doc{padding-top:8mm}' +
   '.summary-box{margin-left:50%;background:#eef1f4;border-radius:4mm;padding:4mm 4%}' +
   '.summary-row{display:flex;justify-content:space-between;align-items:center;font-size:8.9pt;line-height:1.3;margin:1mm 0}' +
   '.summary-row span:last-child{text-align:right;white-space:nowrap}' +
@@ -407,6 +434,76 @@ function pdfDocCss(acento) {
 // ============================================================
 // 7. APERTURA DE LA VENTANA DE IMPRESIÓN
 // ============================================================
+
+// ============================================================
+// 6bis. SCRIPT DE RELLENO — empuja el pie a la última hoja
+// ============================================================
+// Se ejecuta en el propio documento del PDF, después de que las
+// fuentes y la imagen de cabecera hayan cargado y el navegador ya
+// haya maquetado todo el contenido con su tamaño real. En ese
+// momento (y no antes) se puede saber cuánto ocupa de verdad el
+// contenido antes del pie, y por tanto cuánto hueco hay que dejar
+// para que el pie caiga justo al fondo de la última hoja en vez de
+// quedarse pegado a la tabla.
+function pdfDocScriptRelleno() {
+  return '' +
+  'function rellenarYImprimir(){' +
+    'var relleno=document.getElementById("pdf-relleno");' +
+    'var pie=document.getElementById("pdf-pie");' +
+    'if(relleno&&pie){' +
+      // Alto útil de una hoja física: 297mm de A4 menos el margen que
+      // fija @page (10mm arriba + 10mm abajo). Se convierte a los
+      // mismos píxeles que usa el navegador para maquetar (96dpi).
+      'var mmAPx=96/25.4;' +
+      'var altoHoja=(297-20)*mmAPx;' +
+      // Punto donde arranca el pie ahora mismo, y cuántas hojas hacen
+      // falta hasta llegar ahí.
+      'var topPie=pie.getBoundingClientRect().top+window.scrollY;' +
+      'var altoPie=pie.getBoundingClientRect().height;' +
+      'var hojasHastaPie=Math.ceil(topPie/altoHoja);' +
+      'if(hojasHastaPie<1)hojasHastaPie=1;' +
+      // Si el pie completo ya cabe en lo que resta de esa hoja, el
+      // relleno es la diferencia entre el final de esa hoja y donde
+      // arranca el pie. Si no cupiera (pie muy largo, caso raro), se
+      // pasa a la hoja siguiente y se rellena hasta el final de esa.
+      'var finHojaPie=hojasHastaPie*altoHoja;' +
+      'if(finHojaPie-topPie<altoPie){' +
+        'hojasHastaPie+=1;' +
+        'finHojaPie=hojasHastaPie*altoHoja;' +
+      '}' +
+      // Un pequeño colchón de seguridad (5mm) resta del hueco
+      // calculado: sin él, un pie cuya altura cambia una pizca entre
+      // la medición y la impresión real (redondeos de fuente, por
+      // ejemplo) puede desbordar un párrafo a una hoja más, dejándola
+      // casi vacía.
+      'var colchon=5*mmAPx;' +
+      'var alturaRelleno=finHojaPie-altoPie-topPie-colchon;' +
+      'if(alturaRelleno>0){relleno.style.height=alturaRelleno+"px";}' +
+      // Tras aplicar el relleno, el documento puede quedar unos
+      // píxeles por encima del múltiplo exacto de hoja, y esos pocos
+      // píxeles generan una página final completamente en blanco. Se
+      // recorta la altura de `.page` justo al final de la última hoja
+      // con contenido para que esa hoja fantasma no llegue a existir.
+      'var pagina=document.querySelector(".page");' +
+      'if(pagina){' +
+        'var finReal=pie.getBoundingClientRect().bottom+window.scrollY;' +
+        'var hojasTotales=Math.ceil(finReal/altoHoja);' +
+        'if(hojasTotales<1)hojasTotales=1;' +
+        'pagina.style.minHeight="0";' +
+        'pagina.style.height=(hojasTotales*altoHoja)+"px";' +
+        'pagina.style.overflow="hidden";' +
+      '}' +
+    '}' +
+    'setTimeout(function(){window.print();},80);' +
+  '}' +
+  'window.addEventListener("load",function(){' +
+    // Doble margen de espera: primero a que carguen fuentes e imagen
+    // (que pueden cambiar la altura del texto y de la cabecera),
+    // después el cálculo en sí.
+    'if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){setTimeout(rellenarYImprimir,200);});}' +
+    'else{setTimeout(rellenarYImprimir,300);}' +
+  '});';
+}
 
 function pdfDocAbrir(registro, contacto, tipo) {
   const ventana = window.open('', '_blank');
