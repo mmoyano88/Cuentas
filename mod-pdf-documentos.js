@@ -123,10 +123,49 @@ function pdfDocObservaciones(clave) {
 // precio unitario coincide con el importe, porque no existe un campo
 // real de cantidad/precio unitario en los datos — es la misma
 // convención que ya usaba la app original.
+// Las líneas de `ventas_detalle` se guardan con el SUBTOTAL de la
+// calculadora, es decir, ANTES del ajuste por tipo de cliente y de la
+// compensación de IRPF (mapa/flujo real: subtotal → ajuste cliente →
+// compensación IRPF → descuento → base). La base de la factura sí
+// lleva ya todos esos ajustes aplicados. Sin corregir esto, las
+// líneas del PDF sumaban una cifra distinta a la base imponible que
+// aparece en el bloque de totales — descuadre detectado por el
+// propietario con una factura real (1.555,55 € de línea contra
+// 1.960,00 € de base, un 26% de diferencia).
+//
+// Se reescala cada línea proporcionalmente para que la suma coincida
+// EXACTAMENTE con la base de la factura, sin desglosar el ajuste: el
+// cliente ve el importe final de cada concepto, nunca el porcentaje
+// de tipo de cliente ni la compensación de IRPF, que son ajustes
+// internos del propietario.
+function pdfDocEscalarLineas(lineas, baseObjetivo) {
+  const sumaOriginal = roundMoney(lineas.reduce(function (s, l) { return s + l.importe; }, 0));
+  if (sumaOriginal === 0 || Math.abs(sumaOriginal - baseObjetivo) < 0.005) return lineas;
+
+  const factor = baseObjetivo / sumaOriginal;
+  const escaladas = lineas.map(function (l) {
+    const importe = roundMoney(l.importe * factor);
+    return Object.assign({}, l, { precio: importe, importe: importe });
+  });
+
+  // El redondeo línea a línea puede dejar un céntimo de diferencia
+  // con la base real: se ajusta en la ÚLTIMA línea, para que la suma
+  // de la tabla y el total de abajo cuadren siempre exactamente.
+  const sumaEscalada = roundMoney(escaladas.reduce(function (s, l) { return s + l.importe; }, 0));
+  const diferencia = roundMoney(baseObjetivo - sumaEscalada);
+  if (diferencia !== 0 && escaladas.length > 0) {
+    const ultima = escaladas[escaladas.length - 1];
+    ultima.importe = roundMoney(ultima.importe + diferencia);
+    ultima.precio = ultima.importe;
+  }
+  return escaladas;
+}
+
 function pdfDocLineasFactura(f) {
   const lineas = fvLineasDe(f.id);
+  const base = parsearNumero(f.base);
   if (lineas.length) {
-    return lineas.map(function (l) {
+    const sinEscalar = lineas.map(function (l) {
       return {
         descripcion: pdfDocTexto(l.descripcion) || pdfDocTexto(f.concepto) || 'Servicio',
         cantidad: 1,
@@ -134,13 +173,13 @@ function pdfDocLineasFactura(f) {
         importe: parsearNumero(l.importe)
       };
     });
+    return pdfDocEscalarLineas(sinEscalar, base);
   }
-  const importe = parsearNumero(f.subtotal ?? f.base);
   return [{
     descripcion: pdfDocTexto(f.concepto) || 'Servicio',
     cantidad: 1,
-    precio: importe,
-    importe: importe
+    precio: base,
+    importe: base
   }];
 }
 
@@ -151,11 +190,17 @@ function pdfDocLineasFactura(f) {
 // añadida por el propietario el 06/09/2026). Si ese campo está vacío
 // —presupuestos antiguos, anteriores a la columna— se usa el concepto,
 // como se venía haciendo.
+// Igual fallo que en las facturas (ver pdfDocEscalarLineas): el
+// presupuesto también guarda `subtotal` (antes del ajuste por tipo de
+// cliente) por un lado y `base` (ya ajustada) por otro. La tabla debe
+// mostrar siempre la base real, que es lo que efectivamente se cobra
+// — nunca el subtotal sin ajustar, que descuadraría con el total de
+// abajo exactamente igual que pasaba en facturas.
 function pdfDocLineasPresupuesto(p) {
   const descripcion = pdfDocTexto(p.descripcion) || pdfDocTexto(p.concepto) || 'Servicio';
   return [{
     descripcion: descripcion,
-    importe: parsearNumero(p.subtotal ?? p.base)
+    importe: parsearNumero(p.base ?? p.subtotal)
   }];
 }
 
