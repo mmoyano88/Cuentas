@@ -387,29 +387,34 @@ function pdfDocConstruir(registro, contacto, tipo) {
 
 function pdfDocCss(acento) {
   return '' +
-  // Margen superior e inferior en CADA hoja física, no solo al
-  // principio y al final del documento entero: `@page { margin }`
-  // se repite automáticamente en todas las páginas que el navegador
-  // vaya generando, así ningún texto queda pegado al borde de una
-  // página 2, 3... (fallo detectado por el propietario, 06/09/2026:
-  // antes el padding vivía solo en `.content`, un bloque continuo que
-  // el navegador corta a mitad sin repetir su margen en la hoja
-  // siguiente). El lateral se queda igual, ya en el 8% pedido desde
-  // el principio.
+  // Técnica confirmada tras probar varias alternativas (07/09/2026):
+  // `@page :first { margin-top: 0 }` parecía la solución obvia pero
+  // tiene un fallo documentado en el motor de Chromium (mismo bug
+  // reportado en Puppeteer #8782): con un margen distinto en la
+  // primera página, los saltos de las páginas siguientes se calculan
+  // mal y el contenido se desborda o corta donde no debe — se probó
+  // y se reprodujo el fallo aquí antes de descartarlo. Un margen
+  // negativo en CSS sobre `.header` tampoco funciona: se comprobó en
+  // aislado que un `margin` negativo NO compensa el margen que fija
+  // `@page`, así se calculen los números que se calculen.
+  //
+  // La solución que sí funciona es una "named page": se declara una
+  // regla `@page` con nombre (`primera`) y SOLO el bloque marcado con
+  // `page: primera` la usa; el resto del documento sigue la regla
+  // general sin nombre. Verificado sin el bug de `@page :first`: el
+  // contenido de las páginas 2, 3... no se desborda ni se corta.
   '@page{size:A4 portrait;margin:10mm 0}' +
+  '@page primera{margin:0}' +
   '*{box-sizing:border-box}' +
   'html,body{margin:0;padding:0;width:210mm;background:#ffffff}' +
   'body{font-family:"Inter",Arial,sans-serif;color:#172033;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
-  '.page{position:relative;width:210mm;min-height:277mm;background:#ffffff;display:flex;flex-direction:column}' +
+  '.page{page:primera;position:relative;width:210mm;min-height:277mm;background:#ffffff;display:flex;flex-direction:column}' +
 
-  // Cabecera: sigue pegada al borde, a propósito — es la única pieza
-  // que debe llegar hasta el filo de la hoja (confirmado por el
-  // propietario). Como el margen ahora vive en `@page`, aquí se
-  // compensa con un margen negativo igual para que la imagen sí toque
-  // el borde real del papel.
-  '.header{width:100%;height:38mm;overflow:hidden;background:#e8e8e4;flex:0 0 auto;margin:-10mm 0 0}' +
+  // Cabecera: al vivir dentro de la named page "primera" (margin:0),
+  // toca el borde real de la hoja sin ningún margen que compensar.
+  '.header{width:100%;height:38mm;overflow:hidden;background:#e8e8e4;flex:0 0 auto}' +
   '.header img{width:100%;height:100%;display:block;object-fit:cover}' +
-  '.header-vacio{background:#f2f2ee;height:0;margin:0}' +
+  '.header-vacio{background:#f2f2ee;height:0}' +
 
   '.content{flex:1 1 auto;display:flex;flex-direction:column;padding:7mm 8% 0}' +
 
@@ -506,7 +511,13 @@ function pdfDocCss(acento) {
 // quedarse pegado a la tabla.
 function pdfDocScriptRelleno() {
   return '' +
-  'function rellenarYImprimir(){' +
+  'function ajustarCabeceraYPie(){' +
+    // La cabecera ya toca el borde real de la hoja sin necesidad de
+    // ningún ajuste por JavaScript: `.page` usa la regla de página
+    // con nombre "primera" (`page: primera` en el CSS), que declara
+    // `margin: 0` solo para ese bloque. No hace falta medir ni
+    // corregir nada aquí.
+    // --- Pie (totales + observaciones) al fondo de la última hoja ---
     'var relleno=document.getElementById("pdf-relleno");' +
     'var pie=document.getElementById("pdf-pie");' +
     'if(relleno&&pie){' +
@@ -530,11 +541,10 @@ function pdfDocScriptRelleno() {
         'hojasHastaPie+=1;' +
         'finHojaPie=hojasHastaPie*altoHoja;' +
       '}' +
-      // Un pequeño colchón de seguridad (5mm) resta del hueco
-      // calculado: sin él, un pie cuya altura cambia una pizca entre
-      // la medición y la impresión real (redondeos de fuente, por
-      // ejemplo) puede desbordar un párrafo a una hoja más, dejándola
-      // casi vacía.
+      // Un colchón de seguridad (5mm) resta del hueco calculado: sin
+      // él, un pie cuya altura cambia una pizca entre la medición y
+      // la impresión real (redondeos de fuente) puede desbordar un
+      // párrafo a una hoja más, dejándola casi vacía.
       'var colchon=5*mmAPx;' +
       'var alturaRelleno=finHojaPie-altoPie-topPie-colchon;' +
       'if(alturaRelleno>0){relleno.style.height=alturaRelleno+"px";}' +
@@ -543,7 +553,6 @@ function pdfDocScriptRelleno() {
       // píxeles generan una página final completamente en blanco. Se
       // recorta la altura de `.page` justo al final de la última hoja
       // con contenido para que esa hoja fantasma no llegue a existir.
-      'var pagina=document.querySelector(".page");' +
       'if(pagina){' +
         'var finReal=pie.getBoundingClientRect().bottom+window.scrollY;' +
         'var hojasTotales=Math.ceil(finReal/altoHoja);' +
@@ -559,8 +568,8 @@ function pdfDocScriptRelleno() {
     // Doble margen de espera: primero a que carguen fuentes e imagen
     // (que pueden cambiar la altura del texto y de la cabecera),
     // después el cálculo en sí.
-    'if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){setTimeout(rellenarYImprimir,200);});}' +
-    'else{setTimeout(rellenarYImprimir,300);}' +
+    'if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){setTimeout(ajustarCabeceraYPie,200);});}' +
+    'else{setTimeout(ajustarCabeceraYPie,300);}' +
   '});';
 }
 
