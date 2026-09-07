@@ -812,6 +812,9 @@ function abrirFichaPresupuesto(id) {
         '<div class="pre-ficha-dato"><span>NIF</span><span>' + escaparHtml(p.nif || '—') + '</span></div>' +
         '<div class="pre-ficha-dato"><span>Fecha</span><span>' + escaparHtml(mostrarFecha(p.fecha)) + '</span></div>' +
         '<div class="pre-ficha-dato"><span>Concepto</span><span>' + escaparHtml(p.concepto || '—') + '</span></div>' +
+        (p.descripcion
+          ? '<div class="pre-ficha-dato"><span>Descripción</span><span style="white-space:pre-line">' + escaparHtml(p.descripcion) + '</span></div>'
+          : '') +
         (p.id_presupuesto_origen
           ? '<div class="pre-ficha-dato"><span>Copia de</span><span>' + escaparHtml(preNumeroDe(p.id_presupuesto_origen)) + '</span></div>'
           : '') +
@@ -995,6 +998,7 @@ function abrirFormularioPresupuesto(id, prefill) {
     fecha: original ? normalizarFecha(original.fecha) : fechaHoyISO(),
     id_cliente: original ? String(original.id_cliente || '') : String((prefill && prefill.id_cliente_prefill) || ''),
     concepto: deCalculadora ? (prefill.concepto || '') : (original ? (original.concepto || '') : ''),
+    descripcion: original ? (original.descripcion || '') : '',
     subtotal: deCalculadora ? prefill.subtotal : (original ? parsearNumero(original.subtotal) : 0),
     desc_tipo: deCalculadora
       ? (prefill.desc_tipo === 'fixed' ? 'fixed' : 'percent')
@@ -1048,6 +1052,7 @@ function abrirFormularioPresupuesto(id, prefill) {
             '<p class="pre-aviso" id="pre-aviso-tipo" hidden></p>' +
 
             preCampo('concepto', 'Concepto', datos.concepto, { textarea: true, anchoTotal: true }) +
+            preCampo('descripcion', 'Descripción (una línea por punto)', datos.descripcion, { textarea: true, anchoTotal: true }) +
             preCampo('subtotal', 'Subtotal (antes de ajustes)', datos.subtotal, { numero: true, requerido: true }) +
 
             '<div class="pre-campo-grupo">' +
@@ -1141,6 +1146,7 @@ function preLeerFormulario(fondo) {
     fecha: valor('fecha'),
     id_cliente: valor('id_cliente'),
     concepto: valor('concepto').trim(),
+    descripcion: valor('descripcion').trim(),
     subtotal: parsearNumero(valor('subtotal')),
     desc_tipo: valor('desc_tipo') === 'fixed' ? 'fixed' : 'percent',
     desc_valor: parsearNumero(valor('desc_valor')),
@@ -1280,6 +1286,7 @@ function preProcesarGuardado(fondo, original, prefill) {
     cliente: cliente.nombre_fiscal || cliente.nombre_contacto || '',
     nif: cliente.nif || '',
     concepto: datos.concepto,
+    descripcion: datos.descripcion,
     subtotal: t.subtotal,
     ajuste_cliente_pct: t.ajustePct,
     ajuste_cliente_importe: t.ajusteImporte,

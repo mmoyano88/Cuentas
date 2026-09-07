@@ -154,15 +154,22 @@ function renderDatosFiscales() {
     '</div>' +
     '<div class="direccion-preview" id="direccion-preview">' + escaparHtml(construirDireccionPreview()) + '</div>' +
 
-    '<h3 class="config-subtitulo">Imagen de cabecera de los PDF</h3>' +
-    '<p class="config-ayuda">Franja que aparece arriba de los presupuestos y facturas de venta en PDF. Medida recomendada: 1240 × 260 px.</p>' +
-    '<div class="cabecera-pdf-editor">' +
-      '<div class="cabecera-pdf-preview" id="cabecera-pdf-preview">' +
+    '<h3 class="config-subtitulo" style="font-size:15px;font-weight:600;margin:24px 0 4px">Imagen de cabecera de los PDF</h3>' +
+    '<p class="config-ayuda" style="font-size:12px;color:var(--texto-secundario);margin:0 0 12px;line-height:1.4">Franja que aparece arriba de los presupuestos y facturas de venta en PDF. Medida recomendada: 1240 × 260 px.</p>' +
+    // Los estilos van escritos aquí dentro a propósito, no en una hoja
+    // aparte: si el CSS no llega a cargarse, la imagen se pintaría a su
+    // tamaño real (1240px de ancho) y desbordaría el ancho de TODA la
+    // app, descolocando el menú y dejándola inservible. Con las medidas
+    // puestas en el propio elemento eso no puede pasar nunca.
+    '<div class="cabecera-pdf-editor" style="display:flex;flex-direction:column;gap:12px;align-items:flex-start;max-width:100%">' +
+      '<div class="cabecera-pdf-preview" id="cabecera-pdf-preview"' +
+        ' style="width:100%;max-width:360px;aspect-ratio:1240/260;border-radius:8px;background:#EAEAE6;' +
+        'overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid #D8D8D2">' +
         (cabecera
-          ? '<img src="' + escaparHtml(cabecera) + '" alt="Imagen de cabecera">'
-          : '<span class="cabecera-pdf-vacio">Sin imagen todavía</span>') +
+          ? '<img src="' + escaparHtml(cabecera) + '" alt="Imagen de cabecera" style="width:100%;height:100%;object-fit:cover;display:block">'
+          : '<span style="font-size:12px;color:var(--texto-secundario)">Sin imagen todavía</span>') +
       '</div>' +
-      '<div class="cabecera-pdf-botones">' +
+      '<div class="cabecera-pdf-botones" style="display:flex;gap:8px;flex-wrap:wrap">' +
         '<button type="button" class="boton-secundario" id="btn-cambiar-cabecera">' +
           (cabecera ? 'Cambiar imagen' : 'Subir imagen') +
         '</button>' +

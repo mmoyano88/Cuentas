@@ -120,11 +120,17 @@ function pdfDocLineasFactura(f) {
   }];
 }
 
-// Presupuesto: SIEMPRE una sola línea con el concepto y el subtotal.
-// Nunca desglosa la calculadora (mapa 15.4, sin cambios).
+// Presupuesto: el importe va siempre en una sola fila (nunca desglosa
+// la calculadora, mapa 15.4), pero la DESCRIPCIÓN puede ocupar varias
+// líneas: se escribe en el campo `descripcion` del presupuesto, una
+// línea por punto, y se respetan los saltos tal cual (columna nueva
+// añadida por el propietario el 06/09/2026). Si ese campo está vacío
+// —presupuestos antiguos, anteriores a la columna— se usa el concepto,
+// como se venía haciendo.
 function pdfDocLineasPresupuesto(p) {
+  const descripcion = pdfDocTexto(p.descripcion) || pdfDocTexto(p.concepto) || 'Servicio';
   return [{
-    descripcion: pdfDocTexto(p.concepto) || 'Servicio',
+    descripcion: descripcion,
     importe: parsearNumero(p.subtotal ?? p.base)
   }];
 }
@@ -186,6 +192,16 @@ function pdfDocConstruir(registro, contacto, tipo) {
   const lineaContactoEmisor3 = [emisor.telefono, emisor.email].filter(Boolean).join(' · ');
 
   const numeroDoc = pdfDocTexto(registro.numero);
+  // Concepto: rótulo que va ENCIMA de la tabla de descripción, igual
+  // que en el diseño de referencia. En facturas con líneas propias es
+  // el título del trabajo y las líneas van debajo, desglosadas. En
+  // presupuestos hoy no existe un campo aparte y el concepto hace de
+  // descripción, así que saldría repetido: en ese caso se omite el
+  // rótulo y se deja solo la línea de la tabla.
+  const conceptoDoc = pdfDocTexto(registro.concepto);
+  const conceptoRepetido = lineas.length === 1 &&
+    pdfDocTexto(lineas[0].descripcion) === conceptoDoc;
+  const conceptoMostrado = conceptoRepetido ? '' : conceptoDoc;
   const fileTitle = (esFactura ? 'Fra.' : 'Ptto.') + ' ' + numeroDoc + ' - ' + nombreCliente;
 
   return '<!doctype html><html lang="es"><head><meta charset="utf-8">' +
@@ -200,18 +216,24 @@ function pdfDocConstruir(registro, contacto, tipo) {
         ? '<div class="header"><img src="' + escaparHtml(emisor.imagenCabecera) + '" alt=""></div>'
         : '<div class="header header-vacio"></div>') +
       '<div class="content">' +
-        '<div class="red-line"></div>' +
-        '<div class="brand">' + escaparHtml(emisor.nombre) + '</div>' +
-        '<div class="doc-title">' + titulo + '</div>' +
-        (emisor.nombre ? '<div class="subtitle"></div>' : '') +
-        '<div class="seller-data">' +
-          (lineaContactoEmisor2 ? '<div>' + escaparHtml(lineaContactoEmisor2) + '</div>' : '') +
-          (lineaContactoEmisor3 ? '<div>' + escaparHtml(lineaContactoEmisor3) + '</div>' : '') +
+        '<div class="cabecera-doc">' +
+          '<div class="cabecera-izq">' +
+            '<div class="red-line"></div>' +
+            '<div class="brand">' + escaparHtml(emisor.nombre) + '</div>' +
+            '<div class="seller-data">' +
+              (lineaContactoEmisor2 ? '<div>' + escaparHtml(lineaContactoEmisor2) + '</div>' : '') +
+              (lineaContactoEmisor3 ? '<div>' + escaparHtml(lineaContactoEmisor3) + '</div>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="cabecera-der">' +
+            '<div class="doc-title">' + titulo + '</div>' +
+            '<div class="doc-data">' +
+              '<div class="doc-number">' + escaparHtml(numeroDoc) + '</div>' +
+              '<div>Fecha: ' + escaparHtml(mostrarFecha(registro.fecha)) + '</div>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
-        '<div class="doc-data">' +
-          '<div class="doc-number">' + escaparHtml(numeroDoc) + '</div>' +
-          '<div>Fecha: ' + escaparHtml(mostrarFecha(registro.fecha)) + '</div>' +
-        '</div>' +
+
         '<div class="client-box">' +
           '<div class="client-inner">' +
             '<div class="client-label">Cliente</div>' +
@@ -220,15 +242,25 @@ function pdfDocConstruir(registro, contacto, tipo) {
             (direccionCliente ? '<div>' + escaparHtml(direccionCliente) + '</div>' : '') +
           '</div>' +
         '</div>' +
-        '<div class="concept">' + escaparHtml(pdfDocTexto(registro.concepto) || 'Servicio') + '</div>' +
+
+        (conceptoMostrado ? '<div class="concept">' + escaparHtml(conceptoMostrado) + '</div>' : '') +
+
         '<div class="desc-wrap">' +
           '<div class="desc-head"><div>Descripción</div><div>Importe</div></div>' +
           '<div class="desc-body">' + pdfDocFilasHtml(lineas) + '</div>' +
         '</div>' +
-        '<div class="summary-box">' + pdfDocFilasTotales(registro) + '</div>' +
-        '<div class="observations">' +
-          '<div class="observations-title">OBSERVACIONES</div>' +
-          '<div class="observations-body">' + observaciones + '</div>' +
+
+        // Totales y observaciones van SIEMPRE al fondo de la hoja
+        // (petición del propietario, 06/09/2026). `margin-top:auto`
+        // dentro de una página de altura mínima A4 los empuja abajo
+        // cuando el documento cabe en una hoja, y los deja al final
+        // del contenido cuando ocupa varias.
+        '<div class="pie-doc">' +
+          '<div class="summary-box">' + pdfDocFilasTotales(registro) + '</div>' +
+          '<div class="observations">' +
+            '<div class="observations-title">OBSERVACIONES</div>' +
+            '<div class="observations-body">' + observaciones + '</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -251,44 +283,55 @@ function pdfDocCss(acento) {
   '*{box-sizing:border-box}' +
   'html,body{margin:0;padding:0;width:210mm;background:#ffffff}' +
   'body{font-family:"Inter",Arial,sans-serif;color:#172033;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
-  '.page{position:relative;width:210mm;min-height:297mm;background:#ffffff}' +
+  // La página es una columna flexible de alto mínimo A4: así el pie
+  // (totales + observaciones) se puede empujar al fondo de la hoja
+  // con margin-top:auto cuando el documento cabe en una página.
+  '.page{position:relative;width:210mm;min-height:297mm;background:#ffffff;display:flex;flex-direction:column}' +
 
   // Cabecera: franja panorámica de la imagen subida en Configuración.
-  // Ratio recomendado 1240×260 (≈4,77), mismo que el 13% de alto de
-  // una A4 a lo ancho: se ve igual de encuadrada que en el original.
-  '.header{width:100%;height:13%;overflow:hidden;background:#e8e8e4}' +
+  // Ratio recomendado 1240×260 (≈4,77).
+  '.header{width:100%;height:38mm;overflow:hidden;background:#e8e8e4;flex:0 0 auto}' +
   '.header img{width:100%;height:100%;display:block;object-fit:cover}' +
-  '.header-vacio{background:#f2f2ee}' +
+  '.header-vacio{background:#f2f2ee;height:0}' +
 
-  '.content{position:relative;padding:0 8% 12mm}' +
-  '.red-line{width:16.2%;height:1.1mm;background:' + acento + ';margin-top:5mm}' +
+  '.content{flex:1 1 auto;display:flex;flex-direction:column;padding:7mm 8% 12mm}' +
 
-  '.brand{display:inline-block;font-family:"Archivo Black","Arial Black",sans-serif;font-size:22pt;line-height:1;color:#172033;white-space:nowrap;margin-top:2.5mm}' +
-  '.doc-title{position:absolute;right:8%;top:8.8mm;font-family:"Archivo Black","Arial Black",sans-serif;font-size:22pt;line-height:1;color:' + acento + ';white-space:nowrap}' +
-  '.subtitle{height:0}' +
-
-  '.seller-data{margin-top:2mm;font-size:9.7pt;line-height:1.3;font-weight:400}' +
-  '.seller-data div:first-child{font-weight:500}' +
-
-  '.doc-data{position:absolute;right:8%;top:23mm;text-align:right;font-size:9.3pt;line-height:1.4}' +
+  // Cabecera del documento en DOS COLUMNAS reales, no posiciones
+  // absolutas: con un nombre fiscal largo, el título ("PRESUPUESTO")
+  // se montaba encima del nombre. Ahora cada uno tiene su columna y no
+  // pueden solaparse nunca, sea cual sea el largo del nombre.
+  '.cabecera-doc{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm}' +
+  '.cabecera-izq{flex:1 1 auto;min-width:0}' +
+  '.cabecera-der{flex:0 0 auto;text-align:right}' +
+  '.red-line{width:26mm;height:1.1mm;background:' + acento + ';margin-bottom:2.5mm}' +
+  '.brand{font-family:"Archivo Black","Arial Black",sans-serif;font-size:19pt;line-height:1.05;color:#172033}' +
+  '.doc-title{font-family:"Archivo Black","Arial Black",sans-serif;font-size:21pt;line-height:1;color:' + acento + ';white-space:nowrap}' +
+  '.seller-data{margin-top:2mm;font-size:9.5pt;line-height:1.35;font-weight:400}' +
+  '.doc-data{margin-top:4mm;font-size:9.3pt;line-height:1.4}' +
   '.doc-number{font-size:11pt;font-weight:800}' +
 
-  '.client-box{margin-top:8mm;background:#eef1f4;border-radius:4mm;padding:4mm 4.5%}' +
+  '.client-box{margin-top:7mm;background:#eef1f4;border-radius:4mm;padding:4mm 4.5%}' +
   '.client-inner{font-size:9.4pt;line-height:1.35}' +
   '.client-label{font-family:"Archivo Black","Arial Black",sans-serif;font-size:12.2pt;line-height:1;color:' + acento + ';margin-bottom:2mm}' +
   '.client-name{font-weight:800}' +
 
-  '.concept{margin-top:7mm;font-size:10.8pt;line-height:1.2;font-weight:900}' +
+  '.concept{margin-top:6mm;font-size:10.5pt;line-height:1.3;font-weight:800}' +
 
-  // La única zona de altura variable: crece lo que haga falta según
-  // el número de líneas, sin límite ni relleno (corrige mapa 15.4).
+  // Única zona de altura variable: crece según el número de líneas,
+  // sin límite ni relleno (corrige mapa 15.4).
   '.desc-wrap{margin-top:3mm}' +
   '.desc-head{background:#172033;border-radius:1.5mm 1.5mm 0 0;display:grid;grid-template-columns:75% 25%;align-items:center;color:#fff;font-size:9.1pt;font-weight:800;padding:3mm 3%}' +
   '.desc-head div:last-child{text-align:right}' +
-  '.detail-row{display:grid;grid-template-columns:75% 25%;align-items:center;font-size:8.9pt;line-height:1.3;padding:2.8mm 3%;border-bottom:.25mm solid #e5e7eb}' +
+  '.detail-row{display:grid;grid-template-columns:75% 25%;align-items:start;font-size:8.9pt;line-height:1.35;padding:2.8mm 3%;border-bottom:.25mm solid #e5e7eb}' +
+  // Los saltos de línea que el propietario escribe en la descripción
+  // del presupuesto se respetan tal cual, para que cada punto quede
+  // en su propia línea.
+  '.detail-desc{white-space:pre-line}' +
   '.detail-amount{text-align:right;white-space:nowrap}' +
 
-  '.summary-box{margin-top:6mm;margin-left:50%;background:#eef1f4;border-radius:4mm;padding:4mm 4%}' +
+  // El pie se pega al fondo de la hoja cuando sobra sitio.
+  '.pie-doc{margin-top:auto;padding-top:8mm}' +
+  '.summary-box{margin-left:50%;background:#eef1f4;border-radius:4mm;padding:4mm 4%}' +
   '.summary-row{display:flex;justify-content:space-between;align-items:center;font-size:8.9pt;line-height:1.3;margin:1mm 0}' +
   '.summary-row span:last-child{text-align:right;white-space:nowrap}' +
   '.summary-separator{height:.35mm;background:#172033;margin:2mm 0}' +
