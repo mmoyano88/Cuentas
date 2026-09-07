@@ -104,19 +104,29 @@ function pdfDocObservaciones(clave) {
 
 // Factura: usa las líneas reales de ventas_detalle si existen.
 // Si no hay ninguna, una sola línea con el concepto y la base.
+// Lleva Cant. y Precio además de Descripción e Importe (mapa 15.4,
+// confirmado contra el HTML original): la cantidad es siempre 1 y el
+// precio unitario coincide con el importe, porque no existe un campo
+// real de cantidad/precio unitario en los datos — es la misma
+// convención que ya usaba la app original.
 function pdfDocLineasFactura(f) {
   const lineas = fvLineasDe(f.id);
   if (lineas.length) {
     return lineas.map(function (l) {
       return {
         descripcion: pdfDocTexto(l.descripcion) || pdfDocTexto(f.concepto) || 'Servicio',
+        cantidad: 1,
+        precio: parsearNumero(l.importe),
         importe: parsearNumero(l.importe)
       };
     });
   }
+  const importe = parsearNumero(f.subtotal ?? f.base);
   return [{
     descripcion: pdfDocTexto(f.concepto) || 'Servicio',
-    importe: parsearNumero(f.subtotal ?? f.base)
+    cantidad: 1,
+    precio: importe,
+    importe: importe
   }];
 }
 
@@ -139,10 +149,18 @@ function pdfDocLineasPresupuesto(p) {
 // filas exactas, rellenando con filas vacías si sobraban y cortando
 // en silencio a partir de la sexta línea si faltaban. Aquí se pintan
 // solo las filas que hay, cuantas sean.
-function pdfDocFilasHtml(lineas) {
+//
+// Factura: 4 columnas (Descripción · Cant. · Precio · Importe).
+// Presupuesto: 2 columnas (Descripción · Importe) — nunca lleva
+// cantidad ni precio unitario, confirmado contra el original.
+function pdfDocFilasHtml(lineas, esFactura) {
   return lineas.map(function (l) {
-    return '<div class="detail-row">' +
+    return '<div class="detail-row' + (esFactura ? ' con-cant' : '') + '">' +
       '<div class="detail-desc">' + escaparHtml(l.descripcion) + '</div>' +
+      (esFactura
+        ? '<div class="detail-qty">' + escaparHtml(l.cantidad) + '</div>' +
+          '<div class="detail-price">' + escaparHtml(formatMoney(l.precio)) + '</div>'
+        : '') +
       '<div class="detail-amount">' + escaparHtml(formatMoney(l.importe)) + '</div>' +
     '</div>';
   }).join('');
@@ -175,6 +193,18 @@ function pdfDocFilasTotales(registro) {
 // ============================================================
 
 // tipo: 'presupuesto' | 'factura'
+// La marca es el "logo de texto" del negocio — decisión del
+// propietario, 06/09/2026: "MIGUEL MOYANO" y "Comunicación
+// Audiovisual" van escritos a fuego, a propósito, igual que un
+// logotipo no cambia solo porque cambien los datos fiscales. Es un
+// caso distinto al fallo que se corrigió antes con el nombre por
+// defecto: aquello rellenaba un campo de datos con un valor
+// inventado si estaba vacío; esto es una marca fija, declarada como
+// tal, que convive con los datos fiscales reales de debajo sin
+// sustituirlos.
+const PDF_DOC_MARCA_NOMBRE = 'MIGUEL MOYANO';
+const PDF_DOC_MARCA_ACTIVIDAD = 'Comunicación Audiovisual';
+
 function pdfDocConstruir(registro, contacto, tipo) {
   const esFactura = tipo === 'factura';
   const acento = esFactura ? '#c93b3b' : '#24364f';
@@ -188,7 +218,8 @@ function pdfDocConstruir(registro, contacto, tipo) {
   const nifCliente = pdfDocTexto(registro.nif) || pdfDocTexto(contacto && contacto.nif);
   const direccionCliente = pdfDocDireccionContacto(contacto);
 
-  const lineaContactoEmisor2 = [emisor.nif, emisor.direccion].filter(Boolean).join(' · ');
+  const lineaContactoEmisor1 = emisor.nombre; // fila que se alinea con el número de documento
+  const lineaContactoEmisor2 = [emisor.nif, emisor.direccion].filter(Boolean).join(' · '); // fila que se alinea con la fecha
   const lineaContactoEmisor3 = [emisor.telefono, emisor.email].filter(Boolean).join(' · ');
 
   const numeroDoc = pdfDocTexto(registro.numero);
@@ -216,23 +247,29 @@ function pdfDocConstruir(registro, contacto, tipo) {
         ? '<div class="header"><img src="' + escaparHtml(emisor.imagenCabecera) + '" alt=""></div>'
         : '<div class="header header-vacio"></div>') +
       '<div class="content">' +
-        '<div class="cabecera-doc">' +
-          '<div class="cabecera-izq">' +
-            '<div class="red-line"></div>' +
-            '<div class="brand">' + escaparHtml(emisor.nombre) + '</div>' +
-            '<div class="seller-data">' +
-              (lineaContactoEmisor2 ? '<div>' + escaparHtml(lineaContactoEmisor2) + '</div>' : '') +
-              (lineaContactoEmisor3 ? '<div>' + escaparHtml(lineaContactoEmisor3) + '</div>' : '') +
-            '</div>' +
-          '</div>' +
-          '<div class="cabecera-der">' +
-            '<div class="doc-title">' + titulo + '</div>' +
-            '<div class="doc-data">' +
-              '<div class="doc-number">' + escaparHtml(numeroDoc) + '</div>' +
-              '<div>Fecha: ' + escaparHtml(mostrarFecha(registro.fecha)) + '</div>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
+        // Cabecera en FILAS alineadas, no en dos bloques sueltos: cada
+        // dato de la izquierda tiene su pareja exacta a la derecha en
+        // la misma línea horizontal (petición del propietario,
+        // 06/09/2026). Con dos columnas independientes, un nombre de
+        // una o dos líneas desalinea todo lo que viene después; con
+        // una tabla de filas explícitas, cada fila se alinea sola.
+        '<table class="cabecera-doc"><tbody>' +
+          '<tr>' +
+            '<td class="cab-izq"><div class="red-line"></div><div class="brand">' + PDF_DOC_MARCA_NOMBRE + '</div><div class="activity">' + PDF_DOC_MARCA_ACTIVIDAD + '</div></td>' +
+            '<td class="cab-der"><div class="doc-title">' + titulo + '</div></td>' +
+          '</tr>' +
+          '<tr>' +
+            '<td class="cab-izq seller-line">' + (lineaContactoEmisor1 ? escaparHtml(lineaContactoEmisor1) : '') + '</td>' +
+            '<td class="cab-der doc-number">' + escaparHtml(numeroDoc) + '</td>' +
+          '</tr>' +
+          '<tr>' +
+            '<td class="cab-izq">' + (lineaContactoEmisor2 ? escaparHtml(lineaContactoEmisor2) : '') + '</td>' +
+            '<td class="cab-der doc-fecha">Fecha: ' + escaparHtml(mostrarFecha(registro.fecha)) + '</td>' +
+          '</tr>' +
+          (lineaContactoEmisor3
+            ? '<tr><td class="cab-izq">' + escaparHtml(lineaContactoEmisor3) + '</td><td class="cab-der"></td></tr>'
+            : '') +
+        '</tbody></table>' +
 
         '<div class="client-box">' +
           '<div class="client-inner">' +
@@ -246,8 +283,12 @@ function pdfDocConstruir(registro, contacto, tipo) {
         (conceptoMostrado ? '<div class="concept">' + escaparHtml(conceptoMostrado) + '</div>' : '') +
 
         '<div class="desc-wrap">' +
-          '<div class="desc-head"><div>Descripción</div><div>Importe</div></div>' +
-          '<div class="desc-body">' + pdfDocFilasHtml(lineas) + '</div>' +
+          '<div class="desc-head' + (esFactura ? ' con-cant' : '') + '">' +
+            '<div>Descripción</div>' +
+            (esFactura ? '<div>Cant.</div><div>Precio</div>' : '') +
+            '<div>Importe</div>' +
+          '</div>' +
+          '<div class="desc-body">' + pdfDocFilasHtml(lineas, esFactura) + '</div>' +
         '</div>' +
 
         // Totales y observaciones van SIEMPRE al fondo de la hoja
@@ -300,15 +341,21 @@ function pdfDocCss(acento) {
   // absolutas: con un nombre fiscal largo, el título ("PRESUPUESTO")
   // se montaba encima del nombre. Ahora cada uno tiene su columna y no
   // pueden solaparse nunca, sea cual sea el largo del nombre.
-  '.cabecera-doc{display:flex;justify-content:space-between;align-items:flex-start;gap:6mm}' +
-  '.cabecera-izq{flex:1 1 auto;min-width:0}' +
-  '.cabecera-der{flex:0 0 auto;text-align:right}' +
+  // Cabecera como TABLA de filas (sustituye al flex de dos columnas
+  // sueltas): cada fila de la izquierda queda en la misma línea
+  // horizontal que su pareja de la derecha, sin importar cuántas
+  // líneas ocupe el nombre o si hay actividad o no.
+  '.cabecera-doc{width:100%;border-collapse:collapse}' +
+  '.cab-izq{text-align:left;vertical-align:top;padding:0;font-size:9.5pt;line-height:1.5;font-weight:400}' +
+  '.cab-der{text-align:right;vertical-align:top;padding:0;white-space:nowrap;font-size:9.3pt;line-height:1.5}' +
   '.red-line{width:26mm;height:1.1mm;background:' + acento + ';margin-bottom:2.5mm}' +
-  '.brand{font-family:"Archivo Black","Arial Black",sans-serif;font-size:19pt;line-height:1.05;color:#172033}' +
-  '.doc-title{font-family:"Archivo Black","Arial Black",sans-serif;font-size:21pt;line-height:1;color:' + acento + ';white-space:nowrap}' +
-  '.seller-data{margin-top:2mm;font-size:9.5pt;line-height:1.35;font-weight:400}' +
-  '.doc-data{margin-top:4mm;font-size:9.3pt;line-height:1.4}' +
-  '.doc-number{font-size:11pt;font-weight:800}' +
+  '.brand{font-family:"Archivo Black","Arial Black",sans-serif;font-size:19pt;line-height:1.05;color:#172033;text-transform:uppercase}' +
+  '.activity{font-size:10pt;font-weight:800;line-height:1.3;margin-top:.5mm}' +
+  '.doc-title{font-family:"Archivo Black","Arial Black",sans-serif;font-size:21pt;line-height:1.05;color:' + acento + ';text-transform:uppercase}' +
+  // Fila 1 (nombre / FACTURA) queda algo separada de las filas de
+  // datos que siguen debajo, para que no se lean como un bloque único.
+  '.seller-line{padding-top:3.5mm}' +
+  '.doc-number{font-size:11pt;font-weight:800;padding-top:3.5mm}' +
 
   '.client-box{margin-top:7mm;background:#eef1f4;border-radius:4mm;padding:4mm 4.5%}' +
   '.client-inner{font-size:9.4pt;line-height:1.35}' +
@@ -321,13 +368,15 @@ function pdfDocCss(acento) {
   // sin límite ni relleno (corrige mapa 15.4).
   '.desc-wrap{margin-top:3mm}' +
   '.desc-head{background:#172033;border-radius:1.5mm 1.5mm 0 0;display:grid;grid-template-columns:75% 25%;align-items:center;color:#fff;font-size:9.1pt;font-weight:800;padding:3mm 3%}' +
-  '.desc-head div:last-child{text-align:right}' +
+  '.desc-head.con-cant{grid-template-columns:46% 14% 18% 22%}' +
+  '.desc-head div:not(:first-child){text-align:right}' +
   '.detail-row{display:grid;grid-template-columns:75% 25%;align-items:start;font-size:8.9pt;line-height:1.35;padding:2.8mm 3%;border-bottom:.25mm solid #e5e7eb}' +
+  '.detail-row.con-cant{grid-template-columns:46% 14% 18% 22%}' +
   // Los saltos de línea que el propietario escribe en la descripción
   // del presupuesto se respetan tal cual, para que cada punto quede
   // en su propia línea.
   '.detail-desc{white-space:pre-line}' +
-  '.detail-amount{text-align:right;white-space:nowrap}' +
+  '.detail-qty,.detail-price,.detail-amount{text-align:right;white-space:nowrap}' +
 
   // El pie se pega al fondo de la hoja cuando sobra sitio.
   '.pie-doc{margin-top:auto;padding-top:8mm}' +
