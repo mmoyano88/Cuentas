@@ -1041,11 +1041,12 @@ function abrirFormularioPresupuesto(id, prefill) {
               '<input class="campo" type="date" id="pre-campo-fecha" name="fecha" value="' + escaparHtml(datos.fecha) + '">' +
               '<p class="pre-mensaje-error" data-error-de="fecha" hidden></p></div>' +
 
-            preSelect('id_cliente', 'Cliente',
-              [['', 'Selecciona un cliente...']].concat(clientes.map(function (c) {
-                return [String(c.id), c.nombre_contacto + (c.nombre_fiscal && c.nombre_fiscal !== c.nombre_contacto ? ' (' + c.nombre_fiscal + ')' : '')];
-              })),
-              datos.id_cliente, { requerido: true, anchoTotal: true }) +
+            '<div class="pre-campo-grupo ancho-total">' +
+              '<label>Cliente *</label>' +
+              '<input type="hidden" id="pre-campo-id_cliente" name="id_cliente" value="' + escaparHtml(datos.id_cliente) + '">' +
+              '<button type="button" class="campo-contacto-btn" id="pre-btn-cliente"></button>' +
+              '<p class="pre-mensaje-error" data-error-de="id_cliente" hidden></p>' +
+            '</div>' +
 
             '<button type="button" class="boton-menor pre-enlace-cliente" id="pre-nuevo-cliente">+ Crear un cliente nuevo</button>' +
             '<p class="pre-info-cliente" id="pre-info-cliente" hidden></p>' +
@@ -1082,6 +1083,8 @@ function abrirFormularioPresupuesto(id, prefill) {
 
   document.body.appendChild(fondo);
 
+  prePintarSelectorCliente(fondo, clientes, prefill);
+
   // ---- NO se cierra al tocar fuera (regla de formularios con trabajo dentro) ----
   fondo.querySelector('.pre-modal-cerrar').addEventListener('click', function () { preCerrarFormulario(fondo); });
   fondo.querySelector('#pre-form-cancelar').addEventListener('click', function () { preCerrarFormulario(fondo); });
@@ -1097,14 +1100,11 @@ function abrirFormularioPresupuesto(id, prefill) {
     btnNuevoCliente.disabled = true;
 
     abrirCreacionRapidaContacto('cliente', function (contacto) {
-      const select = fondo.querySelector('#pre-campo-id_cliente');
-      if (!select.querySelector('option[value="' + String(contacto.id) + '"]')) {
-        const opcion = document.createElement('option');
-        opcion.value = String(contacto.id);
-        opcion.textContent = contacto.nombre_contacto;
-        select.appendChild(opcion);
+      if (!clientes.some(function (c) { return String(c.id) === String(contacto.id); })) {
+        clientes.push(contacto);
       }
-      select.value = String(contacto.id);
+      fondo.querySelector('#pre-campo-id_cliente').value = String(contacto.id);
+      prePintarSelectorCliente(fondo, clientes, prefill);
       preActualizarFormulario(fondo, prefill);
     });
 
@@ -1134,6 +1134,38 @@ function abrirFormularioPresupuesto(id, prefill) {
 function preCerrarFormulario(fondo) {
   fondo.remove();
   preDetallePrefill = null;
+}
+
+// Pinta el botón "Cliente" (abre el selector con buscador) y mantiene
+// sincronizado el input oculto #pre-campo-id_cliente, que es de donde
+// lee preLeerFormulario — así el resto del módulo no cambia.
+function prePintarSelectorCliente(fondo, clientes, prefill) {
+  const oculto = fondo.querySelector('#pre-campo-id_cliente');
+  const boton = fondo.querySelector('#pre-btn-cliente');
+
+  function nombreDe(id) {
+    const c = clientes.find(function (x) { return String(x.id) === String(id); });
+    if (!c) return '';
+    return c.nombre_contacto + (c.nombre_fiscal && c.nombre_fiscal !== c.nombre_contacto ? ' (' + c.nombre_fiscal + ')' : '');
+  }
+
+  function repintar() {
+    const nombre = nombreDe(oculto.value);
+    boton.innerHTML =
+      '<span class="campo-contacto-valor' + (nombre ? '' : ' vacio') + '">' + escaparHtml(nombre || 'Selecciona un cliente...') + '</span>' +
+      '<i class="ti ti-chevron-down"></i>';
+  }
+
+  boton.addEventListener('click', function () {
+    abrirSelectorContacto(clientes, oculto.value, { permitirLibre: false }).then(function (resultado) {
+      if (resultado === null) return;
+      oculto.value = resultado || '';
+      repintar();
+      preActualizarFormulario(fondo, prefill);
+    });
+  });
+
+  repintar();
 }
 
 // Lee el formulario, recalcula y repinta la tarjeta de totales.

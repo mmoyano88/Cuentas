@@ -526,6 +526,25 @@ const DASH_COLORES_DONUT = [
   '#D32F2F', '#3E9E4E', '#2F6FB5', '#E0A32E', '#7B4EA8', '#8A8A82'
 ];
 
+// Empresa y Personal llevan siempre el mismo color, elegido por
+// nombre — no por su posición en el array de datos (06/09/2026: con
+// colores por posición, "Empresa" y "Personal" podían intercambiar
+// color según cuál viniera primero o cuál de los dos tuviera importe
+// cero y desapareciera del donut).
+const DASH_COLORES_AMBITO = {
+  'Empresa': '#D32F2F',
+  'Personal': '#7B4EA8'
+};
+
+// Color de una porción del donut: si el nombre tiene un color fijo
+// asignado (Empresa/Personal), se usa ese; si no, se recurre a la
+// paleta general por posición, como en los demás donuts (clientes,
+// proveedores).
+function dashColorDonut(nombre, indice) {
+  if (DASH_COLORES_AMBITO[nombre]) return DASH_COLORES_AMBITO[nombre];
+  return DASH_COLORES_DONUT[indice % DASH_COLORES_DONUT.length];
+}
+
 function dashDestruirGraficos() {
   Object.keys(dashGraficos).forEach(function (k) {
     if (dashGraficos[k] && typeof dashGraficos[k].destroy === 'function') {
@@ -635,7 +654,7 @@ function dashGraficoDonut(idCanvas, datos, textoVacio) {
       labels: datos.map(function (d) { return d.nombre; }),
       datasets: [{
         data: datos.map(function (d) { return d.importe; }),
-        backgroundColor: datos.map(function (d, i) { return DASH_COLORES_DONUT[i % DASH_COLORES_DONUT.length]; }),
+        backgroundColor: datos.map(function (d, i) { return dashColorDonut(d.nombre, i); }),
         borderWidth: 0
       }]
     },

@@ -78,26 +78,34 @@ function ctCirculoTipo(a, tamanoPx) {
   const esPersonal = a.ambito === 'personal';
   const fondo = esIngreso ? '#3E9E4E' : 'var(--rojo)';
 
-  let claseIcono, origen;
+  // El interior del círculo puede ser un icono Tabler o, para las
+  // facturas, dos iniciales (FV/FC) — más legibles que compartir un
+  // mismo icono de dólar entre venta y compra, que solo se distinguían
+  // por el color de fondo.
+  let interior, claseIcono, iniciales, origen;
   if (ctVieneDeImpuesto(a)) {
-    claseIcono = 'ti-briefcase';
+    claseIcono = 'ti-receipt-tax';
     origen = 'Pago de impuestos';
   } else if (ctVieneDeFactura(a)) {
-    claseIcono = 'ti-currency-dollar';
+    iniciales = a.id_factura_venta ? 'FV' : 'FC';
     origen = a.id_factura_venta ? 'Factura de venta' : 'Factura de compra';
   } else if (esPersonal) {
-    claseIcono = 'ti-user';
+    claseIcono = 'ti-wallet';
     origen = 'Apunte personal';
   } else {
-    claseIcono = 'ti-calculator';
+    claseIcono = 'ti-briefcase';
     origen = 'Apunte de empresa';
   }
+
+  interior = iniciales
+    ? '<span style="font-size:' + Math.round(tam * 0.34) + 'px;font-weight:700">' + iniciales + '</span>'
+    : '<i class="ti ' + claseIcono + '"></i>';
 
   const tituloTipo = esIngreso ? 'Ingreso' : 'Gasto';
 
   return '<div class="ct-circulo" style="width:' + tam + 'px;height:' + tam + 'px;background:' + fondo + ';font-size:' + Math.round(tam * 0.5) + 'px" ' +
     'title="' + escaparHtml(tituloTipo + ' · ' + origen) + '">' +
-    '<i class="ti ' + claseIcono + '"></i></div>';
+    interior + '</div>';
 }
 
 // ============================================================
@@ -158,12 +166,14 @@ function ctConceptoMostrado(a) {
 
 function ctNombreContacto(a) {
   const c = ctContactoDe(a);
-  return c ? (c.nombre_contacto || '—') : '—';
+  if (c) return c.nombre_contacto || '—';
+  if (a.contacto_libre) return a.contacto_libre;
+  return '—';
 }
 
 function ctTextoBusqueda(a) {
   return normalizarBusqueda([
-    ctConceptoMostrado(a), ctNombreContacto(a), mostrarFecha(a.fecha),
+    ctConceptoMostrado(a), ctNombreContacto(a), a.contacto_libre, mostrarFecha(a.fecha),
     a.ambito, a.tipo, formatMoney(a.total), formatMoney(a.base)
   ].filter(Boolean).join(' '));
 }
@@ -369,7 +379,7 @@ function ctRenderFilaTabla(a) {
     '<td>' + escaparHtml(ctNombreContacto(a)) + '</td>' +
     '<td class="ct-celda-concepto">' +
       '<div class="ct-concepto-texto">' + escaparHtml(ctConceptoMostrado(a)) + '</div>' +
-      '<div style="font-size:11px;color:var(--texto-secundario)">' + (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</div>' +
+      '<div class="ct-concepto-subtitulo">' + (esIngreso ? 'Ingreso' : 'Gasto') + ' · ' + (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</div>' +
     '</td>' +
     '<td class="ct-celda-derecha">' + escaparHtml(formatMoney(a.base)) + '</td>' +
     '<td class="ct-celda-derecha">' + (parsearNumero(a.iva) > 0 ? '+' + escaparHtml(formatMoney(a.iva)) : '—') + '</td>' +
@@ -659,6 +669,7 @@ function abrirFormularioApunte(id) {
     ambito: original ? (original.ambito || 'empresa') : 'empresa',
     tipo: original ? (original.tipo || 'gasto') : 'gasto',
     id_contacto: original ? String(original.id_contacto || '') : '',
+    contacto_libre: original ? (original.contacto_libre || '') : '',
     concepto: original ? (original.concepto || '') : '',
     total: original ? parsearNumero(original.total) : '',
     iva_pct: original ? parsearNumero(original.iva_pct) : 0,
@@ -758,26 +769,51 @@ function abrirFormularioApunte(id) {
 }
 
 // El contacto disponible cambia entre Cliente y Proveedor según el
-// tipo (mapa 11.3), igual que en la app original.
+// tipo (mapa 11.3), igual que en la app original. Aquí, además, se
+// puede escribir un nombre suelto sin registrar (contacto_libre) para
+// llevar control de origen sin dar de alta un cliente/proveedor.
 function ctPintarSelectorContacto(fondo, datos) {
   const grupo = fondo.querySelector('#ct-grupo-contacto');
   const contactos = datos.tipo === 'ingreso' ? fvClientesDisponibles() : fcProveedoresDisponibles();
   const etiqueta = datos.tipo === 'ingreso' ? 'Cliente' : 'Proveedor';
 
-  const idPrevio = fondo.querySelector('#ct-campo-id_contacto') ? fondo.querySelector('#ct-campo-id_contacto').value : datos.id_contacto;
-  const sigueExistiendo = contactos.some(function (c) { return String(c.id) === String(idPrevio); });
+  const sigueExistiendo = datos.id_contacto && contactos.some(function (c) { return String(c.id) === String(datos.id_contacto); });
+  if (datos.id_contacto && !sigueExistiendo) datos.id_contacto = '';
 
+  function textoMostrado() {
+    if (datos.id_contacto) {
+      const c = contactos.find(function (x) { return String(x.id) === String(datos.id_contacto); });
+      return c ? c.nombre_contacto : '';
+    }
+    if (datos.contacto_libre) return datos.contacto_libre + ' (sin registrar)';
+    return '';
+  }
+
+  const valor = textoMostrado();
   grupo.innerHTML =
-    '<label for="ct-campo-id_contacto">' + etiqueta + '</label>' +
-    '<select class="campo" id="ct-campo-id_contacto">' +
-      '<option value="">Sin contacto</option>' +
-      contactos.map(function (c) {
-        return '<option value="' + escaparHtml(String(c.id)) + '"' + (sigueExistiendo && String(c.id) === String(idPrevio) ? ' selected' : '') + '>' +
-          escaparHtml(c.nombre_contacto) + '</option>';
-      }).join('') +
-    '</select>';
+    '<label>' + etiqueta + '</label>' +
+    '<button type="button" class="campo-contacto-btn" id="ct-btn-contacto">' +
+      '<span class="campo-contacto-valor' + (valor ? '' : ' vacio') + '">' + escaparHtml(valor || 'Sin contacto') + '</span>' +
+      '<i class="ti ti-chevron-down"></i>' +
+    '</button>';
 
-  grupo.querySelector('#ct-campo-id_contacto').addEventListener('change', function () { ctActualizarFormulario(fondo, datos); });
+  grupo.querySelector('#ct-btn-contacto').addEventListener('click', function () {
+    abrirSelectorContacto(contactos, datos.id_contacto, {
+      permitirLibre: true,
+      etiquetaLibre: 'nombre de ' + etiqueta.toLowerCase()
+    }).then(function (resultado) {
+      if (resultado === null) return;
+      if (resultado && typeof resultado === 'object' && 'libre' in resultado) {
+        datos.id_contacto = '';
+        datos.contacto_libre = resultado.libre;
+      } else {
+        datos.id_contacto = resultado;
+        datos.contacto_libre = '';
+      }
+      ctPintarSelectorContacto(fondo, datos);
+      ctActualizarFormulario(fondo, datos);
+    });
+  });
 }
 
 function ctLeerFormulario(fondo, datos) {
@@ -789,7 +825,8 @@ function ctLeerFormulario(fondo, datos) {
     fecha: valor('fecha'),
     ambito: datos.ambito,
     tipo: datos.tipo,
-    id_contacto: valor('id_contacto'),
+    id_contacto: datos.id_contacto || '',
+    contacto_libre: datos.contacto_libre || '',
     concepto: valor('concepto').trim(),
     total: parsearNumero(valor('total')),
     iva_pct: parsearNumero(valor('iva_pct')),
@@ -865,7 +902,8 @@ function ctProcesarGuardado(fondo, original, datosSelector) {
     id_factura_compra: original ? (original.id_factura_compra || '') : '',
     id_impuesto: original ? (original.id_impuesto || '') : '',
     impuesto_pago: original ? (original.impuesto_pago || '') : '',
-    id_contacto: d.id_contacto || ''
+    id_contacto: d.id_contacto || '',
+    contacto_libre: d.id_contacto ? '' : (d.contacto_libre || '')
   };
 
   // La ventana se cierra al momento; el guardado sigue en segundo plano.
@@ -1012,16 +1050,9 @@ function abrirConversorFactura(id) {
               '<input class="campo" type="date" id="ct-campo-fecha" value="' + escaparHtml(datos.fecha) + '">' +
               '<p class="ct-mensaje-error" data-error-de="fecha" hidden></p></div>' +
 
-            '<div class="ct-campo-grupo ancho-total">' +
-              '<label for="ct-campo-id_contacto">' + escaparHtml(etiquetaContacto) + ' *</label>' +
-              '<select class="campo" id="ct-campo-id_contacto">' +
-                '<option value="">Selecciona...</option>' +
-                contactos.map(function (c) {
-                  return '<option value="' + escaparHtml(String(c.id)) + '"' +
-                    (String(c.id) === datos.id_contacto ? ' selected' : '') + '>' +
-                    escaparHtml(c.nombre_contacto) + '</option>';
-                }).join('') +
-              '</select>' +
+            '<div class="ct-campo-grupo ancho-total" id="ct-conv-grupo-contacto">' +
+              '<label>' + escaparHtml(etiquetaContacto) + ' *</label>' +
+              '<button type="button" class="campo-contacto-btn" id="ct-conv-btn-contacto"></button>' +
               '<p class="ct-mensaje-error" data-error-de="id_contacto" hidden></p></div>' +
 
             ctCampo('concepto', 'Concepto', datos.concepto, { anchoTotal: true, requerido: true }) +
@@ -1047,13 +1078,17 @@ function abrirConversorFactura(id) {
     '</div>';
 
   document.body.appendChild(fondo);
+  fondo.ctDatosContacto = datos;
 
   // No se cierra al tocar fuera: es un formulario con trabajo dentro.
   fondo.querySelector('.ct-modal-cerrar').addEventListener('click', function () { fondo.remove(); });
   fondo.querySelector('#ct-conv-cancelar').addEventListener('click', function () { fondo.remove(); });
 
   ctConvPintarNumero(fondo, esVenta);
+  ctConvPintarContacto(fondo, contactos, datos);
   ctConvActualizar(fondo, esVenta);
+
+  fondo.addEventListener('ct-conv-contacto-cambiado', function () { ctConvActualizar(fondo, esVenta); });
 
   fondo.querySelectorAll('#ct-conv-form input, #ct-conv-form select').forEach(function (el) {
     el.addEventListener('input', function () { ctConvActualizar(fondo, esVenta); });
@@ -1105,6 +1140,30 @@ function ctConvPintarNumero(fondo, esVenta) {
   }
 }
 
+// Una factura real exige un contacto registrado: aquí NO se permite
+// nombre libre (a diferencia del apunte manual).
+function ctConvPintarContacto(fondo, contactos, datos) {
+  const boton = fondo.querySelector('#ct-conv-btn-contacto');
+
+  function repintar() {
+    const c = datos.id_contacto ? contactos.find(function (x) { return String(x.id) === String(datos.id_contacto); }) : null;
+    boton.innerHTML =
+      '<span class="campo-contacto-valor' + (c ? '' : ' vacio') + '">' + escaparHtml(c ? c.nombre_contacto : 'Selecciona...') + '</span>' +
+      '<i class="ti ti-chevron-down"></i>';
+  }
+
+  boton.addEventListener('click', function () {
+    abrirSelectorContacto(contactos, datos.id_contacto, { permitirLibre: false }).then(function (resultado) {
+      if (resultado === null) return;
+      datos.id_contacto = resultado;
+      repintar();
+      fondo.dispatchEvent(new Event('ct-conv-contacto-cambiado'));
+    });
+  });
+
+  repintar();
+}
+
 function ctConvLeer(fondo) {
   const valor = function (id) {
     const el = fondo.querySelector('#ct-campo-' + id);
@@ -1113,7 +1172,7 @@ function ctConvLeer(fondo) {
   return {
     numero: String(valor('numero')).trim(),
     fecha: valor('fecha'),
-    id_contacto: valor('id_contacto'),
+    id_contacto: fondo.ctDatosContacto ? fondo.ctDatosContacto.id_contacto : '',
     concepto: String(valor('concepto')).trim(),
     base: parsearNumero(valor('base')),
     iva_pct: parsearNumero(valor('iva_pct')),

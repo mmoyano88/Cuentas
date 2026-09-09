@@ -497,6 +497,98 @@ function abrirSelectorIcono(idActual) {
 }
 
 // ============================================================
+// 7.3 SELECTOR DE CONTACTO (CLIENTE / PROVEEDOR) CON BUSCADOR
+// ============================================================
+// Mismo patrón visual que el selector de icono: ventana modal con
+// buscador arriba, filtrado en vivo con normalizarBusqueda. Sustituye
+// a los <select> nativos de cliente/proveedor en Apuntes, Facturas de
+// venta, Facturas de compra y Presupuestos — pensados para listas
+// largas y para usarse con el teclado en móvil.
+//
+// `contactos`: array de objetos con {id, nombre_contacto}.
+// `idActual`: id ya seleccionado, o '' si no hay ninguno.
+// `opciones.permitirLibre`: si es true, añade una opción para escribir
+//   un nombre suelto sin registrar (solo se usa en Apuntes). El valor
+//   se devuelve como { libre: 'nombre escrito' } en vez de un id.
+//
+// Devuelve una promesa que resuelve a:
+//   - null                    → se cerró sin elegir nada
+//   - ''                      → "Sin contacto"
+//   - un id (string)          → contacto elegido de la lista
+//   - { libre: 'texto' }      → nombre libre escrito (solo si se permite)
+function abrirSelectorContacto(contactos, idActual, opciones) {
+  const permitirLibre = !!(opciones && opciones.permitirLibre);
+  const etiquetaLibre = (opciones && opciones.etiquetaLibre) || 'nombre sin registrar';
+
+  return new Promise(function (resolve) {
+    const fondo = document.createElement('div');
+    fondo.className = 'selector-icono-fondo';
+    fondo.innerHTML =
+      '<div class="selector-icono-caja">' +
+        '<div class="selector-icono-cabecera">' +
+          '<p class="selector-icono-titulo">Elegir contacto</p>' +
+          '<button type="button" class="selector-icono-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>' +
+        '</div>' +
+        '<input type="text" class="selector-icono-buscador" placeholder="Buscar por nombre...">' +
+        (permitirLibre
+          ? '<button type="button" class="selector-contacto-libre-btn" id="selector-contacto-libre-btn">' +
+              '<i class="ti ti-edit"></i> Poner un ' + etiquetaLibre +
+            '</button>'
+          : '') +
+        '<div class="selector-icono-cuerpo" id="selector-contacto-cuerpo"></div>' +
+      '</div>';
+    document.body.appendChild(fondo);
+
+    function cerrar(valor) { fondo.remove(); resolve(valor); }
+    fondo.addEventListener('click', function (ev) { if (ev.target === fondo) cerrar(null); });
+    fondo.querySelector('.selector-icono-cerrar').addEventListener('click', function () { cerrar(null); });
+
+    if (permitirLibre) {
+      fondo.querySelector('#selector-contacto-libre-btn').addEventListener('click', function () {
+        const nombre = prompt('Escribe el nombre (no se registrará como cliente/proveedor):');
+        if (nombre === null) return;
+        const limpio = nombre.trim();
+        if (!limpio) return;
+        cerrar({ libre: limpio });
+      });
+    }
+
+    function pintar(filtro) {
+      const cuerpo = fondo.querySelector('#selector-contacto-cuerpo');
+      const texto = normalizarBusqueda(filtro || '');
+
+      const filtrados = !texto ? contactos : contactos.filter(function (c) {
+        return normalizarBusqueda(c.nombre_contacto).indexOf(texto) !== -1;
+      });
+
+      let html = '<div class="selector-contacto-lista">';
+      if (!texto) {
+        html += '<button type="button" class="selector-contacto-opcion' + (!idActual ? ' seleccionado' : '') +
+          '" data-id="">Sin contacto</button>';
+      }
+      html += filtrados.map(function (c) {
+        return '<button type="button" class="selector-contacto-opcion' + (String(c.id) === String(idActual) ? ' seleccionado' : '') +
+          '" data-id="' + escaparHtml(String(c.id)) + '">' + escaparHtml(c.nombre_contacto) + '</button>';
+      }).join('');
+      html += '</div>';
+
+      cuerpo.innerHTML = (filtrados.length === 0 && texto)
+        ? '<p class="selector-icono-vacio">Sin resultados para esa búsqueda.</p>'
+        : html;
+
+      cuerpo.querySelectorAll('[data-id]').forEach(function (b) {
+        b.addEventListener('click', function () { cerrar(b.dataset.id); });
+      });
+    }
+
+    pintar('');
+    const buscador = fondo.querySelector('.selector-icono-buscador');
+    buscador.addEventListener('input', function () { pintar(buscador.value); });
+    setTimeout(function () { buscador.focus(); }, 50);
+  });
+}
+
+// ============================================================
 // 8. SINCRONIZACIÓN
 // ============================================================
 

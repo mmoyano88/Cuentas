@@ -194,6 +194,8 @@
 .ct-tabla td.ct-celda-derecha { text-align: right; }
 .ct-celda-concepto { max-width: 320px; }
 .ct-concepto-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#contenido .ct-tabla .ct-concepto-texto { font-weight: 700; }
+.ct-concepto-subtitulo { font-size: 11px; color: var(--texto-secundario); }
 .ct-importe.ingreso { color: var(--verde-texto); }
 .ct-importe.gasto { color: var(--rojo-texto); }
 

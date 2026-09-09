@@ -686,17 +686,12 @@ function abrirFormularioFacturaCompra(id) {
               '<input class="campo" type="date" id="fc-campo-fecha" value="' + escaparHtml(datos.fecha) + '">' +
               '<p class="fv-mensaje-error" data-error-de="fecha" hidden></p></div>' +
 
-            '<div class="fv-campo-grupo ancho-total"><label for="fc-campo-id_proveedor">Proveedor *</label>' +
-              '<select class="campo" id="fc-campo-id_proveedor">' +
-                '<option value="">Selecciona un proveedor...</option>' +
-                proveedores.map(function (c) {
-                  return '<option value="' + escaparHtml(String(c.id)) + '"' +
-                    (String(c.id) === datos.id_proveedor ? ' selected' : '') + '>' +
-                    escaparHtml(c.nombre_contacto + (c.nombre_fiscal && c.nombre_fiscal !== c.nombre_contacto ? ' (' + c.nombre_fiscal + ')' : '')) +
-                  '</option>';
-                }).join('') +
-              '</select>' +
-              '<p class="fv-mensaje-error" data-error-de="id_proveedor" hidden></p></div>' +
+            '<div class="fv-campo-grupo ancho-total">' +
+              '<label>Proveedor *</label>' +
+              '<input type="hidden" id="fc-campo-id_proveedor" value="' + escaparHtml(datos.id_proveedor) + '">' +
+              '<button type="button" class="campo-contacto-btn" id="fc-btn-proveedor"></button>' +
+              '<p class="fv-mensaje-error" data-error-de="id_proveedor" hidden></p>' +
+            '</div>' +
 
             '<button type="button" class="boton-menor fv-enlace-cliente" id="fc-nuevo-proveedor">+ Crear un proveedor nuevo</button>' +
             '<p class="fv-info-cliente" id="fc-info-proveedor" hidden></p>' +
@@ -729,6 +724,8 @@ function abrirFormularioFacturaCompra(id) {
 
   document.body.appendChild(fondo);
 
+  fcPintarSelectorProveedor(fondo, proveedores, original);
+
   fondo.querySelector('.fv-modal-cerrar').addEventListener('click', function () { fondo.remove(); });
   fondo.querySelector('#fc-form-cancelar').addEventListener('click', function () { fondo.remove(); });
 
@@ -742,14 +739,11 @@ function abrirFormularioFacturaCompra(id) {
     btnNuevoProveedor.disabled = true;
 
     abrirCreacionRapidaContacto('proveedor', function (contacto) {
-      const select = fondo.querySelector('#fc-campo-id_proveedor');
-      if (!select.querySelector('option[value="' + String(contacto.id) + '"]')) {
-        const opcion = document.createElement('option');
-        opcion.value = String(contacto.id);
-        opcion.textContent = contacto.nombre_contacto;
-        select.appendChild(opcion);
+      if (!proveedores.some(function (c) { return String(c.id) === String(contacto.id); })) {
+        proveedores.push(contacto);
       }
-      select.value = String(contacto.id);
+      fondo.querySelector('#fc-campo-id_proveedor').value = String(contacto.id);
+      fcPintarSelectorProveedor(fondo, proveedores, original);
       fcActualizarFormulario(fondo, original);
     });
 
@@ -784,6 +778,39 @@ function abrirFormularioFacturaCompra(id) {
   });
 
   fcActualizarFormulario(fondo, original);
+}
+
+// Pinta el botón "Proveedor" (abre el selector con buscador) y
+// mantiene sincronizado el input oculto #fc-campo-id_proveedor, que
+// es de donde lee fcLeerFormulario — así el resto del módulo no
+// cambia.
+function fcPintarSelectorProveedor(fondo, proveedores, original) {
+  const oculto = fondo.querySelector('#fc-campo-id_proveedor');
+  const boton = fondo.querySelector('#fc-btn-proveedor');
+
+  function nombreDe(id) {
+    const c = proveedores.find(function (x) { return String(x.id) === String(id); });
+    if (!c) return '';
+    return c.nombre_contacto + (c.nombre_fiscal && c.nombre_fiscal !== c.nombre_contacto ? ' (' + c.nombre_fiscal + ')' : '');
+  }
+
+  function repintar() {
+    const nombre = nombreDe(oculto.value);
+    boton.innerHTML =
+      '<span class="campo-contacto-valor' + (nombre ? '' : ' vacio') + '">' + escaparHtml(nombre || 'Selecciona un proveedor...') + '</span>' +
+      '<i class="ti ti-chevron-down"></i>';
+  }
+
+  boton.addEventListener('click', function () {
+    abrirSelectorContacto(proveedores, oculto.value, { permitirLibre: false }).then(function (resultado) {
+      if (resultado === null) return;
+      oculto.value = resultado || '';
+      repintar();
+      fcActualizarFormulario(fondo, original);
+    });
+  });
+
+  repintar();
 }
 
 // Lee un porcentaje del formulario: del desplegable, o del campo
