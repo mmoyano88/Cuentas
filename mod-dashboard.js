@@ -51,6 +51,11 @@ const DASH_PERSPECTIVAS = [
   { id: 'total',    etiqueta: 'Total' }
 ];
 
+function dashEtiquetaPerspectiva() {
+  const p = DASH_PERSPECTIVAS.find(function (x) { return x.id === dashPerspectiva; });
+  return p ? p.etiqueta : 'Total';
+}
+
 // ============================================================
 // 1. UTILIDADES
 // ============================================================
@@ -151,7 +156,8 @@ function dashMovimientos() {
       ambito: 'empresa',
       pagoImpuestos: false,
       base: parsearNumero(f.base),
-      total: parsearNumero(f.total)
+      total: parsearNumero(f.total),
+      idContacto: f.id_cliente || ''
     });
   });
 
@@ -166,7 +172,8 @@ function dashMovimientos() {
       ambito: 'empresa',
       pagoImpuestos: false,
       base: parsearNumero(f.base),
-      total: parsearNumero(f.total)
+      total: parsearNumero(f.total),
+      idContacto: f.id_proveedor || ''
     });
   });
 
@@ -174,6 +181,10 @@ function dashMovimientos() {
   // Los que vienen de una factura se saltan: esa factura ya está
   // contada arriba y se duplicaría. Los pagos de impuestos SÍ entran,
   // marcados, porque cuentan en tesorería aunque no en lo económico.
+  // idContacto solo se rellena si el apunte tiene un cliente/proveedor
+  // REGISTRADO (id_contacto) — un contacto_libre (nombre suelto sin
+  // registrar) no cuenta para el donut de concentración, tal como se
+  // decidió: ese donut es solo de contactos reales.
   estado.apuntes.forEach(function (a) {
     if (!dashVisible(a)) return;
     if (a.id_factura_venta || a.id_factura_compra) return;
@@ -185,7 +196,8 @@ function dashMovimientos() {
       ambito: dashTexto(a.ambito) === 'personal' ? 'personal' : 'empresa',
       pagoImpuestos: dashEsPagoImpuestos(a),
       base: parsearNumero(a.base),
-      total: parsearNumero(a.total)
+      total: parsearNumero(a.total),
+      idContacto: a.id_contacto || ''
     });
   });
 
@@ -283,26 +295,40 @@ function dashSerieMensual(movimientos) {
 // ============================================================
 // 4. DATOS DE LOS GRÁFICOS CIRCULARES
 // ============================================================
-// Los cuatro son FIJOS: no reaccionan al selector de perspectiva
-// (decisión del propietario). Todos miran los últimos 12 meses
-// completos, igual que la media mensual y el gráfico de líneas.
+// Clientes/Proveedores SÍ reaccionan al selector de perspectiva
+// (empresa/personal/total) desde el 09/09/2026 — antes eran fijos,
+// pero al fusionarse con los apuntes manuales de empresa con contacto
+// registrado, tiene sentido poder aislar solo esa parte. Ingresos y
+// Gastos por ámbito siguen fijos: su propio eje YA es empresa/
+// personal, filtrarlos por perspectiva los dejaría casi siempre con
+// una sola porción. Todos miran los últimos 12 meses completos.
 
-function dashNombreContacto(id, nombreEnDocumento) {
+function dashNombreContacto(id) {
   const c = estado.clientes.find(function (x) { return String(x.id) === String(id); });
-  if (c) return dashTexto(c.nombre_fiscal) || dashTexto(c.nombre_contacto) || 'Sin nombre';
-  return dashTexto(nombreEnDocumento) || 'Sin nombre';
+  return c ? (dashTexto(c.nombre_fiscal) || dashTexto(c.nombre_contacto) || 'Sin nombre') : '';
 }
 
-// Top 5 por base facturada + «Otros» agrupando el resto.
-function dashConcentracion(documentos, campoId, campoNombre) {
+// Top 5 por base + «Otros» agrupando el resto. Trabaja sobre
+// movimientos ya fusionados (ventas + compras + apuntes manuales de
+// empresa/personal), filtrados por tipo (ingreso→clientes,
+// gasto→proveedores) y por la perspectiva activa del Dashboard. Solo
+// cuentan los movimientos con un contacto REGISTRADO (idContacto): un
+// apunte con contacto_libre (nombre suelto sin registrar) no tiene un
+// id de cliente/proveedor real al que sumar, así que se queda fuera —
+// tal como se decidió al plantear este donut.
+function dashConcentracionPorTipo(tipo, perspectiva) {
   const meses = dashUltimos12Meses();
   const porContacto = {};
 
-  documentos.forEach(function (f) {
-    const mes = dashClaveMes(f.fecha);
-    if (!mes || meses.indexOf(mes) === -1) return;
-    const nombre = dashNombreContacto(f[campoId], f[campoNombre]);
-    porContacto[nombre] = (porContacto[nombre] || 0) + parsearNumero(f.base);
+  dashMovimientos().forEach(function (m) {
+    if (m.tipo !== tipo) return;
+    if (m.pagoImpuestos) return;
+    if (!m.idContacto) return;
+    if (perspectiva !== 'total' && m.ambito !== perspectiva) return;
+    if (meses.indexOf(m.mes) === -1) return;
+    const nombre = dashNombreContacto(m.idContacto);
+    if (!nombre) return; // contacto ya no existe en Clientes
+    porContacto[nombre] = (porContacto[nombre] || 0) + m.base;
   });
 
   const orden = Object.keys(porContacto)
@@ -322,18 +348,12 @@ function dashConcentracion(documentos, campoId, campoNombre) {
   return top;
 }
 
-function dashConcentracionClientes() {
-  return dashConcentracion(
-    estado.ventas.filter(function (f) { return fvEstaActiva(f) && dashVisible(f); }),
-    'id_cliente', 'cliente'
-  );
+function dashConcentracionClientes(perspectiva) {
+  return dashConcentracionPorTipo('ingreso', perspectiva);
 }
 
-function dashConcentracionProveedores() {
-  return dashConcentracion(
-    estado.compras.filter(function (f) { return fcEstaActiva(f) && dashVisible(f); }),
-    'id_proveedor', 'proveedor'
-  );
+function dashConcentracionProveedores(perspectiva) {
+  return dashConcentracionPorTipo('gasto', perspectiva);
 }
 
 // Empresa contra personal, sobre los últimos 12 meses. Sin pagos de
@@ -457,11 +477,11 @@ function pintarDashboard() {
     '</div>' +
     '<div class="dash-donuts">' +
       '<div class="dash-grafico-caja">' +
-        '<p class="dash-grafico-titulo">Clientes que más facturan</p>' +
+        '<p class="dash-grafico-titulo">Clientes (' + dashEtiquetaPerspectiva() + ')</p>' +
         '<div class="dash-lienzo"><canvas id="dash-g-clientes"></canvas></div>' +
       '</div>' +
       '<div class="dash-grafico-caja">' +
-        '<p class="dash-grafico-titulo">Proveedores con más gasto</p>' +
+        '<p class="dash-grafico-titulo">Proveedores (' + dashEtiquetaPerspectiva() + ')</p>' +
         '<div class="dash-lienzo"><canvas id="dash-g-proveedores"></canvas></div>' +
       '</div>' +
       '<div class="dash-grafico-caja">' +
@@ -473,7 +493,7 @@ function pintarDashboard() {
         '<div class="dash-lienzo"><canvas id="dash-g-gastos-ambito"></canvas></div>' +
       '</div>' +
     '</div>' +
-    '<p class="dash-nota">Cifra grande sin impuestos (lo que gana el negocio); debajo, en pequeño, el dinero que se mueve en el banco. Los gráficos circulares no cambian con el selector.</p>';
+    '<p class="dash-nota">Cifra grande sin impuestos (lo que gana el negocio); debajo, en pequeño, el dinero que se mueve en el banco. Los donuts de Empresa/Personal no cambian con el selector.</p>';
 
   // Los dos selectores hacen lo mismo: cambian toda la pantalla.
   ['dash-selector', 'dash-selector-grafico'].forEach(function (id) {
@@ -574,8 +594,8 @@ function dashRepintarGraficos() {
   }
 
   dashGraficoEvolucion();
-  dashGraficoDonut('dash-g-clientes', dashConcentracionClientes(), 'Todavía no hay facturas de venta en los últimos 12 meses.');
-  dashGraficoDonut('dash-g-proveedores', dashConcentracionProveedores(), 'Todavía no hay facturas de compra en los últimos 12 meses.');
+  dashGraficoDonut('dash-g-clientes', dashConcentracionClientes(dashPerspectiva), 'Todavía no hay ingresos con contacto registrado en los últimos 12 meses.');
+  dashGraficoDonut('dash-g-proveedores', dashConcentracionProveedores(dashPerspectiva), 'Todavía no hay gastos con contacto registrado en los últimos 12 meses.');
 
   const ingAmbito = dashPorAmbito('ingreso');
   dashGraficoDonut('dash-g-ingresos-ambito', [
