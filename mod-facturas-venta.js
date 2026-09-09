@@ -832,6 +832,13 @@ function abrirFormularioFacturaVenta(id, prefill) {
     const irpfEnc = tiposIrpf.find(function (x) { return Math.abs(x.porcentaje - parsearNumero(original.irpf_pct)) < 0.01; });
     datos.iva_id = ivaEnc ? ivaEnc.id : (tiposIva[0] ? tiposIva[0].id : '');
     datos.irpf_id = irpfEnc ? irpfEnc.id : (tiposIrpf[0] ? tiposIrpf[0].id : '');
+  } else if (prefill) {
+    // Viene de un presupuesto: hereda sus tipos, ya traducidos a id.
+    // Esto va ANTES del valor por defecto de abajo, o el primer tipo
+    // de la lista pisaría lo heredado — la retención de IRPF del
+    // presupuesto se perdía por eso (fallo reportado el 07/09/2026).
+    if (prefill.iva_id) datos.iva_id = String(prefill.iva_id);
+    if (prefill.irpf_id) datos.irpf_id = String(prefill.irpf_id);
   }
   if (!datos.iva_id && tiposIva[0]) datos.iva_id = tiposIva[0].id;
   if (!datos.irpf_id && tiposIrpf[0]) datos.irpf_id = tiposIrpf[0].id;
@@ -1261,12 +1268,32 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
   // la base del presupuesto, así que volver a pasarlo lo aplicaría dos
   // veces. Si hace falta un descuento adicional, se añade a mano en la
   // factura.
+  //
+  // Los tipos de IVA e IRPF se heredan también (07/09/2026): el
+  // presupuesto guarda el PORCENTAJE (`iva_pct`, `irpf_pct`), no el
+  // id del tipo, así que se busca el tipo vigente cuyo porcentaje
+  // coincida. Es el mismo mecanismo que ya usa la calculadora al
+  // reabrir un presupuesto guardado.
+  //
+  // Si el porcentaje guardado ya no existe en Configuración (porque
+  // se cambió después), se deja sin preseleccionar y el formulario
+  // usa su valor por defecto — mejor eso que asignar un tipo que no
+  // corresponde.
+  const tipoPorPorcentaje = function (tipos, pct) {
+    const encontrado = tipos.find(function (x) {
+      return Math.abs(parsearNumero(x.porcentaje) - parsearNumero(pct)) < 0.01;
+    });
+    return encontrado ? encontrado.id : '';
+  };
+
   abrirFormularioFacturaVenta(null, {
     id_presupuesto: p.id,
     id_cliente: p.id_cliente,
     concepto: p.concepto || '',
     descripcion: p.descripcion || '',
-    base: parsearNumero(p.base)
+    base: parsearNumero(p.base),
+    iva_id: tipoPorPorcentaje(preTiposIva(), p.iva_pct),
+    irpf_id: tipoPorPorcentaje(preTiposIrpf(), p.irpf_pct)
   });
 }
 
