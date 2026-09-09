@@ -793,17 +793,11 @@ async function impAlternarPago(tipo) {
   // --- Pasar a PAGADO ---
   const campoImporte = document.getElementById('imp-real-' + tipo);
   const campoFecha = document.getElementById('imp-fecha-' + tipo);
-  const textoImporte = campoImporte ? String(campoImporte.value).trim() : '';
-  const importe = roundMoney(parsearNumero(textoImporte));
+  const importe = roundMoney(parsearNumero(campoImporte ? campoImporte.value : 0));
   const fecha = normalizarFecha(campoFecha ? campoFecha.value : '') || fechaHoyISO();
 
-  // Se exige que el campo tenga ALGO escrito, pero 0 es un valor
-  // válido (trimestre sin nada que pagar, p.ej. sin facturar). Antes
-  // se comprobaba el importe ya convertido a número, y un campo vacío
-  // y un campo con "0" daban el mismo 0 — bloqueando también el caso
-  // legítimo.
-  if (textoImporte === '') {
-    impMostrarError(tipo, 'Indica primero el importe real de ' + (tipo === 'iva' ? 'IVA' : 'IRPF') + ' (puede ser 0 si no hay nada que pagar, o negativo si te lo devuelven).');
+  if (importe === 0) {
+    impMostrarError(tipo, 'Indica primero el importe real de ' + (tipo === 'iva' ? 'IVA' : 'IRPF') + '. Puede ser negativo si te lo devuelven.');
     return;
   }
 
