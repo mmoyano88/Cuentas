@@ -7,19 +7,30 @@
  * Reglas propias de este módulo:
  * - La ficha de detalle (solo lectura) SÍ se cierra al tocar fuera.
  * - El formulario NO se cierra al tocar fuera: solo con su botón de
- *   cerrar o con Cancelar (hay líneas y trabajo que se pueden perder).
+ *   cerrar o con Cancelar (hay trabajo dentro que se puede perder).
  * - Estados en minúscula siempre (decisión I3): `estado`
  *   (pendiente/pagada) y `estado_registro` (activo/inactivo).
  * - Las facturas no se borran nunca, solo se desactivan/reactivan.
- * - El subtotal se guarda como dato de entrada, no se recalcula hacia
- *   atrás al editar (decisión I4).
- * - Las líneas se guardan todas juntas en una sola llamada al backend
- *   (decisión I9, ya implementada en Código.gs: acción "save" sobre
- *   "ventas_detalle" con { id_factura, lineas: [...] }).
- * - Cálculo idéntico al de Presupuestos (mapa 9.4 = mapa 7.2/8.4):
- *   subtotal → ajuste cliente → compensación IRPF → descuento → IVA/IRPF.
  * - Marcar Pagada/Pendiente y Desactivar/Reactivar generan o borran
  *   automáticamente el apunte de tesorería correspondiente (mapa 9.7).
+ *
+ * SIMPLIFICACIÓN 07/09/2026 (GUÍA sección 20) — sustituye al diseño
+ * anterior de líneas de detalle:
+ * - Una factura tiene CONCEPTO (frase corta), DESCRIPCIÓN (varias
+ *   líneas) y un único importe, que ES la base imponible. Se acabaron
+ *   las líneas de detalle y la hoja `ventas_detalle`.
+ * - Aquí NO se aplica el ajuste por tipo de cliente ni la compensación
+ *   del 20% de IRPF: esos ajustes viven solo en Presupuestos, que es
+ *   donde se decide el precio. La cifra que se escribe ya es la final.
+ * - Sobre la base se aplican descuento especial (si lo hay), IVA y
+ *   retención de IRPF (si la hay).
+ * - Motivo del cambio: las facturas guardaban el importe en dos sitios
+ *   que debían cuadrar entre sí (las líneas, sin ajustar, y `base`, ya
+ *   ajustada), y mantenerlos sincronizados fue el origen de varios
+ *   fallos. Con un solo importe, el problema desaparece de raíz.
+ * - Las columnas `subtotal`, `ajuste_cliente_*` y `compensacion_irpf_*`
+ *   se conservan en la hoja (para no romper facturas antiguas) pero se
+ *   guardan a cero en las nuevas.
  */
 
 // ============================================================
@@ -125,12 +136,6 @@ function fvClientesDisponibles() {
   });
 }
 
-function fvLineasDe(idFactura) {
-  return estado.ventas_detalle
-    .filter(function (l) { return String(l.id_factura) === String(idFactura); })
-    .sort(function (a, b) { return Number(a.orden) - Number(b.orden); });
-}
-
 function fvTextoBusqueda(f) {
   return normalizarBusqueda([
     f.numero, f.cliente, f.nif, f.concepto, mostrarFecha(f.fecha), f.estado,
@@ -146,26 +151,14 @@ function fvEstaActiva(f) {
 // 2. LECTURA DE CONFIGURACIÓN — mismas fuentes que Presupuestos
 // ============================================================
 // Se reutilizan tal cual las funciones ya construidas en Presupuestos
-// (preTiposCliente, preTiposIva, preTiposIrpf, preConfigNumero...):
-// viven en app.js/mod-presupuestos.js, cargado antes que este módulo.
-// No se duplican aquí para no tener dos fuentes de verdad distintas.
-
-function fvCompensacionPct() {
-  return preConfigNumero('compensacion_irpf', 20);
-}
-
-// ============================================================
-// 3. CÁLCULO 🔒 (mapa 9.4 — idéntico al de Presupuestos, mapa 7.2/8.4)
-// ============================================================
-// Se reutiliza preTotalesDesdeSubtotal (mod-presupuestos.js): mismo
-// tramo subtotal → ajuste cliente → compensación IRPF → descuento →
-// IVA/IRPF → total, confirmado por Miguel como idéntico. No se crea
-// una copia propia para evitar que las dos fórmulas diverjan con el
-// tiempo si algún día cambia una de ellas.
-
-function fvTotalesDesdeSubtotal(o) {
-  return preTotalesDesdeSubtotal(o);
-}
+// (preTiposIva, preTiposIrpf...): viven en mod-presupuestos.js,
+// cargado antes que este módulo. No se duplican aquí para no tener
+// dos fuentes de verdad distintas.
+//
+// Ya NO se lee la compensación de IRPF ni el factor de tipo de
+// cliente (simplificación 07/09/2026, GUÍA 20): esos ajustes se
+// aplican solo en presupuestos. En facturas, la base imponible se
+// introduce directamente.
 
 // ============================================================
 // 4. PINTADO PRINCIPAL (selector Ventas / Compras)
@@ -586,21 +579,7 @@ function fvReintentarGuardado(id) {
   fvMarcarSync(id, 'guardando');
   fvRepintarLista();
 
-  if (pendiente && pendiente.lineas) {
-    fvGuardarEnSegundoPlano(registro, pendiente.lineas);
-    return;
-  }
-
-  guardarRegistro('ventas', registro, fvRepintarLista, null).then(function (resultado) {
-    if (resultado.status !== 'success') {
-      fvMarcarSync(id, 'error');
-      fvRepintarLista();
-      return;
-    }
-    fvMarcarSync(id, null);
-    delete fvPendientes[String(id)];
-    fvRepintarLista();
-  });
+  fvGuardarEnSegundoPlano(registro);
 }
 
 // ============================================================
@@ -679,7 +658,6 @@ function abrirFichaFacturaVenta(id) {
   const f = estado.ventas.find(function (x) { return String(x.id) === String(id); });
   if (!f) return;
 
-  const lineas = fvLineasDe(id);
   const activa = fvEstaActiva(f);
 
   const fondo = document.createElement('div');
@@ -701,6 +679,9 @@ function abrirFichaFacturaVenta(id) {
         '<div class="fv-ficha-dato"><span>NIF</span><span>' + escaparHtml(f.nif || '—') + '</span></div>' +
         '<div class="fv-ficha-dato"><span>Fecha</span><span>' + escaparHtml(mostrarFecha(f.fecha)) + '</span></div>' +
         '<div class="fv-ficha-dato"><span>Concepto</span><span>' + escaparHtml(f.concepto || '—') + '</span></div>' +
+        (f.descripcion
+          ? '<div class="fv-ficha-dato"><span>Descripción</span><span style="white-space:pre-line">' + escaparHtml(f.descripcion) + '</span></div>'
+          : '') +
         (f.id_presupuesto
           ? '<div class="fv-ficha-dato"><span>Desde presupuesto</span><span>' + escaparHtml(fvNumeroPresupuestoDe(f.id_presupuesto)) + '</span></div>'
           : '') +
@@ -708,7 +689,6 @@ function abrirFichaFacturaVenta(id) {
           ? '<div class="fv-ficha-dato"><span>Fecha de cobro</span><span>' + escaparHtml(mostrarFecha(f.fecha_cobro)) + '</span></div>'
           : '') +
 
-        fvBloqueLineas(lineas) +
         fvBloqueImportes(f) +
       '</div>' +
 
@@ -748,30 +728,29 @@ function fvLinea(etiqueta, valor, clase) {
     '</span><strong>' + escaparHtml(valor) + '</strong></div>';
 }
 
-function fvBloqueLineas(lineas) {
-  if (!lineas.length) return '';
-  return '<div class="fv-bloque">' +
-    '<p class="fv-bloque-titulo">Líneas</p>' +
-    lineas.map(function (l) {
-      return fvLinea(l.descripcion || '—', formatMoney(l.importe));
-    }).join('') +
-  '</div>';
-}
-
+// Resumen económico simplificado (07/09/2026, GUÍA 20): ya no se
+// muestran subtotal, ajuste por tipo de cliente ni compensación de
+// IRPF, porque en facturas siempre valen cero — esos ajustes viven
+// solo en presupuestos. El descuento especial y la retención de IRPF
+// se muestran únicamente si existen, para no ensuciar el resumen con
+// líneas a cero. Se conservan las columnas antiguas en la hoja, así
+// que las facturas viejas siguen abriéndose sin problema.
 function fvBloqueImportes(f) {
-  const signo = function (v) { return (Number(v) > 0 ? '+' : (Number(v) < 0 ? '−' : '')) + formatMoney(Math.abs(Number(v || 0))); };
+  const descuento = parsearNumero(f.descuento_especial_importe);
+  const irpf = parsearNumero(f.irpf);
   return '<div class="fv-bloque">' +
     '<p class="fv-bloque-titulo">Resumen económico</p>' +
-    fvLinea('Subtotal', formatMoney(f.subtotal)) +
-    fvLinea('Ajuste por tipo de cliente (' + parsearNumero(f.ajuste_cliente_pct) + '%)', signo(f.ajuste_cliente_importe)) +
-    fvLinea('Compensación IRPF (' + parsearNumero(f.compensacion_irpf_pct) + '%)', signo(f.compensacion_irpf_importe)) +
-    fvLinea('Descuento especial' + (String(f.descuento_especial_tipo) === 'fixed'
-        ? ' (' + formatMoney(f.descuento_especial_valor) + ')'
-        : ' (' + parsearNumero(f.descuento_especial_valor) + '%)'),
-      '−' + formatMoney(f.descuento_especial_importe)) +
+    (descuento > 0
+      ? fvLinea('Descuento especial' + (String(f.descuento_especial_tipo) === 'fixed'
+          ? ' (' + formatMoney(f.descuento_especial_valor) + ')'
+          : ' (' + parsearNumero(f.descuento_especial_valor) + '%)'),
+        '−' + formatMoney(descuento))
+      : '') +
     fvLinea('Base imponible', formatMoney(f.base), 'destacada') +
     fvLinea('IVA (' + parsearNumero(f.iva_pct) + '%)', '+' + formatMoney(f.iva)) +
-    fvLinea('Retención IRPF (' + parsearNumero(f.irpf_pct) + '%)', '−' + formatMoney(f.irpf)) +
+    (irpf > 0
+      ? fvLinea('Retención IRPF (' + parsearNumero(f.irpf_pct) + '%)', '−' + formatMoney(irpf))
+      : '') +
     '<div class="fv-total-final"><span>TOTAL</span><strong>' + escaparHtml(formatMoney(f.total)) + '</strong></div>' +
   '</div>';
 }
@@ -808,16 +787,6 @@ function fvSelect(clave, etiqueta, opciones, valor, extra) {
     '</select>' +
     '<p class="fv-mensaje-error" data-error-de="' + clave + '" hidden></p>' +
   '</div>';
-}
-
-// Estado temporal de las líneas mientras el formulario está abierto.
-// Cada línea: { id, descripcion, importe }. El id solo se usa si ya
-// existía (para que el backend pueda conservarlo); una línea nueva
-// puede viajar sin id, el backend le pone uno (mapa 9.3 / Código.gs).
-let fvLineasForm = [];
-
-function fvLineaVacia() {
-  return { id: '', descripcion: '', importe: '' };
 }
 
 /**
@@ -867,18 +836,20 @@ function abrirFormularioFacturaVenta(id, prefill) {
   if (!datos.iva_id && tiposIva[0]) datos.iva_id = tiposIva[0].id;
   if (!datos.irpf_id && tiposIrpf[0]) datos.irpf_id = tiposIrpf[0].id;
 
-  // Líneas: al editar, las que ya existen; si viene de un presupuesto o
-  // es nueva, una sola línea inicial con el concepto y el subtotal
-  // (mapa 9.5). Si no hay ninguna referencia, una línea vacía.
-  if (editando) {
-    const existentes = fvLineasDe(id);
-    fvLineasForm = existentes.length
-      ? existentes.map(function (l) { return { id: l.id, descripcion: String(l.descripcion || ''), importe: parsearNumero(l.importe) }; })
-      : [fvLineaVacia()];
-  } else if (prefill && prefill.subtotal !== undefined) {
-    fvLineasForm = [{ id: '', descripcion: datos.concepto || 'Importe factura', importe: parsearNumero(prefill.subtotal) }];
-  } else {
-    fvLineasForm = [fvLineaVacia()];
+  // Descripción y base imponible sustituyen a las líneas de detalle
+  // (simplificación 07/09/2026, GUÍA 20): la factura tiene un único
+  // importe, que ya ES la base imponible — sin ajuste de tipo de
+  // cliente ni compensación de IRPF, que viven solo en presupuestos.
+  datos.descripcion = editando ? String(original.descripcion || '') : '';
+  datos.base = editando ? parsearNumero(original.base) : 0;
+
+  // Desde un presupuesto: se hereda su base (YA ajustada), nunca el
+  // subtotal sin ajustar — ese fue justo un fallo corregido el
+  // 06/09/2026 y se deja escrito para no repetirlo.
+  if (!editando && prefill) {
+    if (prefill.descripcion !== undefined) datos.descripcion = String(prefill.descripcion || '');
+    if (prefill.base !== undefined) datos.base = parsearNumero(prefill.base);
+    else if (prefill.subtotal !== undefined) datos.base = parsearNumero(prefill.subtotal);
   }
 
   const titulo = editando ? 'Editar factura' : 'Nueva factura';
@@ -913,16 +884,12 @@ function abrirFormularioFacturaVenta(id, prefill) {
             '<p class="fv-info-cliente" id="fv-info-cliente" hidden></p>' +
             (deDesdePresupuesto
               ? '<p class="fv-aviso verde">Desde presupuesto ' + escaparHtml(fvNumeroPresupuestoDe(prefill.id_presupuesto)) +
-                '. El ajuste de tipo de cliente del presupuesto (' + (prefill.ajuste_cliente_pct >= 0 ? '+' : '') + prefill.ajuste_cliente_pct +
-                '%) se conserva. Los impuestos se aplican según la configuración vigente al facturar.</p>'
+                '. La base imponible ya viene calculada del presupuesto, con su ajuste incluido. Puedes cambiarla si hace falta.</p>'
               : '<p class="fv-aviso" id="fv-aviso-tipo" hidden></p>') +
 
             fvCampo('concepto', 'Concepto', datos.concepto, { textarea: true, anchoTotal: true }) +
-
-            '<p class="fv-lineas-titulo">Líneas de la factura</p>' +
-            '<div class="fv-lineas-tabla" id="fv-lineas-tabla"></div>' +
-            '<button type="button" class="boton-secundario fv-lineas-anadir" id="fv-linea-anadir">+ Añadir línea</button>' +
-            '<div class="fv-lineas-subtotal"><span>Subtotal:</span><strong id="fv-lineas-subtotal-valor">' + escaparHtml(formatMoney(0)) + '</strong></div>' +
+            fvCampo('descripcion', 'Descripción (una línea por punto)', datos.descripcion, { textarea: true, anchoTotal: true }) +
+            fvCampo('base', 'Base imponible', datos.base, { numero: true, requerido: true, anchoTotal: true }) +
 
             '<div class="fv-campo-grupo">' +
               '<label for="fv-campo-desc_valor">Descuento especial</label>' +
@@ -984,13 +951,6 @@ function abrirFormularioFacturaVenta(id, prefill) {
     }, 300);
   });
 
-  fvPintarLineasForm(fondo, prefill);
-  fondo.querySelector('#fv-linea-anadir').addEventListener('click', function () {
-    fvLineasForm.push(fvLineaVacia());
-    fvPintarLineasForm(fondo, prefill);
-    fvActualizarFormulario(fondo, prefill);
-  });
-
   fondo.querySelectorAll('#fv-form input, #fv-form select, #fv-form textarea').forEach(function (el) {
     el.addEventListener('input', function () { fvActualizarFormulario(fondo, prefill); });
     el.addEventListener('change', function () { fvActualizarFormulario(fondo, prefill); });
@@ -1006,48 +966,6 @@ function abrirFormularioFacturaVenta(id, prefill) {
 
 function fvCerrarFormulario(fondo) {
   fondo.remove();
-  fvLineasForm = [];
-}
-
-// ---- Líneas: pintado y lectura ----
-
-function fvPintarLineasForm(fondo, prefill) {
-  const tabla = fondo.querySelector('#fv-lineas-tabla');
-  tabla.innerHTML = fvLineasForm.map(function (l, i) {
-    return '<div class="fv-linea-fila" data-indice="' + i + '">' +
-      '<div class="fv-linea-descripcion"><input class="campo" type="text" data-linea-campo="descripcion" placeholder="Descripción" value="' + escaparHtml(l.descripcion || '') + '"></div>' +
-      '<div class="fv-linea-importe"><input class="campo" type="text" data-linea-campo="importe" data-numero="1" inputmode="decimal" placeholder="0,00" value="' + escaparHtml(l.importe === 0 ? '0' : (l.importe || '')) + '"></div>' +
-      '<button type="button" class="fv-linea-borrar" data-linea-borrar="' + i + '" aria-label="Quitar línea"><i class="ti ti-trash"></i></button>' +
-    '</div>';
-  }).join('');
-
-  tabla.querySelectorAll('[data-linea-campo]').forEach(function (el) {
-    el.addEventListener('input', function () {
-      const fila = el.closest('[data-indice]');
-      const i = parseInt(fila.dataset.indice, 10);
-      const campo = el.dataset.lineaCampo;
-      fvLineasForm[i][campo] = campo === 'importe' ? parsearNumero(el.value) : el.value;
-      fvActualizarFormulario(fondo, prefill);
-    });
-  });
-
-  tabla.querySelectorAll('[data-linea-borrar]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      // Mínimo una línea (mapa 9.3): al intentar borrar la última, se avisa.
-      if (fvLineasForm.length <= 1) {
-        alert('La factura debe tener al menos una línea.');
-        return;
-      }
-      const i = parseInt(b.dataset.lineaBorrar, 10);
-      fvLineasForm.splice(i, 1);
-      fvPintarLineasForm(fondo, prefill);
-      fvActualizarFormulario(fondo, prefill);
-    });
-  });
-}
-
-function fvSubtotalDeLineas() {
-  return roundMoney(fvLineasForm.reduce(function (s, l) { return s + parsearNumero(l.importe); }, 0));
 }
 
 // ---- Lectura y cálculo en vivo ----
@@ -1061,7 +979,8 @@ function fvLeerFormulario(fondo) {
     fecha: valor('fecha'),
     id_cliente: valor('id_cliente'),
     concepto: valor('concepto').trim(),
-    subtotal: fvSubtotalDeLineas(),
+    descripcion: valor('descripcion').trim(),
+    base: parsearNumero(valor('base')),
     desc_tipo: valor('desc_tipo') === 'fixed' ? 'fixed' : 'percent',
     desc_valor: parsearNumero(valor('desc_valor')),
     iva_id: valor('iva_id'),
@@ -1069,55 +988,60 @@ function fvLeerFormulario(fondo) {
   };
 }
 
+// Cálculo simplificado (07/09/2026, GUÍA 20): la base imponible la
+// escribe directamente el propietario, o se hereda ya ajustada del
+// presupuesto. Aquí NO se aplica ni el ajuste por tipo de cliente ni
+// la compensación del 20% de IRPF — eso vive solo en presupuestos,
+// que es donde se decide el precio. Sobre la base se aplican solo el
+// descuento especial (si lo hay), el IVA y la retención de IRPF.
 function fvCalcularFormulario(datos, prefill) {
   const cliente = estado.clientes.find(function (c) { return String(c.id) === String(datos.id_cliente); }) || null;
-  const tarifas = { compensacionPct: fvCompensacionPct() };
-
-  // El ajuste del tipo de cliente manda, SALVO que la factura venga de
-  // un presupuesto: en ese caso prevalece el ajuste que tenía el
-  // presupuesto (mapa 9.4 — "Ajuste bloqueado").
-  let factorCliente = 1;
-  let ajusteOrigen = 'tipo';
-  if (prefill && prefill.id_presupuesto && prefill.ajuste_cliente_pct !== undefined) {
-    factorCliente = 1 + (parsearNumero(prefill.ajuste_cliente_pct) / 100);
-    ajusteOrigen = 'presupuesto';
-  } else if (cliente) {
-    const tipo = preTipoClientePorId(cliente.tipo);
-    factorCliente = tipo ? tipo.factor : 1;
-  }
 
   const iva = preTiposIva().find(function (x) { return x.id === datos.iva_id; }) || { porcentaje: 0 };
   const irpf = preTiposIrpf().find(function (x) { return x.id === datos.irpf_id; }) || { porcentaje: 0 };
 
-  const totales = fvTotalesDesdeSubtotal({
-    subtotal: datos.subtotal,
-    factorCliente: factorCliente,
-    compensacionPct: tarifas.compensacionPct,
-    descTipo: datos.desc_tipo,
-    descValor: datos.desc_valor,
-    ivaPct: iva.porcentaje,
-    irpfPct: irpf.porcentaje
-  });
+  const baseBruta = roundMoney(parsearNumero(datos.base));
 
-  return { totales: totales, cliente: cliente, ajusteOrigen: ajusteOrigen };
+  // Descuento especial sobre la base introducida.
+  const descuento = String(datos.desc_tipo) === 'fixed'
+    ? roundMoney(parsearNumero(datos.desc_valor))
+    : roundMoney(baseBruta * parsearNumero(datos.desc_valor) / 100);
+
+  const base = roundMoney(baseBruta - descuento);
+  const importeIva = roundMoney(base * parsearNumero(iva.porcentaje) / 100);
+  const importeIrpf = roundMoney(base * parsearNumero(irpf.porcentaje) / 100);
+
+  const totales = {
+    subtotal: baseBruta,
+    ajustePct: 0,
+    ajusteImporte: 0,
+    compensacionPct: 0,
+    compensacionImporte: 0,
+    descuentoImporte: descuento,
+    base: base,
+    ivaPct: parsearNumero(iva.porcentaje),
+    iva: importeIva,
+    irpfPct: parsearNumero(irpf.porcentaje),
+    irpf: importeIrpf,
+    total: roundMoney(base + importeIva - importeIrpf)
+  };
+
+  return { totales: totales, cliente: cliente, ajusteOrigen: 'ninguno' };
 }
 
 function fvActualizarFormulario(fondo, prefill) {
   const datos = fvLeerFormulario(fondo);
   const r = fvCalcularFormulario(datos, prefill);
 
-  fondo.querySelector('#fv-lineas-subtotal-valor').textContent = formatMoney(datos.subtotal);
-
+  // Ficha del cliente: ya NO se muestra su ajuste por tipo, porque en
+  // facturas no se aplica (07/09/2026, GUÍA 20). El tipo de cliente
+  // sigue existiendo en su ficha y se usa en Presupuestos.
   const info = fondo.querySelector('#fv-info-cliente');
   if (r.cliente) {
     info.hidden = false;
-    const tipo = preTipoClientePorId(r.cliente.tipo);
     info.textContent = [
       r.cliente.nombre_fiscal || r.cliente.nombre_contacto,
-      r.cliente.nif || 'sin NIF',
-      r.ajusteOrigen === 'presupuesto'
-        ? 'ajuste del presupuesto (' + (parsearNumero(prefill.ajuste_cliente_pct) >= 0 ? '+' : '') + parsearNumero(prefill.ajuste_cliente_pct) + '%)'
-        : (tipo ? tipo.etiqueta + ' (ajuste ' + (tipo.ajustePct >= 0 ? '+' : '') + tipo.ajustePct + '%)' : '')
+      r.cliente.nif || 'sin NIF'
     ].filter(Boolean).join(' · ');
   } else {
     info.hidden = true;
@@ -1127,17 +1051,19 @@ function fvActualizarFormulario(fondo, prefill) {
   if (aviso) aviso.hidden = true;
 
   const t = r.totales;
-  const signo = function (v) { return (Number(v) > 0 ? '+' : (Number(v) < 0 ? '−' : '')) + formatMoney(Math.abs(Number(v || 0))); };
 
+  // Resumen en vivo: solo lo que de verdad se aplica en una factura.
+  // El descuento y la retención aparecen únicamente si existen.
   fondo.querySelector('#fv-totales').innerHTML =
     '<p class="fv-bloque-titulo">Resumen económico</p>' +
-    fvLinea('Subtotal', formatMoney(t.subtotal)) +
-    fvLinea((r.ajusteOrigen === 'presupuesto' ? 'Ajuste del presupuesto' : 'Ajuste por tipo de cliente') + ' (' + t.ajustePct + '%)', signo(t.ajusteImporte)) +
-    fvLinea('Compensación IRPF (' + t.compensacionPct + '%)', signo(t.compensacion)) +
-    fvLinea('Descuento especial', '−' + formatMoney(t.descImporte)) +
+    (t.descuentoImporte > 0
+      ? fvLinea('Descuento especial', '−' + formatMoney(t.descuentoImporte))
+      : '') +
     fvLinea('Base imponible', formatMoney(t.base), 'destacada') +
     fvLinea('IVA (' + t.ivaPct + '%)', '+' + formatMoney(t.iva)) +
-    fvLinea('Retención IRPF (' + t.irpfPct + '%)', '−' + formatMoney(t.irpf)) +
+    (t.irpf > 0
+      ? fvLinea('Retención IRPF (' + t.irpfPct + '%)', '−' + formatMoney(t.irpf))
+      : '') +
     '<div class="fv-total-final"><span>TOTAL</span><strong>' + escaparHtml(formatMoney(t.total)) + '</strong></div>';
 }
 
@@ -1174,15 +1100,9 @@ function fvProcesarGuardado(fondo, original, prefill) {
     valido = false;
   }
 
-  // Líneas: todas con descripción, al menos una con datos reales.
-  const lineasValidas = fvLineasForm.filter(function (l) {
-    return String(l.descripcion || '').trim() !== '' || parsearNumero(l.importe) > 0;
-  });
-  if (!lineasValidas.length) {
-    alert('Añade al menos una línea con descripción e importe.');
-    valido = false;
-  } else if (lineasValidas.some(function (l) { return String(l.descripcion || '').trim() === ''; })) {
-    alert('Todas las líneas deben tener una descripción.');
+  // Base imponible: es el importe final de la factura, obligatorio.
+  if (!(datos.base > 0)) {
+    fvMostrarError(fondo, 'base', 'Escribe la base imponible de la factura.');
     valido = false;
   }
   if (!valido) return;
@@ -1201,14 +1121,18 @@ function fvProcesarGuardado(fondo, original, prefill) {
     return;
   }
 
-  const datosConSubtotal = Object.assign({}, datos, { subtotal: fvSubtotalDeLineas() });
-  const r = fvCalcularFormulario(datosConSubtotal, prefill);
+  const r = fvCalcularFormulario(datos, prefill);
   const t = r.totales;
 
   const idFactura = original ? original.id : fvNuevoId('fv');
 
   // Los datos del cliente se congelan en la factura, igual que en
   // Presupuestos (mapa 9.4/8.6).
+  //
+  // `subtotal`, `ajuste_cliente_*` y `compensacion_irpf_*` se guardan
+  // a CERO a propósito (simplificación 07/09/2026, GUÍA 20): esos
+  // ajustes viven solo en presupuestos. Las columnas se mantienen en
+  // la hoja para no romper facturas antiguas, pero ya no se rellenan.
   const registro = {
     id: idFactura,
     numero: original ? original.numero : fvSiguienteNumero(),
@@ -1218,14 +1142,15 @@ function fvProcesarGuardado(fondo, original, prefill) {
     nif: cliente.nif || '',
     id_presupuesto: original ? (original.id_presupuesto || '') : ((prefill && prefill.id_presupuesto) || ''),
     concepto: concepto,
-    subtotal: t.subtotal,
-    ajuste_cliente_pct: t.ajustePct,
-    ajuste_cliente_importe: t.ajusteImporte,
-    compensacion_irpf_pct: t.compensacionPct,
-    compensacion_irpf_importe: t.compensacion,
-    descuento_especial_tipo: t.descTipo,
-    descuento_especial_valor: t.descValor,
-    descuento_especial_importe: t.descImporte,
+    descripcion: datos.descripcion,
+    subtotal: 0,
+    ajuste_cliente_pct: 0,
+    ajuste_cliente_importe: 0,
+    compensacion_irpf_pct: 0,
+    compensacion_irpf_importe: 0,
+    descuento_especial_tipo: datos.desc_tipo,
+    descuento_especial_valor: parsearNumero(datos.desc_valor),
+    descuento_especial_importe: t.descuentoImporte,
     base: t.base,
     iva_pct: t.ivaPct,
     iva: t.iva,
@@ -1237,24 +1162,12 @@ function fvProcesarGuardado(fondo, original, prefill) {
     estado_registro: original ? (fvEstaActiva(original) ? 'activo' : 'inactivo') : 'activo'
   };
 
-  // Las líneas del formulario, listas para el guardado en bloque
-  // (decisión I9: una sola llamada al backend con todas las líneas).
-  const lineasAGuardar = lineasValidas.map(function (l, i) {
-    return {
-      id: l.id || '',
-      orden: i + 1,
-      descripcion: String(l.descripcion || '').trim(),
-      importe: roundMoney(parsearNumero(l.importe))
-    };
-  });
-
   // La ventana se cierra AL MOMENTO. El guardado sigue en segundo
   // plano (guía, sección 9).
   fondo.remove();
-  fvLineasForm = [];
 
   fvMarcarSync(idFactura, 'guardando');
-  fvGuardarEnSegundoPlano(registro, lineasAGuardar);
+  fvGuardarEnSegundoPlano(registro);
 
   pintarFacturas();
 }
@@ -1265,46 +1178,31 @@ function fvProcesarGuardado(fondo, original, prefill) {
  * en el dispositivo marcado en rojo, y aparece "Reintentar guardado"
  * en su menú de tres puntos (mismo patrón que Presupuestos).
  */
-function fvGuardarEnSegundoPlano(registro, lineas) {
+// Una sola llamada al backend (simplificación 07/09/2026, GUÍA 20):
+// al desaparecer las líneas de detalle ya no hace falta la segunda
+// escritura en `ventas_detalle`, ni su manejo de errores por separado.
+function fvGuardarEnSegundoPlano(registro) {
   return guardarRegistro('ventas', registro, fvRepintarLista, null)
     .then(function (resultado) {
       if (resultado.status !== 'success') {
         fvReponerLocal(registro);
         fvMarcarSync(registro.id, 'error');
-        fvPendientes[String(registro.id)] = { registro: registro, lineas: lineas };
+        fvPendientes[String(registro.id)] = { registro: registro };
         fvRepintarLista();
         return;
       }
 
       const idFinal = (resultado.data && resultado.data.id) || registro.id;
       fvMarcarSync(registro.id, null);
-      fvMarcarSync(idFinal, 'guardando');
+      fvMarcarSync(idFinal, null);
+      delete fvPendientes[String(registro.id)];
       fvRepintarLista();
-
-      return llamarBackend({ action: 'save', sheet: 'ventas_detalle', data: { id_factura: idFinal, lineas: lineas } })
-        .then(function (resultadoLineas) {
-          if (resultadoLineas.status !== 'success') throw new Error(resultadoLineas.message || 'Fallo al guardar las líneas');
-
-          estado.ventas_detalle = estado.ventas_detalle.filter(function (l) { return String(l.id_factura) !== String(idFinal); });
-          (resultadoLineas.lineas || []).forEach(function (l) { estado.ventas_detalle.push(l); });
-          guardarEntidadLocal('ventas_detalle');
-
-          fvMarcarSync(idFinal, null);
-          delete fvPendientes[String(registro.id)];
-          fvRepintarLista();
-        })
-        .catch(function (err) {
-          console.error('Fallo al guardar las líneas de la factura:', err);
-          fvMarcarSync(idFinal, 'error');
-          fvPendientes[String(idFinal)] = { registro: Object.assign({}, registro, { id: idFinal }), lineas: lineas };
-          fvRepintarLista();
-        });
     })
     .catch(function (err) {
       console.error('Fallo al guardar la factura:', err);
       fvReponerLocal(registro);
       fvMarcarSync(registro.id, 'error');
-      fvPendientes[String(registro.id)] = { registro: registro, lineas: lineas };
+      fvPendientes[String(registro.id)] = { registro: registro };
       fvRepintarLista();
     });
 }
