@@ -493,7 +493,7 @@ function pintarDashboard() {
         '<div class="dash-lienzo"><canvas id="dash-g-gastos-ambito"></canvas></div>' +
       '</div>' +
     '</div>' +
-    '<p class="dash-nota">Cifra grande sin impuestos (lo que gana el negocio); debajo, en pequeño, el dinero que se mueve en el banco. Los donuts de Empresa/Personal no cambian con el selector.</p>';
+    '<p class="dash-nota">Cifra grande sin impuestos (lo que gana el negocio); debajo, en pequeño, el dinero que se mueve en el banco. Los donuts de Empresa/Personal no cambian con el selector. Los cuatro donuts circulares miran siempre los últimos 12 meses completos (sin contar el mes en curso).</p>';
 
   // Los dos selectores hacen lo mismo: cambian toda la pantalla.
   ['dash-selector', 'dash-selector-grafico'].forEach(function (id) {
