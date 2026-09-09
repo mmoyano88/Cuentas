@@ -1219,8 +1219,12 @@ function fvReponerLocal(registro) {
 // ============================================================
 // Validaciones: el presupuesto debe estar aceptado, no tener ya una
 // factura asociada, el cliente debe existir y, en modo real, no ser de
-// prueba. Traslada cliente, concepto, subtotal, descuento y el ajuste
-// del presupuesto (que queda bloqueado en el formulario).
+// prueba.
+//
+// Traslada cliente, concepto, descripción y la BASE ya calculada del
+// presupuesto (simplificación 07/09/2026, GUÍA 20). Ya no traslada
+// subtotal, descuento ni ajuste de cliente: todo eso está aplicado
+// dentro de esa base.
 
 function convertirPresupuestoEnFactura(idPresupuesto) {
   const p = estado.presupuestos.find(function (x) { return String(x.id) === String(idPresupuesto); });
@@ -1246,15 +1250,23 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
     return;
   }
 
+  // Se hereda la BASE del presupuesto, que ya lleva aplicados el
+  // ajuste por tipo de cliente y la compensación de IRPF — nunca el
+  // `subtotal`, que es la cifra ANTES de esos ajustes. Pasar el
+  // subtotal fue un fallo real detectado por el propietario el
+  // 07/09/2026: la factura salía con un importe menor que el
+  // presupuesto que la originó.
+  //
+  // El descuento especial NO se hereda: ya está descontado dentro de
+  // la base del presupuesto, así que volver a pasarlo lo aplicaría dos
+  // veces. Si hace falta un descuento adicional, se añade a mano en la
+  // factura.
   abrirFormularioFacturaVenta(null, {
     id_presupuesto: p.id,
     id_cliente: p.id_cliente,
     concepto: p.concepto || '',
-    subtotal: parsearNumero(p.subtotal),
-    desc_tipo: String(p.descuento_especial_tipo) === 'fixed' ? 'fixed' : 'percent',
-    desc_valor: parsearNumero(p.descuento_especial_valor),
-    ajuste_cliente_pct: parsearNumero(p.ajuste_cliente_pct),
-    ajuste_cliente_importe: parsearNumero(p.ajuste_cliente_importe)
+    descripcion: p.descripcion || '',
+    base: parsearNumero(p.base)
   });
 }
 
