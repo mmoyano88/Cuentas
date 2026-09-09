@@ -717,6 +717,22 @@ function activarCamposNumericos() {
 // 12. UTILIDADES — BÚSQUEDA, ORDEN, ESCAPADO
 // ============================================================
 
+// Retrasa la ejecución de `fn` hasta que pasen `ms` milisegundos sin
+// que se vuelva a llamar. Se usa en los buscadores de listado
+// (Clientes, Facturas, Apuntes, Presupuestos): al escribir rápido, la
+// lista solo se repinta cuando hay una pequeña pausa, en vez de en
+// cada tecla — evita reconstruir listas largas de golpe mientras se
+// sigue escribiendo (bloque de Rendimiento, 09/09/2026).
+function conRetardo(fn, ms) {
+  let temporizador = null;
+  return function () {
+    const args = arguments;
+    const contexto = this;
+    clearTimeout(temporizador);
+    temporizador = setTimeout(function () { fn.apply(contexto, args); }, ms);
+  };
+}
+
 // Minúsculas y sin acentos. Se usa en TODOS los buscadores de la
 // aplicación, sin excepciones (decisión M5).
 function normalizarBusqueda(v) {

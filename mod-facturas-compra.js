@@ -188,9 +188,10 @@ function fcRenderFiltrosPanel() {
 
 function fcCablearBarra() {
   const buscador = document.getElementById('fc-buscador');
+  const repintarConRetardo = conRetardo(fcRepintarLista, 180);
   buscador.addEventListener('input', function () {
     fcBusqueda = buscador.value;
-    fcRepintarLista();
+    repintarConRetardo();
   });
 
   const btnFiltro = document.getElementById('fc-btn-filtro');

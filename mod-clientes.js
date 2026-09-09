@@ -139,9 +139,10 @@ function cablearCabeceraLista() {
   document.getElementById('cli-btn-nuevo').addEventListener('click', function () { abrirFormularioContacto(null); });
 
   const buscador = document.getElementById('cli-buscador');
+  const repintarConRetardo = conRetardo(pintarListaFiltrada, 180);
   buscador.addEventListener('input', function () {
     cliBusqueda = buscador.value;
-    pintarListaFiltrada();
+    repintarConRetardo();
   });
 
   const btnFiltro = document.getElementById('cli-btn-filtro');

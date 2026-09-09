@@ -272,9 +272,10 @@ function ctRenderFiltrosPanel() {
 
 function ctCablearBarra() {
   const buscador = document.getElementById('ct-buscador');
+  const repintarConRetardo = conRetardo(ctRepintarLista, 180);
   buscador.addEventListener('input', function () {
     ctBusqueda = buscador.value;
-    ctRepintarLista();
+    repintarConRetardo();
   });
 
   const btnFiltro = document.getElementById('ct-btn-filtro');

@@ -2,17 +2,23 @@
  * SERVICE WORKER — permite que la app abra al instante y funcione
  * sin conexión.
  *
- * Estrategia: se intenta siempre traer la versión más reciente de
- * cada archivo; si no hay conexión, se usa la copia guardada. Así la
- * app nunca se queda "pillada" en una versión antigua tras una
- * actualización, y sigue abriendo aunque no haya cobertura.
+ * Estrategia (09/09/2026, bloque de Rendimiento — ver diario):
+ *   - Código propio de la app (JS/CSS/iconos/manifest) y las dos
+ *     librerías del CDN: CACHÉ PRIMERO. Se sirven al instante desde
+ *     la copia guardada sin esperar a la red; en paralelo se pide la
+ *     versión más reciente para tenerla lista la próxima vez. Es
+ *     seguro porque solo cambian cuando se sube un VERSION nuevo, y
+ *     al hacerlo el caché entero se descarta (ver "activate" abajo).
+ *   - Backend de Apps Script: SIEMPRE red, nunca caché — los datos
+ *     deben venir frescos de Google Sheets. Sin cambios respecto a
+ *     antes.
  *
  * ⚠️ Al cambiar cualquier archivo de la app, subir también este con
  * el número de VERSION aumentado (v2, v3...). Eso obliga al móvil a
  * tirar la copia vieja.
  */
 
-const VERSION = 'cuentas-v22';
+const VERSION = 'cuentas-v23';
 
 const ARCHIVOS = [
   './',
@@ -82,19 +88,29 @@ self.addEventListener('fetch', function (evento) {
   if (peticion.method !== 'GET') return;
   if (peticion.url.indexOf('script.google.com') !== -1) return;
 
+  // Código propio y CDNs: caché primero, con refresco en segundo
+  // plano. Se sirve al instante lo guardado (si existe) y, sin hacer
+  // esperar a la app, se pide igualmente la versión de red para
+  // dejarla lista de cara a la próxima apertura.
   evento.respondWith(
-    fetch(peticion)
-      .then(function (respuesta) {
-        const copia = respuesta.clone();
-        caches.open(VERSION).then(function (cache) {
-          cache.put(peticion, copia).catch(function () { /* se ignora */ });
-        });
-        return respuesta;
-      })
-      .catch(function () {
-        return caches.match(peticion).then(function (guardada) {
-          return guardada || caches.match('./index.html');
-        });
-      })
+    caches.match(peticion).then(function (guardada) {
+      const actualizacionEnSegundoPlano = fetch(peticion)
+        .then(function (respuesta) {
+          const copia = respuesta.clone();
+          caches.open(VERSION).then(function (cache) {
+            cache.put(peticion, copia).catch(function () { /* se ignora */ });
+          });
+          return respuesta;
+        })
+        .catch(function () { return null; });
+
+      // Si ya había copia guardada, se devuelve al instante (no se
+      // espera a la red). Si no la había (primera vez, o archivo
+      // nuevo que aún no se guardó), se espera a la red y, si
+      // también falla, se cae a la portada como último recurso.
+      return guardada || actualizacionEnSegundoPlano.then(function (resp) {
+        return resp || caches.match('./index.html');
+      });
+    })
   );
 });

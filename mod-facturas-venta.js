@@ -256,9 +256,10 @@ function fvRenderFiltrosPanel() {
 
 function fvCablearBarra() {
   const buscador = document.getElementById('fv-buscador');
+  const repintarConRetardo = conRetardo(fvRepintarLista, 180);
   buscador.addEventListener('input', function () {
     fvBusqueda = buscador.value;
-    fvRepintarLista();
+    repintarConRetardo();
   });
 
   const btnFiltro = document.getElementById('fv-btn-filtro');

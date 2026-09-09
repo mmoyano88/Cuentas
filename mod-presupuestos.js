@@ -477,9 +477,10 @@ function preRenderFiltrosPanel() {
 
 function preCablearBarra() {
   const buscador = document.getElementById('pre-buscador');
+  const repintarConRetardo = conRetardo(preRepintarLista, 180);
   buscador.addEventListener('input', function () {
     preBusqueda = buscador.value;
-    preRepintarLista();
+    repintarConRetardo();
   });
 
   const btnFiltro = document.getElementById('pre-btn-filtro');
