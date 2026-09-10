@@ -500,10 +500,16 @@ async function fvCambiarCobro(id) {
   fvMarcarSync(id, null);
   delete fvPendientes[String(id)];
 
-  if (pasaAPagada) {
-    await fvCrearApunteCobro(registro);
-  } else {
-    await fvBorrarApunteCobro(registro.id);
+  const okApunte = pasaAPagada
+    ? await fvCrearApunteCobro(registro)
+    : await fvBorrarApunteCobro(registro.id);
+
+  if (!okApunte) {
+    // La factura ya se guardó bien; lo que falló es su apunte de
+    // tesorería. Se marca en rojo para que quede un aviso visible y
+    // persistente — el alert de borrarRegistro/guardarRegistro es
+    // puntual y se puede pasar por alto.
+    fvMarcarSync(id, 'error');
   }
   fvRepintarLista();
 }
@@ -530,7 +536,8 @@ async function fvDesactivar(id) {
 
   // Si la factura estaba pagada, su apunte de tesorería se borra también.
   if (String(f.estado) === 'pagada') {
-    await fvBorrarApunteCobro(id);
+    const okApunte = await fvBorrarApunteCobro(id);
+    if (!okApunte) fvMarcarSync(id, 'error');
   }
   fvRepintarLista();
 }
@@ -557,7 +564,8 @@ async function fvReactivar(id) {
 
   // Si estaba pagada, se vuelve a crear su apunte de tesorería.
   if (String(f.estado) === 'pagada') {
-    await fvCrearApunteCobro(registro);
+    const okApunte = await fvCrearApunteCobro(registro);
+    if (!okApunte) fvMarcarSync(id, 'error');
   }
   fvRepintarLista();
 }
@@ -642,13 +650,20 @@ async function fvCrearApunteCobro(factura) {
     impuesto_pago: '',
     id_contacto: factura.id_cliente || ''
   };
-  await guardarRegistro('apuntes', registro, null, null);
+  const resultado = await guardarRegistro('apuntes', registro, null, null);
+  return resultado && resultado.status === 'success';
 }
 
+// Devuelve true si se borró con éxito, false si falló (borrarRegistro
+// ya deshace el cambio local y avisa con un alert si falla — aquí
+// además se informa a quien llama para que pueda marcar la factura en
+// rojo, ya que sin esto el aviso quedaba solo en el alert puntual, sin
+// ningún rastro visible después. Ver diario, 09/09/2026, punto 2).
 async function fvBorrarApunteCobro(idFactura) {
   const apunte = fvApunteDe(idFactura);
-  if (!apunte) return;
-  await borrarRegistro('apuntes', apunte.id, null, null);
+  if (!apunte) return true;
+  const resultado = await borrarRegistro('apuntes', apunte.id, null, null);
+  return resultado && resultado.status === 'success';
 }
 
 // ============================================================
@@ -1342,12 +1357,20 @@ registrarVista('facturas', {
 // ============================================================
 // 12. RED DE SEGURIDAD (mapa 11.6) — reconciliador de apuntes
 // ============================================================
-// En cada sincronización general, revisa las facturas de venta
-// pagadas y activas y crea el apunte de cualquiera que se haya
-// quedado sin él (por ejemplo, si la factura se guardó bien pero la
-// llamada que crea el apunte falló justo después). Se engancha al
-// mecanismo `reconciliadores` que ya existe en el núcleo (app.js) sin
-// tocar ese archivo: cualquier módulo puede registrar el suyo.
+// En cada sincronización general:
+//   1. Crea el apunte de cualquier factura pagada y activa que se haya
+//      quedado sin él (por ejemplo, si la factura se guardó bien pero
+//      la llamada que crea el apunte falló justo después).
+//   2. Borra el apunte de cualquier factura que YA NO está pagada y
+//      activa — el caso inverso, añadido el 09/09/2026: si al pasar
+//      de Pagada a Pendiente/Inactiva falla el borrado del apunte
+//      (fvBorrarApunteCobro), la factura queda actualizada pero el
+//      apunte se queda huérfano, contando dinero de más en
+//      Contabilidad/Impuestos/Dashboard sin ningún aviso visible más
+//      allá del alert puntual del momento.
+// Se engancha al mecanismo `reconciliadores` que ya existe en el
+// núcleo (app.js) sin tocar ese archivo: cualquier módulo puede
+// registrar el suyo.
 
 async function fvReconciliarApuntesCobro() {
   const pagadasActivas = estado.ventas.filter(function (f) {
@@ -1360,6 +1383,30 @@ async function fvReconciliarApuntesCobro() {
       } catch (err) {
         console.error('Reconciliación: no se pudo crear el apunte de la factura ' + f.numero, err);
       }
+    }
+  }
+
+  // Apuntes que vienen de una factura de venta, cuya factura ya no
+  // está pagada y activa (o ya no existe). Se borra en silencio, sin
+  // el alert() de borrarRegistro — este es un reconciliador de fondo,
+  // no una acción directa del usuario, y si falla (sin conexión en
+  // ese momento) ya se reintentará solo en la siguiente
+  // sincronización.
+  const apuntesDeFacturaSobrantes = estado.apuntes.filter(function (a) {
+    if (!a.id_factura_venta) return false;
+    const f = estado.ventas.find(function (x) { return String(x.id) === String(a.id_factura_venta); });
+    if (!f) return true; // la factura ya no existe: el apunte es huérfano seguro
+    return !(fvEstaActiva(f) && String(f.estado) === 'pagada');
+  });
+  for (const a of apuntesDeFacturaSobrantes) {
+    try {
+      const resultado = await llamarBackend({ action: 'delete', sheet: 'apuntes', data: { id: a.id } });
+      if (resultado.status === 'success') {
+        estado.apuntes = estado.apuntes.filter(function (x) { return String(x.id) !== String(a.id); });
+        guardarEntidadLocal('apuntes');
+      }
+    } catch (err) {
+      console.error('Reconciliación: no se pudo borrar el apunte sobrante ' + a.id, err);
     }
   }
 }

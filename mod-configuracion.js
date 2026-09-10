@@ -378,8 +378,15 @@ function renderArrayFila(nombre, columnas, fila, indice, claseFilas) {
       ' value="' + escaparHtml(valor) + '">';
   }).join('');
 
+  // El id real de la fila viaja en data-id-fila, pintado en el DOM
+  // desde que la fila existe — NUNCA se reasigna por posición al
+  // guardar (fallo corregido el 09/09/2026: antes recogerArray()
+  // heredaba el id de "lo que hubiera antes en esa posición", así que
+  // borrar una fila corría los ids de todas las siguientes hacia
+  // arriba, y cualquier presupuesto o factura que referenciara ese id
+  // por casualidad seguía "encontrando algo", pero lo equivocado).
   return (
-    '<div class="array-fila ' + claseFilas + '" data-fila="' + indice + '">' +
+    '<div class="array-fila ' + claseFilas + '" data-fila="' + indice + '" data-id-fila="' + escaparHtml(fila.id || '') + '">' +
       campos +
       '<button type="button" class="array-quitar" data-quitar title="Quitar"><i class="ti ti-x"></i></button>' +
     '</div>'
@@ -391,6 +398,7 @@ function cablearArrayEditor(contenedor) {
     const nombre = editor.dataset.array;
     const columnas = JSON.parse(editor.dataset.columnas);
     const claseFilas = 'cols-' + columnas.length + (columnas.some(function (c) { return c.tipo === 'seleccion'; }) ? '-select' : '');
+    const prefijo = ARRAY_PREFIJO_ID[nombre];
 
     editor.addEventListener('click', function (ev) {
       const quitar = ev.target.closest('[data-quitar]');
@@ -402,6 +410,10 @@ function cablearArrayEditor(contenedor) {
       if (anadir) {
         const filaVacia = {};
         columnas.forEach(function (c) { filaVacia[c.campo] = ''; });
+        // El id se genera AQUÍ, al nacer la fila — no al recoger el
+        // array — para que quede fijado en el DOM desde el principio
+        // y nunca dependa de la posición que ocupe después.
+        if (prefijo) filaVacia.id = idArrayEstable(prefijo);
         const div = document.createElement('div');
         div.innerHTML = renderArrayFila(nombre, columnas, filaVacia, editor.children.length, claseFilas);
         editor.insertBefore(div.firstChild, anadir);
@@ -410,25 +422,32 @@ function cablearArrayEditor(contenedor) {
   });
 }
 
-// Recoge las filas actuales de un editor, descartando las vacías, y
-// asigna un id estable a cualquier fila que todavía no lo tenga
-// (decisión I2 — el id lo genera la pantalla).
+// Recoge las filas actuales de un editor, descartando las vacías. El
+// id de cada fila se lee de su propio DOM (data-id-fila, pintado por
+// renderArrayFila desde que la fila existe) — nunca se reasigna por
+// posición. Antes del 09/09/2026, si borrabas una fila, las
+// siguientes heredaban el id de "lo que hubiera antes en esa
+// posición" (decisión I2 mal aplicada): borrar el IVA del 21% hacía
+// que el IVA del 10% pasara a tener el id del 21%, y cualquier
+// presupuesto/equipo que referenciara ese id seguía "encontrando
+// algo", pero lo equivocado, en vez de notar que ya no existía.
 function recogerArray(nombre) {
   const editor = document.getElementById('array-' + nombre);
   if (!editor) return cfgArray(ARRAY_CLAVE_SHEET[nombre]);
 
-  const filasAnteriores = cfgArray(ARRAY_CLAVE_SHEET[nombre]);
   const prefijo = ARRAY_PREFIJO_ID[nombre];
 
-  const filas = Array.from(editor.querySelectorAll('.array-fila')).map(function (filaEl, i) {
+  const filas = Array.from(editor.querySelectorAll('.array-fila')).map(function (filaEl) {
     const obj = {};
     filaEl.querySelectorAll('[data-campo]').forEach(function (campoEl) {
       const nombreCampo = campoEl.dataset.campo;
       const esNumero = campoEl.dataset.numero === '1';
       obj[nombreCampo] = esNumero ? parsearNumero(campoEl.value) : campoEl.value.trim();
     });
-    if (prefijo && filasAnteriores[i] && filasAnteriores[i].id) obj.id = filasAnteriores[i].id;
-    else if (prefijo) obj.id = idArrayEstable(prefijo);
+    if (prefijo) {
+      const idPropio = filaEl.dataset.idFila;
+      obj.id = idPropio || idArrayEstable(prefijo); // red de seguridad: fila sin id propio (no debería ocurrir)
+    }
     return obj;
   });
 
