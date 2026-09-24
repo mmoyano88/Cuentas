@@ -1,8 +1,12 @@
 /**
- * ICONOS DE CONTACTO — catálogo cerrado de 108 iconos (Tabler Icons,
+ * ICONOS DE CONTACTO — catálogo cerrado de 147 iconos (Tabler Icons,
  * licencia MIT), elegido a mano para cubrir cualquier tipo de cliente o
  * proveedor, agrupados por categoría con etiquetas de búsqueda en español.
  * No editar a mano salvo para añadir/quitar iconos — ver diario del proyecto.
+ *
+ * 24/09/2026: se añaden 5 categorías pensadas para clientes y proveedores
+ * de Los Pedroches. "cow" (vaca) y "rose" (rosa) están dibujados a mano
+ * en el mismo estilo, porque Tabler no los tiene.
  */
 
 const CATEGORIAS_ICONOS_CONTACTO = [
@@ -46,6 +50,55 @@ const CATEGORIAS_ICONOS_CONTACTO = [
     { id: "pencil", titulo: "Pencil", buscar: "diseño, dibujo" },
     { id: "palette", titulo: "Palette", buscar: "arte, pintura" },
     { id: "book-2", titulo: "Book", buscar: "librería, editorial" },
+  ]},
+  { nombre: "Campo, ganadería y alimentación", iconos: [
+    { id: "cow", titulo: "Vaca", buscar: "vaca, ganadería, leche, covap, cooperativa" },
+    { id: "pig", titulo: "Cerdo", buscar: "cerdo, ibérico, jamón, ganadería" },
+    { id: "meat", titulo: "Carnicería", buscar: "carne, carnicería, matadero" },
+    { id: "cheese", titulo: "Quesería", buscar: "queso, quesería, lácteos" },
+    { id: "trees", titulo: "Dehesa", buscar: "dehesa, bosque, forestal, encinas" },
+    { id: "seedling", titulo: "Vivero", buscar: "vivero, semillas, plantas, agricultura" },
+    { id: "shovel-pitchforks", titulo: "Granja", buscar: "granja, útiles, herramientas de campo" },
+    { id: "lawn-mower", titulo: "Jardinería", buscar: "jardinería, césped, mantenimiento" },
+  ]},
+  { nombre: "Industria, obras y transporte", iconos: [
+    { id: "building-factory-2", titulo: "Fábrica", buscar: "fábrica, industria, cooperativa" },
+    { id: "packages", titulo: "Almacén", buscar: "almacén, distribución, paquetes" },
+    { id: "forklift", titulo: "Logística", buscar: "logística, carretilla, almacén" },
+    { id: "truck-delivery", titulo: "Transporte", buscar: "transporte, reparto, mensajería" },
+    { id: "hammer-drill", titulo: "Obras", buscar: "obras, reformas, construcción" },
+    { id: "bolt", titulo: "Electricista", buscar: "electricista, electricidad, energía" },
+    { id: "car-garage", titulo: "Taller mecánico", buscar: "taller, mecánico, coches" },
+    { id: "gas-station", titulo: "Gasolinera", buscar: "gasolinera, combustible" },
+  ]},
+  { nombre: "Hostelería, comercio y turismo", iconos: [
+    { id: "beer", titulo: "Bar", buscar: "bar, cerveza, cafetería, hostelería" },
+    { id: "glass-cocktail", titulo: "Pub", buscar: "pub, copas, eventos, catering" },
+    { id: "cake", titulo: "Pastelería", buscar: "pastelería, tartas, celebraciones" },
+    { id: "cookie", titulo: "Dulces", buscar: "dulces, panadería, repostería" },
+    { id: "bed", titulo: "Alojamiento", buscar: "casa rural, alojamiento, hostal, turismo" },
+    { id: "perfume", titulo: "Estética", buscar: "estética, perfumería, belleza" },
+  ]},
+  { nombre: "Salud, social y educación", iconos: [
+    { id: "mood-happy", titulo: "Cara feliz", buscar: "feliz, sonrisa, prode, asociación" },
+    { id: "hand-two-fingers", titulo: "Mano en V", buscar: "mano, victoria, prode, asociación" },
+    { id: "dental", titulo: "Dentista", buscar: "dentista, clínica dental" },
+    { id: "eyeglass", titulo: "Óptica", buscar: "óptica, gafas" },
+    { id: "old", titulo: "Mayores", buscar: "residencia, mayores, centro de día" },
+    { id: "baby-bottle", titulo: "Guardería", buscar: "guardería, bebés, infantil" },
+    { id: "mood-kid", titulo: "Infancia", buscar: "niños, infancia, ampa, colegio" },
+    { id: "wheelchair", titulo: "Accesibilidad", buscar: "discapacidad, accesibilidad, silla de ruedas" },
+    { id: "users-group", titulo: "Asociación", buscar: "asociación, colectivo, grupo" },
+  ]},
+  { nombre: "Cultura, fiestas y comunicación", iconos: [
+    { id: "rose", titulo: "Rosa", buscar: "rosa, flor, partido político, psoe" },
+    { id: "building-church", titulo: "Iglesia", buscar: "iglesia, parroquia, hermandad" },
+    { id: "pray", titulo: "Cofradía", buscar: "cofradía, hermandad, semana santa" },
+    { id: "ball-football", titulo: "Club deportivo", buscar: "club, fútbol, deporte" },
+    { id: "ticket", titulo: "Espectáculos", buscar: "espectáculos, entradas, teatro, concierto" },
+    { id: "radio", titulo: "Radio", buscar: "radio, emisora" },
+    { id: "antenna", titulo: "Televisión", buscar: "televisión, tv local, emisora" },
+    { id: "device-desktop", titulo: "Informática", buscar: "informática, ordenadores, tienda" },
   ]},
   { nombre: "Otros negocios (variedad)", iconos: [
     { id: "tools", titulo: "Tools", buscar: "taller, reparación" },
@@ -562,5 +615,184 @@ const SVG_ICONOS_CONTACTO = {
   "currency-dollar": `<path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" />
   <path d="M12 3v3m0 12v3" />`,
   "wallet": `<path d="M17 8v-3a1 1 0 0 0 -1 -1h-10a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3m0 4v3a1 1 0 0 1 -1 1h-12a2 2 0 0 1 -2 -2v-12" />
-  <path d="M20 12v4h-4a2 2 0 0 1 0 -4h4" />`
+  <path d="M20 12v4h-4a2 2 0 0 1 0 -4h4" />`,
+  "cow": `<path d="M7.5 11.5v-3.5a2 2 0 0 1 2 -2h5a2 2 0 0 1 2 2v3.5" />
+  <path d="M6 15a3.5 3.5 0 0 1 3.5 -3.5h5a3.5 3.5 0 0 1 3.5 3.5a3.5 3.5 0 0 1 -3.5 3.5h-5a3.5 3.5 0 0 1 -3.5 -3.5z" />
+  <path d="M9.5 6c-.4 -1.6 -1.4 -2.6 -3 -3" />
+  <path d="M14.5 6c.4 -1.6 1.4 -2.6 3 -3" />
+  <path d="M7.5 8.5l-3.2 -.6a1.1 1.1 0 0 1 .2 -2.2l3.1 .4" />
+  <path d="M16.5 8.5l3.2 -.6a1.1 1.1 0 0 0 -.2 -2.2l-3.1 .4" />
+  <path d="M10 9h.01" />
+  <path d="M14 9h.01" />
+  <path d="M10 15h.01" />
+  <path d="M14 15h.01" />`,
+  "pig": `<path d="M15 11v.01" />
+  <path d="M16 3l0 3.803a6.019 6.019 0 0 1 2.658 3.197h1.341a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1h-1.342a6.008 6.008 0 0 1 -1.658 2.473v2.027a1.5 1.5 0 0 1 -3 0v-.583a6.04 6.04 0 0 1 -1 .083h-4a6.04 6.04 0 0 1 -1 -.083v.583a1.5 1.5 0 0 1 -3 0v-2l0 -.027a6 6 0 0 1 4 -10.473h2.5l4.5 -3" />`,
+  "meat": `<path d="M13.62 8.382l1.966 -1.967a2 2 0 1 1 3.414 -1.415a2 2 0 1 1 -1.413 3.414l-1.82 1.821" />
+  <path d="M5.904 18.596c2.733 2.734 5.9 4 7.07 2.829c1.172 -1.172 -.094 -4.338 -2.828 -7.071c-2.733 -2.734 -5.9 -4 -7.07 -2.829c-1.172 1.172 .094 4.338 2.828 7.071" />
+  <path d="M7.5 16l1 1" />
+  <path d="M12.975 21.425c3.905 -3.906 4.855 -9.288 2.121 -12.021c-2.733 -2.734 -8.115 -1.784 -12.02 2.121" />`,
+  "cheese": `<path d="M4.519 20.008l16.481 -.008v-3.5a2 2 0 1 1 0 -4v-3.5h-16.722" />
+  <path d="M21 9l-9.385 -4.992c-2.512 .12 -4.758 1.42 -6.327 3.425c-1.423 1.82 -2.288 4.221 -2.288 6.854c0 2.117 .56 4.085 1.519 5.721" />
+  <path d="M15 13v.01" />
+  <path d="M8 13v.01" />
+  <path d="M11 16v.01" />`,
+  "trees": `<path d="M16 5l3 3l-2 1l4 4l-3 1l4 4h-9" />
+  <path d="M15 21l0 -3" />
+  <path d="M8 13l-2 -2" />
+  <path d="M8 12l2 -2" />
+  <path d="M8 21v-13" />
+  <path d="M5.824 16a3 3 0 0 1 -2.743 -3.69a3 3 0 0 1 .304 -4.833a3 3 0 0 1 4.615 -3.707a3 3 0 0 1 4.614 3.707a3 3 0 0 1 .305 4.833a3 3 0 0 1 -2.919 3.695h-4l-.176 -.005" />`,
+  "seedling": `<path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3" />
+  <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3" />
+  <path d="M12 20l0 -10" />`,
+  "shovel-pitchforks": `<path d="M5 3h4" />
+  <path d="M7 3v12" />
+  <path d="M4 15h6v3a3 3 0 0 1 -6 0v-3" />
+  <path d="M14 21v-3a3 3 0 0 1 6 0v3" />
+  <path d="M17 21v-18" />`,
+  "lawn-mower": `<path d="M6 11h5.38a1 1 0 0 1 .9 .55l.72 1.45h5a1 1 0 0 1 1 1v2" />
+  <path d="M3 4h1.13a1 1 0 0 1 1 .86l1.59 11.14" />
+  <path d="M17 18h-8" />
+  <path d="M9 18a2 2 0 1 1 -4 0a2 2 0 0 1 4 0" />
+  <path d="M21 18a2 2 0 1 1 -4 0a2 2 0 0 1 4 0" />`,
+  "building-factory-2": `<path d="M3 21h18" />
+  <path d="M5 21v-12l5 4v-4l5 4h4" />
+  <path d="M19 21v-8l-1.436 -9.574a.5 .5 0 0 0 -.495 -.426h-1.145a.5 .5 0 0 0 -.494 .418l-1.43 8.582" />
+  <path d="M9 17h1" />
+  <path d="M14 17h1" />`,
+  "packages": `<path d="M7 16.5l-5 -3l5 -3l5 3v5.5l-5 3l0 -5.5" />
+  <path d="M2 13.5v5.5l5 3" />
+  <path d="M7 16.545l5 -3.03" />
+  <path d="M17 16.5l-5 -3l5 -3l5 3v5.5l-5 3l0 -5.5" />
+  <path d="M12 19l5 3" />
+  <path d="M17 16.5l5 -3" />
+  <path d="M12 13.5v-5.5l-5 -3l5 -3l5 3v5.5" />
+  <path d="M7 5.03v5.455" />
+  <path d="M12 8l5 -3" />`,
+  "forklift": `<path d="M3 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+  <path d="M12 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+  <path d="M7 17l5 0" />
+  <path d="M3 17v-6h13v6" />
+  <path d="M5 11v-4h4" />
+  <path d="M9 11v-6h4l3 6" />
+  <path d="M22 15h-3v-10" />
+  <path d="M16 13l3 0" />`,
+  "truck-delivery": `<path d="M5 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+  <path d="M15 17a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+  <path d="M5 17h-2v-4m-1 -8h11v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5" />
+  <path d="M3 9l4 0" />`,
+  "hammer-drill": `<path d="M12 15v6" />
+  <path d="M16 5h4" />
+  <path d="M8 5h-4" />
+  <path d="M15 11h-6a1 1 0 0 1 -1 -1v-6a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1" />
+  <path d="M14 11h-4v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1 -1v-3" />`,
+  "bolt": `<path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" />`,
+  "car-garage": `<path d="M5 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+  <path d="M15 20a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+  <path d="M5 20h-2v-6l2 -5h9l4 5h1a2 2 0 0 1 2 2v4h-2m-4 0h-6m-6 -6h15m-6 0v-5" />
+  <path d="M3 6l9 -4l9 4" />`,
+  "gas-station": `<path d="M14 11h1a2 2 0 0 1 2 2v3a1.5 1.5 0 0 0 3 0v-7l-3 -3" />
+  <path d="M4 20v-14a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v14" />
+  <path d="M3 20l12 0" />
+  <path d="M18 7v1a1 1 0 0 0 1 1h1" />
+  <path d="M4 11l10 0" />`,
+  "beer": `<path d="M9 21h6a1 1 0 0 0 1 -1v-3.625c0 -1.397 .29 -2.775 .845 -4.025l.31 -.7c.556 -1.25 .845 -2.253 .845 -3.65v-4a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v4c0 1.397 .29 2.4 .845 3.65l.31 .7a9.931 9.931 0 0 1 .845 4.025v3.625a1 1 0 0 0 1 1" />
+  <path d="M6 8h12" />`,
+  "glass-cocktail": `<path d="M8 21h8" />
+  <path d="M12 15v6" />
+  <path d="M5 5a7 2 0 1 0 14 0a7 2 0 1 0 -14 0" />
+  <path d="M5 5v.388c0 .432 .126 .853 .362 1.206l5 7.509c.633 .951 1.88 1.183 2.785 .517c.191 -.141 .358 -.316 .491 -.517l5 -7.509c.236 -.353 .362 -.774 .362 -1.206v-.388" />`,
+  "cake": `<path d="M3 20h18v-8a3 3 0 0 0 -3 -3h-12a3 3 0 0 0 -3 3v8" />
+  <path d="M3 14.803c.312 .135 .654 .204 1 .197a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1a2.4 2.4 0 0 0 2 -1a2.4 2.4 0 0 1 2 -1a2.4 2.4 0 0 1 2 1a2.4 2.4 0 0 0 2 1c.35 .007 .692 -.062 1 -.197" />
+  <path d="M12 4l1.465 1.638a2 2 0 1 1 -3.015 .099l1.55 -1.737" />`,
+  "cookie": `<path d="M8 13v.01" />
+  <path d="M12 17v.01" />
+  <path d="M12 12v.01" />
+  <path d="M16 14v.01" />
+  <path d="M11 8v.01" />
+  <path d="M13.148 3.476l2.667 1.104a4 4 0 0 0 4.656 6.14l.053 .132a3 3 0 0 1 0 2.296q -.745 1.18 -1.024 1.852q -.283 .684 -.66 2.216a3 3 0 0 1 -1.624 1.623q -1.572 .394 -2.216 .661q -.712 .295 -1.852 1.024a3 3 0 0 1 -2.296 0q -1.203 -.754 -1.852 -1.024q -.707 -.292 -2.216 -.66a3 3 0 0 1 -1.623 -1.624q -.397 -1.577 -.661 -2.216q -.298 -.718 -1.024 -1.852a3 3 0 0 1 0 -2.296q .719 -1.116 1.024 -1.852q .257 -.62 .66 -2.216a3 3 0 0 1 1.624 -1.623q 1.547 -.384 2.216 -.661q .687 -.285 1.852 -1.024a3 3 0 0 1 2.296 0" />`,
+  "bed": `<path d="M5 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+  <path d="M22 17v-3h-20" />
+  <path d="M2 8v9" />
+  <path d="M12 14h10v-2a3 3 0 0 0 -3 -3h-7v5" />`,
+  "perfume": `<path d="M10 6v3" />
+  <path d="M14 6v3" />
+  <path d="M5 11a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -8" />
+  <path d="M10 15a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+  <path d="M9 3h6v3h-6l0 -3" />`,
+  "mood-happy": `<path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+  <path d="M9 9l.01 0" />
+  <path d="M15 9l.01 0" />
+  <path d="M8 13a4 4 0 1 0 8 0h-8" />`,
+  "hand-two-fingers": `<path d="M8 13v-8.5a1.5 1.5 0 0 1 3 0v7.5" />
+  <path d="M17 11.5a1.5 1.5 0 0 1 3 0v4.5a6 6 0 0 1 -6 6h-2h.208a6 6 0 0 1 -5.012 -2.7a69.74 69.74 0 0 1 -.196 -.3c-.312 -.479 -1.407 -2.388 -3.286 -5.728a1.5 1.5 0 0 1 .536 -2.022a1.867 1.867 0 0 1 2.28 .28l1.47 1.47" />
+  <path d="M14 10.5a1.5 1.5 0 0 1 3 0v1.5" />
+  <path d="M11 5.5v-2a1.5 1.5 0 1 1 3 0v8.5" />`,
+  "dental": `<path d="M12 5.5c-1.074 -.586 -2.583 -1.5 -4 -1.5c-2.1 0 -4 1.247 -4 5c0 4.899 1.056 8.41 2.671 10.537c.573 .756 1.97 .521 2.567 -.236c.398 -.505 .819 -1.439 1.262 -2.801c.292 -.771 .892 -1.504 1.5 -1.5c.602 0 1.21 .737 1.5 1.5c.443 1.362 .864 2.295 1.262 2.8c.597 .759 2 .993 2.567 .237c1.615 -2.127 2.671 -5.637 2.671 -10.537c0 -3.74 -1.908 -5 -4 -5c-1.423 0 -2.92 .911 -4 1.5" />
+  <path d="M12 5.5l3 1.5" />`,
+  "eyeglass": `<path d="M8 4h-2l-3 10" />
+  <path d="M16 4h2l3 10" />
+  <path d="M10 16l4 0" />
+  <path d="M21 16.5a3.5 3.5 0 0 1 -7 0v-2.5h7v2.5" />
+  <path d="M10 16.5a3.5 3.5 0 0 1 -7 0v-2.5h7v2.5" />`,
+  "old": `<path d="M11 21l-1 -4l-2 -3v-6" />
+  <path d="M5 14l-1 -3l4 -3l3 2l3 .5" />
+  <path d="M7 4a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+  <path d="M7 17l-2 4" />
+  <path d="M16 21v-8.5a1.5 1.5 0 0 1 3 0v.5" />`,
+  "baby-bottle": `<path d="M5 10h14" />
+  <path d="M12 2v2" />
+  <path d="M12 4a5 5 0 0 1 5 5v11a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2v-11a5 5 0 0 1 5 -5" />`,
+  "mood-kid": `<path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+  <path d="M9 10l.01 0" />
+  <path d="M15 10l.01 0" />
+  <path d="M9.5 15a3.5 3.5 0 0 0 5 0" />
+  <path d="M12 3a2 2 0 0 0 0 4" />`,
+  "wheelchair": `<path d="M3 16a5 5 0 1 0 10 0a5 5 0 1 0 -10 0" />
+  <path d="M17 19a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+  <path d="M19 17a3 3 0 0 0 -3 -3h-3.4" />
+  <path d="M3 3h1a2 2 0 0 1 2 2v6" />
+  <path d="M6 8h11" />
+  <path d="M15 8v6" />`,
+  "users-group": `<path d="M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+  <path d="M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1" />
+  <path d="M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+  <path d="M17 10h2a2 2 0 0 1 2 2v1" />
+  <path d="M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+  <path d="M3 13v-1a2 2 0 0 1 2 -2h2" />`,
+  "rose": `<path d="M8 4.5c1 .8 2.4 1.2 4 1.2s3 -.4 4 -1.2v3a4 4 0 0 1 -8 0z" />
+  <path d="M10 5.8c.3 1.3 1 2 2 2s1.7 -.7 2 -2" />
+  <path d="M12 11.5v9.5" />
+  <path d="M12 18c-.2 -2 -1.7 -3.3 -4 -3.3c.2 2 1.7 3.3 4 3.3z" />
+  <path d="M12 15.8c.2 -1.7 1.5 -2.8 3.5 -2.8c-.2 1.7 -1.5 2.8 -3.5 2.8z" />`,
+  "building-church": `<path d="M3 21l18 0" />
+  <path d="M10 21v-4a2 2 0 0 1 4 0v4" />
+  <path d="M10 5l4 0" />
+  <path d="M12 3l0 5" />
+  <path d="M6 21v-7m-2 2l8 -8l8 8m-2 -2v7" />`,
+  "pray": `<path d="M11 5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />
+  <path d="M7 20h8l-4 -4v-7l4 3l2 -2" />`,
+  "ball-football": `<path d="M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+  <path d="M12 7l4.76 3.45l-1.76 5.55h-6l-1.76 -5.55l4.76 -3.45" />
+  <path d="M12 7v-4m3 13l2.5 3m-.74 -8.55l3.74 -1.45m-11.44 7.05l-2.56 2.95m.74 -8.55l-3.74 -1.45" />`,
+  "ticket": `<path d="M15 5l0 2" />
+  <path d="M15 11l0 2" />
+  <path d="M15 17l0 2" />
+  <path d="M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-3a2 2 0 0 0 0 -4v-3a2 2 0 0 1 2 -2" />`,
+  "radio": `<path d="M14 3l-9.371 3.749a1 1 0 0 0 -.629 .928v11.323a1 1 0 0 0 1 1h14a1 1 0 0 0 1 -1v-11a1 1 0 0 0 -1 -1h-14.5" />
+  <path d="M4 12h16" />
+  <path d="M7 12v-2" />
+  <path d="M17 16v.01" />
+  <path d="M13 16v.01" />`,
+  "antenna": `<path d="M20 4v8" />
+  <path d="M16 4.5v7" />
+  <path d="M12 5v16" />
+  <path d="M8 5.5v5" />
+  <path d="M4 6v4" />
+  <path d="M20 8h-16" />`,
+  "device-desktop": `<path d="M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10" />
+  <path d="M7 20h10" />
+  <path d="M9 16v4" />
+  <path d="M15 16v4" />`
 };

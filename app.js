@@ -17,8 +17,18 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxO4OadW9yMI7lB6bt-UQI8
 
 const LS_CLAVE = 'cuentas_clave_v1';
 
+// Código de sesión que devuelve el backend al entrar con clave + PIN.
+// Es lo que mantiene la sesión abierta en este dispositivo. El PIN NO
+// se guarda aquí ni en ningún otro sitio del dispositivo: de este
+// código no se puede sacar el PIN de vuelta (20/09/2026).
+const LS_TOKEN = 'cuentas_token_v1';
+
 function obtenerClave() {
   return localStorage.getItem(LS_CLAVE) || '';
+}
+
+function obtenerToken() {
+  return localStorage.getItem(LS_TOKEN) || '';
 }
 
 /**
@@ -27,14 +37,62 @@ function obtenerClave() {
  * El tipo text/plain es deliberado: evita una comprobación previa
  * del navegador que Apps Script no sabe responder.
  */
+//
+// TIEMPO MÁXIMO Y REINTENTO (23/09/2026). Antes la app esperaba sin
+// límite: si una respuesta se perdía por el camino (cobertura floja,
+// wifi que se corta), se quedaba "guardando" hasta que el navegador se
+// rendía y salía un error. En el registro de Ejecuciones de Apps
+// Script se vio que el backend nunca fallaba (todo "Completada", entre
+// 0,4 y 5,6 s), así que el problema estaba en la espera, no en Google.
+// Ahora cada intento tiene un tiempo máximo y, si no llega respuesta,
+// se repite UNA vez sola antes de dar el fallo.
+//
+// Solo se repite lo que es seguro repetir: sincronizar, guardar un
+// registro que ya tiene su id (se sobrescribe la misma fila) o borrar
+// (si ya estaba borrado, el backend responde bien igualmente). NO se
+// repiten la entrada ni la comprobación del PIN (contaría un fallo de
+// más contra el límite de intentos) ni el guardado de un cliente
+// nuevo sin id (podría crearse dos veces).
+const ESPERA_MAXIMA_MS = 25000;
+
+function sePuedeRepetir(cuerpo) {
+  const accion = cuerpo && cuerpo.action;
+  if (accion === 'login' || accion === 'comprobar_pin') return false;
+  if (accion === 'save') return !!(cuerpo.data && cuerpo.data.id);
+  return true;
+}
+
+async function unIntentoBackend(cuerpo) {
+  const control = new AbortController();
+  const temporizador = setTimeout(function () { control.abort(); }, ESPERA_MAXIMA_MS);
+  try {
+    const respuesta = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(Object.assign({ clave: obtenerClave(), token: obtenerToken() }, cuerpo)),
+      signal: control.signal
+    });
+    if (!respuesta.ok) throw new Error('El servidor respondió con un error.');
+    return await respuesta.json();
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error('El servidor no ha respondido a tiempo.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(temporizador);
+  }
+}
+
 async function llamarBackend(cuerpo) {
-  const respuesta = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(Object.assign({ clave: obtenerClave() }, cuerpo))
-  });
-  if (!respuesta.ok) throw new Error('El servidor respondió con un error.');
-  const resultado = await respuesta.json();
+  let resultado;
+  try {
+    resultado = await unIntentoBackend(cuerpo);
+  } catch (err) {
+    if (!sePuedeRepetir(cuerpo)) throw err;
+    console.warn('Sin respuesta del servidor, se reintenta una vez:', err);
+    resultado = await unIntentoBackend(cuerpo);
+  }
   if (resultado.code === 'clave') {
     cerrarSesion('La clave de acceso ya no es válida. Vuelve a introducirla.');
     throw new Error('Clave inválida');
@@ -48,7 +106,7 @@ async function llamarBackend(cuerpo) {
 
 const ENTIDADES = [
   'clientes', 'presupuestos', 'presupuestos_detalle', 'ventas',
-  'ventas_detalle', 'compras', 'apuntes', 'impuestos'
+  'compras', 'apuntes', 'impuestos'
 ];
 
 const estado = {
@@ -57,12 +115,10 @@ const estado = {
   presupuestos: [],
   presupuestos_detalle: [],
   ventas: [],
-  ventas_detalle: [],
   compras: [],
   apuntes: [],
   impuestos: [],
-  syncReady: false,
-  modoPrueba: false
+  syncReady: false
 };
 
 // Puntos de enganche para los módulos futuros. Cada módulo registra
@@ -91,7 +147,6 @@ async function ejecutarReconciliadores() {
 // pinta los botones y llama a `cambiarVista()`; el núcleo no conoce
 // los nombres de los módulos, solo esta lista.
 
-const LS_VISTA_ACTIVA = 'cuentas_vista_v1';
 const VISTA_INICIAL = 'dashboard';
 
 const vistas = {};
@@ -129,7 +184,6 @@ function pintarVistaActiva() {
 function cambiarVista(id) {
   if (!vistas[id]) return;
   vistaActiva = id;
-  localStorage.setItem(LS_VISTA_ACTIVA, id);
   pintarVistaActiva();
   ejecutarPintadores();
 }
@@ -137,12 +191,10 @@ function cambiarVista(id) {
 // ============================================================
 // 2. ALMACENAMIENTO EN EL DISPOSITIVO
 // ============================================================
-// Cada tipo de dato tiene DOS cajas separadas: una para los datos
-// reales y otra para los de prueba. Nunca se mezclan (decisión I8).
+// Cada tipo de dato se guarda en su propia caja del dispositivo, como
+// copia de lo último sincronizado, para que la app abra al instante.
 
 const LS_REAL = 'cuentas_real_';
-const LS_TEST = 'cuentas_prueba_';
-const LS_MODO_PRUEBA = 'cuentas_modo_prueba_v1';
 
 function leerCaja(clave) {
   try {
@@ -155,10 +207,7 @@ function leerCaja(clave) {
 }
 
 function guardarEntidadLocal(entidad) {
-  const reales = estado[entidad].filter(function (r) { return !esDePrueba(r); });
-  const pruebas = estado[entidad].filter(esDePrueba);
-  localStorage.setItem(LS_REAL + entidad, JSON.stringify(reales));
-  localStorage.setItem(LS_TEST + entidad, JSON.stringify(pruebas));
+  localStorage.setItem(LS_REAL + entidad, JSON.stringify(estado[entidad]));
 }
 
 function guardarTodoLocal() {
@@ -178,90 +227,65 @@ function cargarTodoLocal() {
   }
 }
 
-function fusionarDatosDePrueba() {
-  ENTIDADES.forEach(function (entidad) {
-    estado[entidad] = estado[entidad]
-      .filter(function (r) { return !esDePrueba(r); })
-      .concat(leerCaja(LS_TEST + entidad));
-  });
+// Borra del dispositivo cualquier dato de esta app que ya no se use
+// (restos de versiones anteriores). Solo se conservan las claves que la
+// app usa hoy; todo lo demás que empiece por "cuentas_" se elimina.
+function limpiarClavesAntiguas() {
+  const enUso = [LS_CLAVE, LS_TOKEN, LS_PENDIENTES, LS_MARCAS];
+  try {
+    const todas = [];
+    for (let i = 0; i < localStorage.length; i++) todas.push(localStorage.key(i));
+    todas.forEach(function (k) {
+      if (!k || k.indexOf('cuentas_') !== 0) return;
+      if (enUso.indexOf(k) !== -1 || k.indexOf(LS_REAL) === 0) return;
+      localStorage.removeItem(k);
+    });
+  } catch (err) {
+    console.error('No se pudieron limpiar datos antiguos del dispositivo:', err);
+  }
 }
 
 // ============================================================
-// 3. MODO PRUEBA
-// ============================================================
-
-function esDePrueba(registro) {
-  if (!registro) return false;
-  if (registro.es_prueba === true || registro._test === true) return true;
-  return typeof registro.id === 'string' && registro.id.indexOf('test-') === 0;
-}
-
-function generarIdPrueba(prefijo) {
-  return 'test-' + prefijo + '-' + Date.now().toString(36) + '-' +
-         Math.floor(Math.random() * 1e9).toString(36);
-}
-
-function activarModoPrueba() {
-  estado.modoPrueba = true;
-  localStorage.setItem(LS_MODO_PRUEBA, '1');
-  pintarBandaPrueba();
-}
-
-function desactivarModoPrueba() {
-  // Borrado limpio e inmediato de todo lo de prueba, sin papelera.
-  ENTIDADES.forEach(function (entidad) {
-    localStorage.removeItem(LS_TEST + entidad);
-    estado[entidad] = estado[entidad].filter(function (r) { return !esDePrueba(r); });
-  });
-  estado.modoPrueba = false;
-  localStorage.removeItem(LS_MODO_PRUEBA);
-  pintarBandaPrueba();
-  ejecutarPintadores();
-}
-
-function pintarBandaPrueba() {
-  const banda = document.getElementById('banda-prueba');
-  if (banda) banda.hidden = !estado.modoPrueba;
-}
-
-// Con el modo prueba activo, editar un registro REAL no lo modifica:
-// crea una copia de prueba. Así una prueba nunca estropea un dato real.
-function prepararParaGuardar(entidad, registro) {
-  if (!estado.modoPrueba) return registro;
-  if (esDePrueba(registro)) return registro;
-  const eraReal = estado[entidad].some(function (r) {
-    return String(r.id) === String(registro.id) && !esDePrueba(r);
-  });
-  if (!eraReal) return registro;
-  return Object.assign({}, registro, { id: generarIdPrueba(entidad), es_prueba: true });
-}
-
-// ============================================================
-// 4. INDICADOR DE SINCRONIZACIÓN
+// 3. INDICADOR DE SINCRONIZACIÓN
 // ============================================================
 
 const ESTADOS_SYNC = {
   sincronizado: { texto: 'Sincronizado', icono: 'ti-cloud-check', clase: 'ind-verde' },
   guardando:    { texto: 'Guardando',    icono: 'ti-refresh',     clase: 'ind-azul' },
   pendiente:    { texto: 'Pendiente',    icono: 'ti-clock',       clase: 'ind-ambar' },
-  sinconexion:  { texto: 'Sin conexión', icono: 'ti-cloud-off',   clase: 'ind-rojo' }
+  sinconexion:  { texto: 'Sin conexión', icono: 'ti-cloud-off',   clase: 'ind-rojo' },
+  singuardar:   { texto: 'Sin guardar',  icono: 'ti-cloud-x',     clase: 'ind-rojo' }
 };
 
 function indicador(nombre) {
   const el = document.getElementById('indicador-sync');
   if (!el) return;
+
+  // Mientras quede algo sin guardar en la base de datos, el botón de
+  // arriba se queda en rojo pase lo que pase; y mientras haya envíos
+  // en marcha, en "Guardando". Solo vuelve a verde cuando todo está
+  // guardado de verdad.
+  const n = contarSinGuardar();
+  if (nombre === 'sincronizado') {
+    if (n > 0) nombre = 'singuardar';
+    else if (hayEnviosEnCurso()) nombre = 'guardando';
+  }
+
   const info = ESTADOS_SYNC[nombre] || ESTADOS_SYNC.pendiente;
   el.className = 'pastilla ' + info.clase + (nombre === 'guardando' ? ' girando' : '');
   el.title = info.texto;
-  el.innerHTML = '<span>' + info.texto + '</span><i class="ti ' + info.icono + '"></i>';
+  const texto = (nombre === 'singuardar' && n > 0)
+    ? (n === 1 ? '1 sin guardar' : n + ' sin guardar')
+    : info.texto;
+  el.innerHTML = '<span>' + texto + '</span><i class="ti ' + info.icono + '"></i>';
 }
 
 // ============================================================
-// 5. BLOQUEO DE ESCRITURA
+// 4. BLOQUEO DE ESCRITURA
 // ============================================================
 
 function puedeEscribir() {
-  if (!estado.syncReady && !estado.modoPrueba) {
+  if (!estado.syncReady) {
     alert('Todavía no hay conexión con Google Sheets. Espera a que el indicador ponga "Sincronizado" antes de guardar.');
     return false;
   }
@@ -269,17 +293,17 @@ function puedeEscribir() {
 }
 
 // ============================================================
-// 6. COLA DE GUARDADO POR REGISTRO
+// 5. COLA DE GUARDADO POR REGISTRO
 // ============================================================
 // Dos guardados seguidos del MISMO registro se ejecutan en orden, no
-// a la vez. Se aplica a las 8 entidades por igual (decisión M6).
+// a la vez. Se aplica a todas las entidades por igual (decisión M6).
 
 function crearCola() {
-  const pendientes = new Map();
+  const pendientesCola = new Map();
   return function encolar(id, tarea) {
-    const anterior = pendientes.get(id) || Promise.resolve();
+    const anterior = pendientesCola.get(id) || Promise.resolve();
     const actual = anterior.then(tarea, tarea);
-    pendientes.set(id, actual);
+    pendientesCola.set(id, actual);
     return actual;
   };
 }
@@ -288,92 +312,355 @@ const colas = {};
 ENTIDADES.forEach(function (entidad) { colas[entidad] = crearCola(); });
 
 // ============================================================
-// 7. GUARDAR Y BORRAR, CON REVERSIÓN SI FALLA
+// 6. REGISTRO CENTRAL DE PENDIENTES
 // ============================================================
-// Patrón central de la aplicación: la pantalla responde al momento y,
-// si el guardado remoto falla, se deshace todo y se avisa.
+// Todo lo que todavía no está confirmado en Google Sheets se apunta
+// aquí, y se guarda en el dispositivo: si se cierra la app o se recarga
+// la página, los pendientes siguen ahí y su fila sigue en rojo.
+//
+// Se apunta ANTES de enviar, no solo cuando algo falla (23/09/2026).
+// Antes, si la app se cerraba (o se recargaba sola por una versión
+// nueva) con un guardado todavía en camino, ese registro se quedaba en
+// el dispositivo en verde sin haber llegado nunca a Sheets, y
+// desaparecía en la siguiente sincronización. Ahora, si el envío no
+// llega a confirmarse, el registro aparece en rojo al volver a abrir y
+// se reenvía solo al sincronizar.
+//
+// Estructura: { "entidad|id": { entidad, id, accion, registro } }
+//   accion: 'save' (crear/editar) o 'delete' (borrar)
 
-async function guardarRegistro(entidad, registroEntrada, repintar, cerrarModal) {
+const LS_PENDIENTES = 'cuentas_pendientes_v1';
+
+let pendientes = {};
+
+function clavePendiente(entidad, id) {
+  return String(entidad) + '|' + String(id);
+}
+
+function cargarPendientes() {
+  try {
+    const guardado = localStorage.getItem(LS_PENDIENTES);
+    pendientes = guardado ? JSON.parse(guardado) : {};
+  } catch (err) {
+    pendientes = {};
+  }
+}
+
+function guardarPendientes() {
+  try {
+    localStorage.setItem(LS_PENDIENTES, JSON.stringify(pendientes));
+  } catch (err) {
+    console.error('No se pudieron guardar los pendientes:', err);
+  }
+}
+
+function marcarPendiente(entidad, id, accion, registro) {
+  if (!id) return;
+  pendientes[clavePendiente(entidad, id)] = {
+    entidad: entidad,
+    id: id,
+    accion: accion || 'save',
+    registro: registro || null
+  };
+  guardarPendientes();
+}
+
+// Quita el pendiente al confirmarse el envío. Con `soloSiEs`, solo lo
+// quita si sigue siendo ese mismo trabajo: si mientras tanto se guardó
+// una versión más nueva del mismo registro, esa sigue apuntada hasta
+// que se confirme ella también.
+function quitarPendiente(entidad, id, soloSiEs) {
+  if (!id) return;
+  const k = clavePendiente(entidad, id);
+  const p = pendientes[k];
+  if (!p) return;
+  if (soloSiEs !== undefined && p.registro !== soloSiEs) return;
+  delete pendientes[k];
+  guardarPendientes();
+}
+
+function obtenerPendiente(entidad, id) {
+  return pendientes[clavePendiente(entidad, id)] || null;
+}
+
+function listaPendientes() {
+  return Object.keys(pendientes).map(function (k) { return pendientes[k]; });
+}
+
+// Envíos que están en camino ahora mismo (en memoria: al cerrar la app
+// desaparecen, y lo que no se confirmó queda como pendiente en rojo).
+// Se cuentan por registro, porque puede haber dos guardados seguidos
+// del mismo registro en la cola.
+const enviosEnCurso = {};
+
+function empezarEnvio(entidad, id) {
+  const k = clavePendiente(entidad, id);
+  enviosEnCurso[k] = (enviosEnCurso[k] || 0) + 1;
+}
+
+function terminarEnvio(entidad, id) {
+  const k = clavePendiente(entidad, id);
+  if (enviosEnCurso[k] > 1) enviosEnCurso[k]--;
+  else delete enviosEnCurso[k];
+}
+
+function estaEnCurso(entidad, id) {
+  return !!enviosEnCurso[clavePendiente(entidad, id)];
+}
+
+function hayEnviosEnCurso() {
+  return Object.keys(enviosEnCurso).length > 0;
+}
+
+// Lo que está sin guardar y NO está en camino: lo que de verdad falló.
+function pendientesSinGuardar() {
+  return listaPendientes().filter(function (p) { return !estaEnCurso(p.entidad, p.id); });
+}
+
+function contarSinGuardar() {
+  return pendientesSinGuardar().length;
+}
+
+// Estado de sincronización de un registro concreto, para el punto de
+// color de su fila. Es la única fuente: todos los módulos preguntan
+// aquí en vez de llevar su propia lista.
+//   'ok' verde | 'guardando' ámbar | 'error' rojo
+function estadoSyncDe(entidad, registro) {
+  if (!registro) return 'ok';
+  if (estaEnCurso(entidad, registro.id)) return 'guardando';
+  if (pendientes[clavePendiente(entidad, registro.id)]) return 'error';
+  return 'ok';
+}
+
+// ============================================================
+// 7. GUARDAR Y BORRAR
+// ============================================================
+// Patrón central de la aplicación: la pantalla responde al momento, y
+// el envío a Google Sheets sigue en segundo plano. Si falla, el cambio
+// NO se deshace: se queda en el dispositivo, en rojo, y se reenvía al
+// sincronizar o con "Reintentar guardado" (decisión 15/09/2026).
+
+async function guardarRegistro(entidad, registro, repintar, cerrarModal) {
   if (!puedeEscribir()) return { status: 'error', message: 'Escritura bloqueada' };
 
-  const registro = prepararParaGuardar(entidad, registroEntrada);
-  const copiaSeguridad = estado[entidad].slice();
+  // Contacto nuevo: su número (id) lo pone Google, así que no se puede
+  // apuntar como pendiente hasta tenerlo. Va por un camino aparte.
+  if (!registro.id) return guardarRegistroNuevoSinId(entidad, registro, repintar, cerrarModal);
 
-  const i = estado[entidad].findIndex(function (r) { return String(r.id) === String(registro.id); });
+  const id = registro.id;
+  const i = estado[entidad].findIndex(function (r) { return String(r.id) === String(id); });
   if (i >= 0) estado[entidad][i] = registro; else estado[entidad].push(registro);
-
   guardarEntidadLocal(entidad);
+
+  marcarPendiente(entidad, id, 'save', registro);
+  empezarEnvio(entidad, id);
+  indicador('guardando');
   if (repintar) repintar();
   if (cerrarModal) cerrarModal();
 
-  // En modo prueba no se toca Google Sheets en absoluto.
-  if (estado.modoPrueba && esDePrueba(registro)) {
-    return { status: 'success', soloLocal: true, data: registro };
-  }
-
   try {
-    indicador('guardando');
-    const resultado = await colas[entidad](registro.id, function () {
+    const resultado = await colas[entidad](id, function () {
       return llamarBackend({ action: 'save', sheet: entidad, data: registro });
     });
     if (resultado.status !== 'success') throw new Error(resultado.message || 'Fallo al guardar');
 
-    // Si el backend completó algún dato (por ejemplo el id numérico de
-    // un cliente nuevo), se refleja aquí.
-    if (resultado.data) {
-      const j = estado[entidad].indexOf(registro);
-      if (j >= 0) estado[entidad][j] = resultado.data;
-      guardarEntidadLocal(entidad);
-      if (repintar) repintar();
-    }
-
+    terminarEnvio(entidad, id);
+    quitarPendiente(entidad, id, registro);
+    if (repintar) repintar();
     indicador('sincronizado');
     return resultado;
 
   } catch (err) {
-    console.error('Fallo al guardar, deshaciendo:', err);
-    estado[entidad] = copiaSeguridad;
+    // Se queda apuntado como pendiente (ya lo estaba desde antes de
+    // enviar), con su fila en rojo.
+    console.error('Fallo al guardar, queda pendiente:', err);
+    terminarEnvio(entidad, id);
+    if (repintar) repintar();
+    indicador('singuardar');
+    avisarFalloGuardado(nombreLegible(entidad, registro), false);
+    return { status: 'error', message: String(err), pendiente: true };
+  }
+}
+
+// Contacto nuevo (23/09/2026). Hasta que Google no le da su número, el
+// contacto no existe de verdad, así que aquí SÍ se espera a la
+// respuesta: la ventana no se cierra hasta que se confirma. Si falla,
+// no se deja en la lista una ficha "fantasma" sin número (antes salía
+// en verde y se perdía en la siguiente sincronización): la ventana
+// sigue abierta con lo escrito, para volver a intentarlo.
+async function guardarRegistroNuevoSinId(entidad, registro, repintar, cerrarModal) {
+  indicador('guardando');
+  try {
+    const resultado = await llamarBackend({ action: 'save', sheet: entidad, data: registro });
+    if (resultado.status !== 'success' || !resultado.data || !resultado.data.id) {
+      throw new Error(resultado.message || 'Fallo al guardar');
+    }
+    estado[entidad].push(resultado.data);
     guardarEntidadLocal(entidad);
     if (repintar) repintar();
+    if (cerrarModal) cerrarModal();
+    indicador('sincronizado');
+    return resultado;
+  } catch (err) {
+    console.error('No se pudo crear el registro nuevo:', err);
     indicador('sinconexion');
-    alert('No se pudo guardar en Google Sheets. El cambio se ha deshecho. Inténtalo otra vez cuando haya conexión.');
-    return { status: 'error', message: String(err) };
+    return { status: 'error', message: String(err), noCreado: true };
   }
 }
 
 async function borrarRegistro(entidad, id, repintar, cerrarModal) {
   if (!puedeEscribir()) return { status: 'error', message: 'Escritura bloqueada' };
 
-  const copiaSeguridad = estado[entidad].slice();
   const registro = estado[entidad].find(function (r) { return String(r.id) === String(id); });
+  const copiaRegistro = registro ? Object.assign({}, registro) : null;
 
   estado[entidad] = estado[entidad].filter(function (r) { return String(r.id) !== String(id); });
   guardarEntidadLocal(entidad);
+
+  marcarPendiente(entidad, id, 'delete', copiaRegistro);
+  empezarEnvio(entidad, id);
+  indicador('guardando');
   if (repintar) repintar();
   if (cerrarModal) cerrarModal();
 
-  if (estado.modoPrueba && esDePrueba(registro)) {
-    return { status: 'success', soloLocal: true };
-  }
-
   try {
-    indicador('guardando');
     const resultado = await colas[entidad](id, function () {
       return llamarBackend({ action: 'delete', sheet: entidad, data: { id: id } });
     });
     if (resultado.status !== 'success') throw new Error(resultado.message || 'Fallo al borrar');
+
+    terminarEnvio(entidad, id);
+    quitarPendiente(entidad, id, copiaRegistro);
+    // Por si una sincronización lo volvió a traer mientras se borraba.
+    estado[entidad] = estado[entidad].filter(function (r) { return String(r.id) !== String(id); });
+    guardarEntidadLocal(entidad);
+    if (repintar) repintar();
     indicador('sincronizado');
     return resultado;
 
   } catch (err) {
-    console.error('Fallo al borrar, deshaciendo:', err);
-    estado[entidad] = copiaSeguridad;
-    guardarEntidadLocal(entidad);
+    // El borrado falló: el registro REAPARECE en la lista, en rojo,
+    // hasta que se confirme el borrado en Sheets (decisión 15/09/2026).
+    console.error('Fallo al borrar, queda pendiente:', err);
+    terminarEnvio(entidad, id);
+    if (copiaRegistro) {
+      const existe = estado[entidad].some(function (r) { return String(r.id) === String(id); });
+      if (!existe) estado[entidad].push(copiaRegistro);
+      guardarEntidadLocal(entidad);
+    }
     if (repintar) repintar();
-    indicador('sinconexion');
-    alert('No se pudo borrar en Google Sheets. El cambio se ha deshecho. Inténtalo otra vez cuando haya conexión.');
-    return { status: 'error', message: String(err) };
+    indicador('singuardar');
+    avisarFalloGuardado(nombreLegible(entidad, copiaRegistro), true);
+    return { status: 'error', message: String(err), pendiente: true };
   }
+}
+
+// "Reintentar guardado" del menú de tres puntos de una fila en rojo:
+// vuelve a enviar lo que quedó pendiente de ese registro.
+function reintentarRegistro(entidad, id, repintar) {
+  const p = obtenerPendiente(entidad, id);
+  if (!p) return Promise.resolve(null);
+  if (p.accion === 'delete') return borrarRegistro(entidad, id, repintar, null);
+  if (!p.registro) return Promise.resolve(null);
+  return guardarRegistro(entidad, p.registro, repintar, null);
+}
+
+// ------------------------------------------------------------
+// Nombre corto y reconocible de un registro, para los avisos.
+// ------------------------------------------------------------
+function nombreLegible(entidad, registro) {
+  if (!registro) return 'el elemento';
+  const r = registro;
+  const texto = r.nombre_contacto || r.numero || r.concepto || r.descripcion || r.nombre || '';
+  const etiquetas = {
+    clientes: 'el contacto',
+    presupuestos: 'el presupuesto',
+    presupuestos_detalle: 'el desglose del presupuesto',
+    ventas: 'la factura',
+    compras: 'la factura de compra',
+    apuntes: 'el apunte',
+    impuestos: 'el impuesto'
+  };
+  const base = etiquetas[entidad] || 'el elemento';
+  return texto ? base + ' «' + texto + '»' : base;
+}
+
+// ------------------------------------------------------------
+// Aviso de que algo no se pudo guardar, con opción de reintentar
+// ahora mismo o dejarlo para más tarde (decisión 15/09/2026).
+// ------------------------------------------------------------
+let avisoFalloAbierto = false;
+
+function avisarFalloGuardado(nombre, esBorrado) {
+  // Si varios guardados fallan seguidos (por ejemplo al perder la
+  // conexión), se avisa una sola vez en vez de apilar ventanas. El
+  // resto queda igualmente en rojo en su fila.
+  if (avisoFalloAbierto) return;
+  avisoFalloAbierto = true;
+
+  const accion = esBorrado ? 'borrar' : 'guardar';
+  mostrarDialogoOpciones(
+    'No se pudo ' + accion,
+    'No se ha podido ' + accion + ' ' + nombre + ' en la base de datos. El cambio sigue en este dispositivo y aparece en rojo en la lista. Puedes reintentarlo ahora o más tarde con el botón de sincronizar.',
+    [
+      { id: 'sincronizar', texto: 'Sincronizar', tipo: 'principal' },
+      { id: 'cerrar', texto: 'Cerrar' }
+    ]
+  ).then(function (eleccion) {
+    avisoFalloAbierto = false;
+    if (eleccion === 'sincronizar') sincronizar();
+  });
+}
+
+// ------------------------------------------------------------
+// Reenvía TODOS los pendientes que no estén ya en camino. Unos pueden
+// guardarse y otros fallar; al final solo se avisa de los que han
+// fallado (decisión 15/09/2026).
+// ------------------------------------------------------------
+async function reintentarPendientes() {
+  const lista = pendientesSinGuardar();
+  if (lista.length === 0) return { fallidos: [], logrados: 0 };
+
+  const fallidos = [];
+  let logrados = 0;
+
+  lista.forEach(function (p) { empezarEnvio(p.entidad, p.id); });
+  ejecutarPintadores();
+  pintarVistaActiva();
+
+  for (let i = 0; i < lista.length; i++) {
+    const p = lista[i];
+    try {
+      if (!colas[p.entidad]) throw new Error('Tipo de dato desconocido: ' + p.entidad);
+      const cuerpo = (p.accion === 'delete')
+        ? { action: 'delete', sheet: p.entidad, data: { id: p.id } }
+        : { action: 'save', sheet: p.entidad, data: p.registro };
+
+      const resultado = await colas[p.entidad](p.id, function () { return llamarBackend(cuerpo); });
+      if (resultado.status !== 'success') throw new Error(resultado.message || 'Fallo');
+
+      // Si era un borrado y ahora sí se ha borrado en Sheets, se
+      // quita también del dispositivo (había reaparecido en rojo).
+      if (p.accion === 'delete') {
+        estado[p.entidad] = estado[p.entidad].filter(function (r) { return String(r.id) !== String(p.id); });
+        guardarEntidadLocal(p.entidad);
+      }
+
+      terminarEnvio(p.entidad, p.id);
+      quitarPendiente(p.entidad, p.id, p.registro);
+      logrados++;
+
+    } catch (err) {
+      console.error('Sigue sin poder guardarse:', p.entidad, p.id, err);
+      terminarEnvio(p.entidad, p.id);
+      fallidos.push(nombreLegible(p.entidad, p.registro));
+    }
+  }
+
+  ejecutarPintadores();
+  pintarVistaActiva();
+
+  return { fallidos: fallidos, logrados: logrados };
 }
 
 // ============================================================
@@ -591,6 +878,61 @@ function abrirSelectorContacto(contactos, idActual, opciones) {
 // ============================================================
 // 8. SINCRONIZACIÓN
 // ============================================================
+// UNA SOLA petición al backend por sincronización. La app manda las
+// marcas que ella tiene y recibe de vuelta las marcas actuales junto
+// con los datos de las hojas que hayan cambiado; si no ha cambiado
+// nada, no viene ningún dato.
+//
+// Por qué una sola petición (corrección del 20/09/2026): cada llamada
+// a Apps Script cuesta varios segundos SOLO por hacerla, traiga mucho
+// o nada. El diseño anterior hacía dos llamadas (preguntar qué cambió,
+// y luego pedirlo), así que en el caso normal —que algo haya
+// cambiado— salía más lento que traerlo todo de golpe como se hacía
+// antes, y encima duplicaba las probabilidades de toparse con un
+// fallo puntual de Google. Ahora es un solo viaje, con muchos menos
+// datos dentro.
+
+const LS_MARCAS = 'cuentas_marcas_v1';
+
+function leerMarcasLocales() {
+  try {
+    const guardado = localStorage.getItem(LS_MARCAS);
+    return guardado ? JSON.parse(guardado) : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function guardarMarcasLocales(marcas) {
+  try {
+    localStorage.setItem(LS_MARCAS, JSON.stringify(marcas));
+  } catch (err) {
+    console.error('No se pudieron guardar las marcas:', err);
+  }
+}
+
+// Vuelve a poner encima de los datos recién traídos del servidor todo
+// lo que sigue pendiente de guardar en este dispositivo (incluido lo que
+// está en camino en ese momento), para que una sincronización nunca
+// borre ni deshaga trabajo sin confirmar.
+function reaplicarPendientes() {
+  listaPendientes().forEach(function (p) {
+    if (!estado[p.entidad]) return;
+    if (p.accion === 'delete') {
+      // Un borrado en camino no se enseña aunque el servidor todavía lo
+      // tenga. Un borrado que falló deja el registro visible (en rojo)
+      // hasta que se confirme: si el servidor lo devuelve, se queda.
+      if (estaEnCurso(p.entidad, p.id)) {
+        estado[p.entidad] = estado[p.entidad].filter(function (r) { return String(r.id) !== String(p.id); });
+      }
+      return;
+    }
+    if (!p.registro) return;
+    const i = estado[p.entidad].findIndex(function (r) { return String(r.id) === String(p.id); });
+    if (i >= 0) estado[p.entidad][i] = p.registro;
+    else estado[p.entidad].push(p.registro);
+  });
+}
 
 function configDesdeFilas(filas) {
   const obj = {};
@@ -598,18 +940,82 @@ function configDesdeFilas(filas) {
   return obj;
 }
 
-async function sincronizar() {
+// Solo una sincronización a la vez (23/09/2026). Antes, tocar el
+// indicador mientras ya se sincronizaba lanzaba otra encima: las dos
+// competían, repetían los mismos guardados y todo iba más lento. Si ya
+// hay una en marcha, se espera a esa en vez de empezar otra.
+let sincronizacionEnCurso = null;
+
+function sincronizar() {
+  if (sincronizacionEnCurso) return sincronizacionEnCurso;
+  sincronizacionEnCurso = sincronizarAhora().finally(function () {
+    sincronizacionEnCurso = null;
+  });
+  return sincronizacionEnCurso;
+}
+
+async function sincronizarAhora() {
   try {
     indicador('guardando');
-    const respuesta = await llamarBackend({ action: 'load' });
-    if (respuesta.status !== 'success') throw new Error(respuesta.message || 'Fallo al cargar');
 
-    const datos = respuesta.datos;
-    estado.configuracion = configDesdeFilas(datos.configuracion);
-    ENTIDADES.forEach(function (entidad) { estado[entidad] = datos[entidad] || []; });
+    // 0) Antes de traer nada, se reenvía lo que quedó sin guardar.
+    //    Se mandan todos de golpe; unos pueden lograrse y otros no,
+    //    y solo se avisa de los que han fallado (decisión 15/09/2026).
+    if (contarSinGuardar() > 0) {
+      const res = await reintentarPendientes();
+      if (res.fallidos.length > 0) {
+        alert('No se han podido guardar: ' + res.fallidos.join(', ') + '. Siguen marcados en rojo en la lista.');
+      } else if (res.logrados > 0) {
+        alert(res.logrados === 1
+          ? 'Guardado correctamente lo que quedaba pendiente.'
+          : 'Guardados correctamente los ' + res.logrados + ' cambios que quedaban pendientes.');
+      }
+    }
+
+    // 1) Un solo viaje: se mandan las marcas que tiene el dispositivo
+    //    y vuelven las marcas actuales más los datos de lo que haya
+    //    cambiado. Si el dispositivo no tiene marcas todavía (primera
+    //    vez), el backend devuelve todas las hojas.
+    const respuesta = await llamarBackend({ action: 'sync', marcas: leerMarcasLocales() });
+    if (respuesta.status !== 'success') throw new Error(respuesta.message || 'Fallo al sincronizar');
+
+    const marcasServidor = respuesta.marcas || {};
+    const datos = respuesta.datos || {};
+    const cambiadas = Object.keys(datos);
+
+    // Si no ha cambiado nada, no hay datos que aplicar. Aun así hay
+    // que dejar la conexión como confirmada (syncReady), o la app se
+    // quedaría bloqueada sin poder guardar nada aunque la
+    // sincronización haya ido bien.
+    if (cambiadas.length === 0) {
+      guardarMarcasLocales(marcasServidor);
+      estado.syncReady = true;
+      await ejecutarReconciliadores();
+      indicador('sincronizado');
+      pintarVistaActiva();
+      ejecutarPintadores();
+      return;
+    }
+
+    if (datos.configuracion !== undefined) {
+      estado.configuracion = configDesdeFilas(datos.configuracion);
+    }
+    ENTIDADES.forEach(function (entidad) {
+      if (datos[entidad] !== undefined) estado[entidad] = datos[entidad];
+    });
+
+    // Lo que vino del servidor NO puede pisar lo que aún está sin
+    // guardar en este dispositivo: se vuelve a poner encima. Sin esto,
+    // sincronizar borraría el trabajo pendiente (15/09/2026).
+    reaplicarPendientes();
 
     guardarTodoLocal();
-    fusionarDatosDePrueba();
+
+    // Solo se actualizan las marcas guardadas en el dispositivo
+    // DESPUÉS de que los datos se hayan guardado bien en local (arriba).
+    // Así, si algo falla a mitad de camino, la próxima sincronización
+    // lo volverá a intentar en vez de darlo por hecho.
+    guardarMarcasLocales(marcasServidor);
 
     // La conexión se da por buena AQUÍ, antes de los reconciliadores,
     // no después. Los reconciliadores reparan datos escribiendo en
@@ -784,11 +1190,14 @@ function mostrarPantallaAcceso(mensaje) {
   error.textContent = mensaje || '';
   const campo = document.getElementById('campo-clave');
   campo.value = '';
+  const campoPin = document.getElementById('campo-pin');
+  if (campoPin) campoPin.value = '';
   setTimeout(function () { campo.focus(); }, 50);
 }
 
 function cerrarSesion(mensaje) {
   localStorage.removeItem(LS_CLAVE);
+  localStorage.removeItem(LS_TOKEN);
   estado.syncReady = false;
   mostrarPantallaAcceso(mensaje);
 }
@@ -798,14 +1207,32 @@ function entrarEnLaApp() {
   document.getElementById('app').hidden = false;
 }
 
-async function comprobarClave(clave) {
-  const respuesta = await fetch(API_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ clave: clave, action: 'ping' })
-  });
-  const resultado = await respuesta.json();
-  return resultado.status === 'success';
+// Hay sesión abierta si están las DOS cosas: la clave y el código de
+// sesión que devolvió el backend al entrar con el PIN.
+function haySesion() {
+  return !!obtenerClave() && !!obtenerToken();
+}
+
+/**
+ * Entrar: se mandan clave y PIN juntos. Si los dos son correctos, el
+ * backend devuelve el código de sesión que este dispositivo guardará.
+ * El PIN no se guarda en ningún sitio.
+ */
+async function iniciarSesion(clave, pin) {
+  const control = new AbortController();
+  const temporizador = setTimeout(function () { control.abort(); }, ESPERA_MAXIMA_MS);
+  try {
+    const respuesta = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ clave: clave, pin: pin, action: 'login' }),
+      signal: control.signal
+    });
+    if (!respuesta.ok) throw new Error('El servidor respondió con un error.');
+    return await respuesta.json();
+  } finally {
+    clearTimeout(temporizador);
+  }
 }
 
 function prepararFormularioAcceso() {
@@ -816,17 +1243,31 @@ function prepararFormularioAcceso() {
   form.addEventListener('submit', async function (ev) {
     ev.preventDefault();
     const clave = document.getElementById('campo-clave').value.trim();
-    if (!clave) return;
+    const campoPin = document.getElementById('campo-pin');
+    const pin = campoPin ? campoPin.value.trim() : '';
+    if (!clave || !pin) {
+      error.textContent = 'Escribe la clave y el PIN.';
+      error.hidden = false;
+      return;
+    }
 
     boton.disabled = true;
     boton.textContent = 'Comprobando...';
     error.hidden = true;
 
     try {
-      if (await comprobarClave(clave)) {
+      const r = await iniciarSesion(clave, pin);
+      if (r.status === 'success' && r.token) {
         localStorage.setItem(LS_CLAVE, clave);
+        localStorage.setItem(LS_TOKEN, r.token);
         entrarEnLaApp();
         await arrancarAplicacion();
+      } else if (r.code === 'pin' || r.code === 'bloqueado') {
+        error.textContent = r.message || 'PIN incorrecto.';
+        error.hidden = false;
+      } else if (r.code === 'sinpin') {
+        error.textContent = 'Falta configurar el PIN en Apps Script (línea PIN_ACCESO de Código.gs).';
+        error.hidden = false;
       } else {
         error.textContent = 'Clave incorrecta.';
         error.hidden = false;
@@ -842,23 +1283,102 @@ function prepararFormularioAcceso() {
 }
 
 // ============================================================
+// 13.1 PIN PARA ACCIONES DELICADAS
+// ============================================================
+// Borrar cosas, deshacer un cobro o tocar la configuración piden el
+// PIN cada vez, elemento por elemento (decisión 15/09/2026). Lo
+// comprueba Google, no la app: el PIN no está guardado en el
+// dispositivo ni escrito en ningún archivo público.
+
+function pedirPin(queSeVaAHacer) {
+  return new Promise(function (resolve) {
+    const fondo = document.createElement('div');
+    fondo.className = 'dialogo-fondo';
+    fondo.innerHTML =
+      '<div class="dialogo-caja">' +
+        '<p class="dialogo-titulo">Confirma con tu PIN</p>' +
+        '<p class="dialogo-mensaje">' + escaparHtml(queSeVaAHacer) + '</p>' +
+        '<input type="password" class="campo campo-pin-dialogo" id="dialogo-campo-pin" ' +
+          'inputmode="numeric" autocomplete="off" aria-label="PIN">' +
+        '<p class="dialogo-error" id="dialogo-pin-error" hidden></p>' +
+        '<div class="dialogo-botones">' +
+          '<button type="button" class="boton-principal" data-id="aceptar">Confirmar</button>' +
+          '<button type="button" class="boton-secundario" data-id="cancelar">Cancelar</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(fondo);
+
+    const campo = fondo.querySelector('#dialogo-campo-pin');
+    const aviso = fondo.querySelector('#dialogo-pin-error');
+    const btnOk = fondo.querySelector('[data-id="aceptar"]');
+
+    function cerrar(valor) { fondo.remove(); resolve(valor); }
+
+    function aceptar() {
+      const valor = campo.value.trim();
+      if (!valor) {
+        aviso.textContent = 'Escribe el PIN.';
+        aviso.hidden = false;
+        campo.focus();
+        return;
+      }
+      cerrar(valor);
+    }
+
+    // El formulario NO se cierra al tocar fuera: hay algo que
+    // confirmar dentro. Solo con Cancelar (patrón de la guía).
+    fondo.querySelector('[data-id="cancelar"]').addEventListener('click', function () { cerrar(null); });
+    btnOk.addEventListener('click', aceptar);
+    campo.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); aceptar(); }
+    });
+
+    setTimeout(function () { campo.focus(); }, 50);
+  });
+}
+
+/**
+ * Pide el PIN y lo comprueba contra Google. Devuelve true solo si es
+ * correcto. Si se cancela, si falla o si no hay conexión, devuelve
+ * false y NO se ha tocado nada.
+ */
+async function confirmarConPin(queSeVaAHacer) {
+  const pin = await pedirPin(queSeVaAHacer);
+  if (pin === null) return false;       // cancelado
+
+  const fondo = document.createElement('div');
+  fondo.className = 'dialogo-fondo';
+  fondo.innerHTML = '<div class="dialogo-caja"><p class="dialogo-mensaje">Comprobando el PIN...</p></div>';
+  document.body.appendChild(fondo);
+
+  try {
+    const r = await llamarBackend({ action: 'comprobar_pin', pin: pin });
+    fondo.remove();
+    if (r.status === 'success') return true;
+    alert((r.message || 'PIN incorrecto.') + '\n\nNo se ha hecho ningún cambio.');
+    return false;
+  } catch (err) {
+    fondo.remove();
+    console.error('No se pudo comprobar el PIN:', err);
+    alert('No se ha podido comprobar el PIN. No se ha hecho ningún cambio.');
+    return false;
+  }
+}
+
+// ============================================================
 // 14. ARRANQUE
 // ============================================================
 // Primero se pinta con lo último guardado en el dispositivo, para que
 // la app abra al instante. Después se sincroniza y se repinta.
 
 async function arrancarAplicacion() {
-  estado.modoPrueba = localStorage.getItem(LS_MODO_PRUEBA) === '1';
-  pintarBandaPrueba();
-
+  limpiarClavesAntiguas();
   cargarTodoLocal();
-  fusionarDatosDePrueba();
+  cargarPendientes();
 
   // La app abre SIEMPRE en el Dashboard, no en la última pantalla que
   // se estuviera mirando (decisión del propietario, 06/09/2026): es la
-  // pantalla de resumen y quiere verla cada vez que entra. La última
-  // vista se sigue guardando en `LS_VISTA_ACTIVA` para que el resto de
-  // la app pueda consultarla, simplemente no se usa para arrancar.
+  // pantalla de resumen y quiere verla cada vez que entra.
   vistaActiva = VISTA_INICIAL;
   pintarVistaActiva();
   ejecutarPintadores();
@@ -873,16 +1393,30 @@ window.addEventListener('DOMContentLoaded', function () {
   const indicadorEl = document.getElementById('indicador-sync');
   if (indicadorEl) indicadorEl.addEventListener('click', sincronizar);
 
-  if (obtenerClave()) {
+  if (haySesion()) {
     entrarEnLaApp();
     arrancarAplicacion();
   } else {
     mostrarPantallaAcceso();
   }
 
+  // Versión nueva de la app (22/09/2026): cuando se sube una versión y
+  // el service worker nuevo toma el control, la página se recarga sola
+  // UNA vez para usar ya el código nuevo. Antes había que cerrar y
+  // abrir la app varias veces, o borrar los datos del sitio. La primera
+  // instalación (sin versión anterior) no recarga nada.
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(function (err) {
-      console.error('No se pudo registrar el service worker:', err);
+    const habiaVersionAnterior = !!navigator.serviceWorker.controller;
+    let recargando = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!habiaVersionAnterior || recargando) return;
+      recargando = true;
+      window.location.reload();
     });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then(function (reg) { reg.update().catch(function () { /* sin conexión */ }); })
+      .catch(function (err) {
+        console.error('No se pudo registrar el service worker:', err);
+      });
   }
 });

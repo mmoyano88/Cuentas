@@ -205,7 +205,6 @@
 }
 
 /* ---- Acciones (fila) ---- */
-.ct-acciones { position: relative; display: flex; align-items: center; gap: 4px; }
 .ct-btn-icono {
   width: 32px;
   height: 32px;
@@ -272,7 +271,6 @@
 .ct-punto.ok        { background: #3E9E4E; }
 .ct-punto.guardando { background: #E0A32E; }
 .ct-punto.error     { background: var(--rojo); }
-.ct-punto.prueba    { background: #B8B6AC; }
 
 /* ---- Modales (misma capa 40 que el resto de la app) ---- */
 .ct-modal-fondo {

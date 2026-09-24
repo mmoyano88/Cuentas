@@ -38,6 +38,10 @@
       <input type="password" id="campo-clave" name="password"
              autocomplete="current-password" class="campo" required>
 
+      <label class="etiqueta" for="campo-pin">PIN</label>
+      <input type="password" id="campo-pin" name="pin"
+             inputmode="numeric" autocomplete="off" class="campo" required>
+
       <p id="error-acceso" class="error-acceso" hidden></p>
 
       <button type="submit" id="boton-entrar" class="boton-principal">Entrar</button>
@@ -56,8 +60,6 @@
             <span>Conectando</span><i class="ti ti-clock"></i>
           </button>
         </header>
-
-        <div id="banda-prueba" class="banda-prueba" hidden>MODO PRUEBA</div>
 
         <main id="contenido">
           <!-- Cada módulo (Clientes, Presupuestos, Facturas...) insertará

@@ -51,34 +51,21 @@ let preCalc = Object.assign({}, PRE_CALC_VACIA);
 // M2): cuando existan varias, este valor vendrá de la serie elegida.
 const PRE_PREFIJO_SERIE = 'P';
 
-// Estado de sincronizacion de cada presupuesto, para el punto de color
-// de la lista. Solo se apunta lo que NO esta ya guardado: si un id no
-// aparece aqui, es que esta guardado en la base de datos (verde).
-//   'guardando' -> ambar   |   'error' -> rojo
-// Este patron se reutilizara en Facturas, Apuntes, etc.
-const preSyncEstados = {};
-
-// Trabajos que no llegaron a guardarse, por si hay que reintentarlos.
-const prePendientes = {};
-
-function preMarcarSync(id, valor) {
-  if (!id) return;
-  if (valor) preSyncEstados[String(id)] = valor;
-  else delete preSyncEstados[String(id)];
-}
-
+// Punto de color de cada fila: lo decide el núcleo (estadoSyncDe). Un
+// presupuesto hecho con la calculadora tiene además su desglose en otra
+// hoja: si el presupuesto está guardado pero su desglose no, la fila
+// enseña el estado del desglose, para que no parezca todo guardado.
 function preEstadoSync(p) {
-  const marcado = preSyncEstados[String(p.id)];
-  if (marcado) return marcado;
-  if (esDePrueba(p)) return 'prueba';
-  return 'ok';
+  const propio = estadoSyncDe('presupuestos', p);
+  if (propio !== 'ok') return propio;
+  const d = preDetalleDe(p.id);
+  return d ? estadoSyncDe('presupuestos_detalle', d) : 'ok';
 }
 
 const PRE_PUNTOS = {
   ok:        { clase: 'ok',        titulo: 'Guardado en la base de datos' },
   guardando: { clase: 'guardando', titulo: 'Guardando...' },
-  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Mas opciones" y reintenta.' },
-  prueba:    { clase: 'prueba',    titulo: 'Solo en este dispositivo (modo prueba)' }
+  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Más opciones" y reintenta.' }
 };
 
 function prePuntoEstado(p) {
@@ -194,20 +181,11 @@ function preTarifas() {
 // 2. UTILIDADES DEL MÓDULO
 // ============================================================
 
-function preIniciales(texto) {
-  const limpio = String(texto || '').trim();
-  if (!limpio) return '?';
-  const partes = limpio.split(/\s+/);
-  return (partes[0][0] + (partes[1] ? partes[1][0] : '')).toUpperCase();
-}
-
 function preNuevoId(prefijo) {
-  if (estado.modoPrueba) return generarIdPrueba(prefijo);
   return prefijo + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
 }
 
-// Numeración P{AÑO}/{0000} (mapa 8.1). Los presupuestos de prueba
-// también cuentan, tal como hacía la app original.
+// Numeración P{AÑO}/{0000} (mapa 8.1).
 function preSiguienteNumero() {
   const anio = new Date().getFullYear();
   const patron = new RegExp('^' + PRE_PREFIJO_SERIE + anio + '\\/(\\d{4})$');
@@ -250,7 +228,6 @@ function preClientesDisponibles() {
   return estado.clientes.filter(function (c) {
     if (c.estado !== 'activo') return false;
     if (c.rol !== 'cliente' && c.rol !== 'ambos') return false;
-    if (!estado.modoPrueba && esDePrueba(c)) return false;
     return true;
   }).sort(function (a, b) {
     return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
@@ -541,7 +518,7 @@ function preRepintarLista() {
   contenedor.innerHTML =
     '<div class="pre-lista-movil">' + lista.map(preRenderFilaMovil).join('') + '</div>' +
     '<div class="pre-tabla-wrap"><table class="pre-tabla"><thead><tr>' +
-      '<th>Fecha</th><th>Número</th><th>Cliente</th><th>Concepto</th>' +
+      '<th></th><th>Fecha</th><th>Número</th><th>Cliente</th><th>Concepto</th>' +
       '<th class="pre-celda-derecha">Base</th><th class="pre-celda-derecha">Total</th><th></th>' +
     '</tr></thead><tbody>' + lista.map(preRenderFilaTabla).join('') + '</tbody></table></div>';
 
@@ -571,6 +548,7 @@ function preRenderFilaMovil(p) {
 
 function preRenderFilaTabla(p) {
   return '<tr class="pre-fila-tabla" data-id="' + escaparHtml(p.id) + '">' +
+    '<td class="pre-celda-icono">' + htmlIconoContacto((preClienteDe(p) || {}).icono, 32) + '</td>' +
     '<td>' + escaparHtml(mostrarFecha(p.fecha)) + '</td>' +
     '<td class="pre-celda-numero">' + escaparHtml(p.numero || '—') + '</td>' +
     '<td>' + escaparHtml(p.cliente || '—') + '</td>' +
@@ -628,7 +606,7 @@ function preAbrirEdicion(id) {
 
   if (preBloqueado(p)) {
     alert(String(p.estado) === 'aceptado'
-      ? 'Un presupuesto aceptado no se puede editar. Utiliza "Duplicar presupuesto" para crear una nueva versión.'
+      ? 'Un presupuesto aceptado no se puede editar. Para cambiarlo, usa "Cambiar estado" → "Volver a pendiente" (pide el PIN), o "Duplicar presupuesto" para crear una versión nueva.'
       : 'Este presupuesto tiene una factura asociada y no se puede editar.');
     return;
   }
@@ -675,10 +653,6 @@ function preAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); pdfDocAbrirPresupuesto(id); });
   menu.querySelector('[data-accion="factura"]')?.addEventListener('click', function () {
     cerrarMenu();
-    if (typeof convertirPresupuestoEnFactura !== 'function') {
-      preBotonDePrueba('Convertir en factura');
-      return;
-    }
     convertirPresupuestoEnFactura(id);
   });
   menu.querySelector('[data-accion="eliminar"]')?.addEventListener('click', function () { cerrarMenu(); preEliminar(id); });
@@ -696,11 +670,6 @@ function prePosicionarMenu(menu, boton) {
   menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + 'px';
 }
 
-// Botones de interfaz que todavía no tienen función asignada.
-function preBotonDePrueba(nombre) {
-  alert('Botón de prueba: "' + nombre + '" todavía no tiene función. Se conectará cuando se construya su módulo.');
-}
-
 async function preCambiarEstado(id) {
   const p = estado.presupuestos.find(function (x) { return String(x.id) === String(id); });
   if (!p) return;
@@ -709,8 +678,21 @@ async function preCambiarEstado(id) {
     alert('Este presupuesto ya tiene una factura asociada. No se puede cambiar de estado.');
     return;
   }
+  // Aceptado y sin factura: solo se ofrece volver a pendiente, y es una
+  // acción delicada, así que pide el PIN (decisión 22/09/2026). Así se
+  // puede corregir el MISMO presupuesto sin tener que duplicarlo.
   if (String(p.estado) === 'aceptado') {
-    alert('Un presupuesto aceptado no se puede editar ni cambiar de estado. Utiliza "Duplicar presupuesto" para crear una nueva versión.');
+    const vuelta = await mostrarDialogoOpciones(
+      'Presupuesto aceptado',
+      'Presupuesto ' + (p.numero || '') + ' — ' + (p.cliente || '') + '. Si vuelve a pendiente, se podrá editar y cambiar de estado otra vez.',
+      [
+        { id: 'pendiente', texto: 'Volver a pendiente', tipo: 'principal' },
+        { id: 'cancelar', texto: 'Cancelar' }
+      ]
+    );
+    if (vuelta !== 'pendiente') return;
+    if (!await confirmarConPin('Vas a devolver a PENDIENTE el presupuesto aceptado ' + (p.numero || '') + '.')) return;
+    await guardarRegistro('presupuestos', Object.assign({}, p, { estado: 'pendiente' }), preRepintarLista, null);
     return;
   }
 
@@ -727,9 +709,8 @@ async function preCambiarEstado(id) {
 
   if (!eleccion || eleccion === 'cancelar' || eleccion === p.estado) return;
 
-  if (eleccion === 'aceptado') {
-    if (!confirm('Al marcar el presupuesto como aceptado ya no se podrá editar ni cambiar de estado. ¿Continuar?')) return;
-  }
+  // Ya no se avisa de que aceptar es definitivo (23/09/2026): desde el
+  // 22/09 un presupuesto aceptado puede volver a pendiente con el PIN.
 
   await guardarRegistro('presupuestos', Object.assign({}, p, { estado: eleccion }), preRepintarLista, null);
 }
@@ -748,18 +729,15 @@ async function preDuplicar(id) {
     estado: 'pendiente'
   });
 
-  const resultado = await guardarRegistro('presupuestos', copia, preRepintarLista, null);
-  if (resultado.status !== 'success') return;
-
-  const idFinal = (resultado.data && resultado.data.id) || nuevoId;
-
-  // El desglose de la calculadora también se copia, si lo hubiera.
+  // La copia y su desglose de calculadora (si lo hay) se guardan a la
+  // vez, como un presupuesto nuevo cualquiera.
   const detalle = preDetalleDe(id);
+  let copiaDetalle = null;
   if (detalle) {
-    const copiaDetalle = Object.assign({}, detalle);
+    copiaDetalle = Object.assign({}, detalle);
     delete copiaDetalle.id;
-    await preGuardarDetalle(idFinal, copiaDetalle);
   }
+  preGuardarEnSegundoPlano(copia, copiaDetalle);
 
   alert('Creado el presupuesto ' + copia.numero + ' como copia de ' + (p.numero || '') + '.');
 }
@@ -773,6 +751,9 @@ async function preEliminar(id) {
     return;
   }
   if (!confirm('Eliminar el presupuesto ' + (p.numero || '') + '? Esto no se puede deshacer.')) return;
+
+  // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
+  if (!await confirmarConPin('Vas a eliminar el presupuesto ' + (p.numero || '') + '.')) return;
 
   // Primero el detalle, después el presupuesto (mapa 8.8).
   const detalle = preDetalleDe(id);
@@ -981,7 +962,7 @@ function abrirFormularioPresupuesto(id, prefill) {
 
   if (original && preBloqueado(original)) {
     alert(String(original.estado) === 'aceptado'
-      ? 'Un presupuesto aceptado no se puede editar. Utiliza "Duplicar presupuesto" para crear una nueva versión.'
+      ? 'Un presupuesto aceptado no se puede editar. Para cambiarlo, usa "Cambiar estado" → "Volver a pendiente" (pide el PIN), o "Duplicar presupuesto" para crear una versión nueva.'
       : 'Este presupuesto tiene una factura asociada y no se puede editar.');
     return;
   }
@@ -1295,10 +1276,6 @@ function preProcesarGuardado(fondo, original, prefill) {
     preMostrarError(fondo, 'id_cliente', 'Ese cliente ya no existe.');
     return;
   }
-  if (!estado.modoPrueba && esDePrueba(cliente)) {
-    alert('Este cliente es de prueba y no puede utilizarse en un presupuesto real. Activa el modo prueba para trabajar con datos de prueba.');
-    return;
-  }
   if (original && preBloqueado(original)) {
     alert('Este presupuesto ya no se puede editar.');
     return;
@@ -1351,7 +1328,6 @@ function preProcesarGuardado(fondo, original, prefill) {
     preAvisoCalculadora = '';
   }
 
-  preMarcarSync(idPresupuesto, 'guardando');
   preGuardarEnSegundoPlano(registro, detalleAGuardar);
 
   preSubvista = 'relacion';
@@ -1359,66 +1335,26 @@ function preProcesarGuardado(fondo, original, prefill) {
 }
 
 /**
- * Guarda sin bloquear la pantalla. Si falla, el núcleo deshace el
- * cambio para no dejar datos a medias, así que aquí se vuelve a poner
- * el registro en el dispositivo y se marca en rojo: el trabajo no se
- * pierde y se puede reintentar desde "Más opciones".
+ * Guarda sin bloquear la pantalla. El presupuesto y el desglose de la
+ * calculadora (si lo hay) se envían a la vez. Cada uno queda apuntado
+ * como pendiente en el núcleo hasta que Google lo confirma: si algo
+ * falla, se queda en el dispositivo en rojo y se reenvía solo al
+ * sincronizar, desglose incluido (antes, tras cerrar la app, el
+ * reenvío guardaba el presupuesto pero el desglose se perdía).
  */
 function preGuardarEnSegundoPlano(registro, detalle) {
-  return guardarRegistro('presupuestos', registro, preRepintarLista, null)
-    .then(function (resultado) {
-      if (resultado.status !== 'success') {
-        preReponerLocal(registro);
-        preMarcarSync(registro.id, 'error');
-        prePendientes[String(registro.id)] = { registro: registro, detalle: detalle || null };
-        preRepintarLista();
-        return;
-      }
-
-      const idFinal = (resultado.data && resultado.data.id) || registro.id;
-      preMarcarSync(registro.id, null);
-      preMarcarSync(idFinal, null);
-      delete prePendientes[String(registro.id)];
-
-      if (!detalle) { preRepintarLista(); return; }
-
-      // El desglose de la calculadora es una operación aparte (mapa 8.7).
-      preMarcarSync(idFinal, 'guardando');
-      preRepintarLista();
-      return preGuardarDetalle(idFinal, detalle).then(function () {
-        preMarcarSync(idFinal, null);
-        preRepintarLista();
-      });
-    })
-    .catch(function (err) {
-      console.error('Fallo al guardar el presupuesto:', err);
-      preReponerLocal(registro);
-      preMarcarSync(registro.id, 'error');
-      prePendientes[String(registro.id)] = { registro: registro, detalle: detalle || null };
-      preRepintarLista();
-    });
+  return Promise.all([
+    guardarRegistro('presupuestos', registro, preRepintarLista, null),
+    detalle ? preGuardarDetalle(registro.id, detalle) : Promise.resolve()
+  ]).then(function () { preRepintarLista(); });
 }
 
-// Vuelve a dejar el registro en el dispositivo después de que el núcleo
-// lo haya deshecho por un fallo de red.
-function preReponerLocal(registro) {
-  const i = estado.presupuestos.findIndex(function (r) { return String(r.id) === String(registro.id); });
-  if (i >= 0) estado.presupuestos[i] = registro;
-  else estado.presupuestos.push(registro);
-  guardarEntidadLocal('presupuestos');
-}
-
-// Reintento manual de un presupuesto que se quedó en rojo.
+// Reintento manual de un presupuesto que se quedó en rojo: se reenvía
+// lo que tenga pendiente él y lo que tenga pendiente su desglose.
 function preReintentarGuardado(id) {
-  const pendiente = prePendientes[String(id)];
-  const registro = pendiente
-    ? pendiente.registro
-    : estado.presupuestos.find(function (r) { return String(r.id) === String(id); });
-  if (!registro) return;
-
-  preMarcarSync(id, 'guardando');
-  preRepintarLista();
-  preGuardarEnSegundoPlano(registro, pendiente ? pendiente.detalle : null);
+  reintentarRegistro('presupuestos', id, preRepintarLista);
+  const d = preDetalleDe(id);
+  if (d) reintentarRegistro('presupuestos_detalle', d.id, preRepintarLista);
 }
 
 /**
@@ -1571,14 +1507,21 @@ function pintarCalculadora() {
       '</div>' +
     '</div>';
 
-  // Cableado: cualquier cambio recalcula al momento
+  // Cableado: cualquier cambio recalcula al momento.
+  //
+  // Los campos de texto escuchan solo 'input' (cada tecla); los
+  // desplegables, 'change'. Antes los de texto escuchaban también
+  // 'change', que salta al SALIR del campo: si se escribían las horas y
+  // se pulsaba directamente "Crear presupuesto", esa salida repintaba
+  // la caja de resultado —botones incluidos— justo en mitad de la
+  // pulsación, y el botón no respondía hasta tocarlo otra vez
+  // (detectado en las pruebas del 23/09/2026).
   zona.querySelectorAll('[data-calc]').forEach(function (el) {
     const guardar = function () {
       preCalc[el.dataset.calc] = el.value;
       preRecalcularCalculadora();
     };
-    el.addEventListener('input', guardar);
-    el.addEventListener('change', guardar);
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', guardar);
   });
 
   zona.querySelectorAll('[data-equipo]').forEach(function (cb) {

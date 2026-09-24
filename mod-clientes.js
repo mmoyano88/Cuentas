@@ -23,6 +23,29 @@ const TIPOS_CLIENTE_DEFECTO = [
 ];
 
 // ============================================================
+// 0.1 PUNTO DE ESTADO DE GUARDADO
+// ============================================================
+// Mismo patrón que Presupuestos, Facturas y Contabilidad: el punto va
+// a la derecha del botón de tres puntos y dice si esa fila está
+// guardada en la base de datos. El estado lo lleva el núcleo, así que
+// sigue en rojo aunque se cierre la app (15/09/2026).
+
+const CLI_PUNTOS = {
+  ok:        { clase: 'ok',        titulo: 'Guardado en la base de datos' },
+  guardando: { clase: 'guardando', titulo: 'Guardando...' },
+  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Más opciones" y reintenta.' }
+};
+
+function cliEstadoSync(c) {
+  return estadoSyncDe('clientes', c);
+}
+
+function cliPuntoEstado(c) {
+  const info = CLI_PUNTOS[cliEstadoSync(c)] || CLI_PUNTOS.ok;
+  return '<span class="cli-punto ' + info.clase + '" title="' + escaparHtml(info.titulo) + '"></span>';
+}
+
+// ============================================================
 // 1. UTILIDADES DEL MÓDULO
 // ============================================================
 
@@ -181,7 +204,6 @@ function cablearCabeceraLista() {
 // ============================================================
 
 function cliListaFiltrada() {
-  const soloPrueba = false; // los de prueba se ven mezclados, marcados aparte (I8)
   const textoBusqueda = normalizarBusqueda(cliBusqueda);
 
   return cliContactosActivosOrdenados().filter(function (c) {
@@ -252,6 +274,7 @@ function renderFilaMovil(c) {
     '</div>' +
     '<div class="cli-acciones">' +
       '<button type="button" class="cli-btn-icono" data-mas="' + c.id + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
+      cliPuntoEstado(c) +
     '</div>' +
   '</div>';
 }
@@ -267,6 +290,7 @@ function renderFilaTabla(c) {
     '<td>' + enlaceTelefono(c.telefono) + '</td>' +
     '<td><div class="cli-acciones">' +
       '<button type="button" class="cli-btn-icono" data-mas="' + c.id + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
+      cliPuntoEstado(c) +
     '</div></td>' +
   '</tr>';
 }
@@ -292,6 +316,15 @@ function cablearFilas(contenedor) {
 // 4. MENÚ "MÁS OPCIONES"
 // ============================================================
 
+/**
+ * Reintenta guardar (o borrar) un contacto que quedó pendiente. El
+ * trabajo pendiente lo guarda el núcleo, así que sigue disponible
+ * aunque se haya cerrado la app desde que falló.
+ */
+function cliReintentarGuardado(id) {
+  reintentarRegistro('clientes', id, pintarListaFiltrada);
+}
+
 function abrirMenuMas(boton, id) {
   document.querySelectorAll('.cli-menu-mas').forEach(function (m) { m.remove(); });
 
@@ -300,11 +333,15 @@ function abrirMenuMas(boton, id) {
 
   const menu = document.createElement('div');
   menu.className = 'cli-menu-mas';
-  menu.innerHTML = contacto.estado === 'activo'
-    ? '<button type="button" data-accion="editar">Editar</button>' +
-      '<button type="button" data-accion="desactivar">Desactivar</button>'
-    : '<button type="button" data-accion="reactivar">Reactivar</button>' +
-      '<button type="button" class="peligro" data-accion="eliminar">Eliminar definitivamente</button>';
+  menu.innerHTML =
+    (cliEstadoSync(contacto) === 'error'
+      ? '<button type="button" class="destacado" data-accion="reintentar">Reintentar guardado</button>'
+      : '') +
+    (contacto.estado === 'activo'
+      ? '<button type="button" data-accion="editar">Editar</button>' +
+        '<button type="button" data-accion="desactivar">Desactivar</button>'
+      : '<button type="button" data-accion="reactivar">Reactivar</button>' +
+        '<button type="button" class="peligro" data-accion="eliminar">Eliminar definitivamente</button>');
 
   document.body.appendChild(menu);
   posicionarMenuMas(menu, boton);
@@ -317,6 +354,7 @@ function abrirMenuMas(boton, id) {
     if (!menu.contains(ev.target)) cerrarMenu();
   }
 
+  menu.querySelector('[data-accion="reintentar"]')?.addEventListener('click', function () { cerrarMenu(); cliReintentarGuardado(id); });
   menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); abrirFormularioContacto(id); });
   menu.querySelector('[data-accion="desactivar"]')?.addEventListener('click', function () { cerrarMenu(); cambiarEstadoContacto(id, 'inactivo'); });
   menu.querySelector('[data-accion="reactivar"]')?.addEventListener('click', function () { cerrarMenu(); cambiarEstadoContacto(id, 'activo'); });
@@ -365,18 +403,19 @@ async function eliminarContactoDefinitivo(id) {
   const contacto = estado.clientes.find(function (c) { return String(c.id) === String(id); });
   if (!contacto) return;
 
-  if (!esDePrueba(contacto)) {
-    if (contacto.estado === 'activo') {
-      alert('Solo se pueden eliminar contactos inactivos. Desactívalo primero.');
-      return;
-    }
-    if (contactoTieneHistorial(id)) {
-      alert('Este contacto tiene presupuestos, facturas o apuntes asociados. No se puede eliminar, solo desactivar.');
-      return;
-    }
+  if (contacto.estado === 'activo') {
+    alert('Solo se pueden eliminar contactos inactivos. Desactívalo primero.');
+    return;
+  }
+  if (contactoTieneHistorial(id)) {
+    alert('Este contacto tiene presupuestos, facturas o apuntes asociados. No se puede eliminar, solo desactivar.');
+    return;
   }
 
   if (!confirm('Eliminar definitivamente a "' + contacto.nombre_contacto + '"? Esto no se puede deshacer.')) return;
+
+  // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
+  if (!await confirmarConPin('Vas a eliminar definitivamente el contacto «' + contacto.nombre_contacto + '».')) return;
 
   await borrarRegistro('clientes', id, pintarListaFiltrada, null);
 }
@@ -486,6 +525,7 @@ function abrirFormularioContacto(id, prefill) {
             campoForm('poblacion', 'Población', datos.poblacion) +
             campoForm('provincia', 'Provincia', datos.provincia) +
           '</div>' +
+          '<p class="cli-mensaje-error" id="cli-form-error-general" hidden></p>' +
         '</form>' +
       '</div>' +
       '<div class="cli-modal-pie">' +
@@ -494,8 +534,9 @@ function abrirFormularioContacto(id, prefill) {
       '</div>' +
     '</div>';
 
+  // Formulario con trabajo dentro: NO se cierra al tocar fuera, solo
+  // con su botón de cerrar o con Cancelar (GUÍA 10.1).
   document.body.appendChild(fondo);
-  fondo.addEventListener('click', function (ev) { if (ev.target === fondo) fondo.remove(); });
   fondo.querySelector('.cli-modal-cerrar').addEventListener('click', function () { fondo.remove(); });
   fondo.querySelector('#cli-form-cancelar').addEventListener('click', function () { fondo.remove(); });
 
@@ -608,6 +649,8 @@ function mostrarErrorCampo(fondo, campo, mensaje) {
 function limpiarErroresForm(fondo) {
   fondo.querySelectorAll('.cli-campo-error').forEach(function (el) { el.classList.remove('cli-campo-error'); });
   fondo.querySelectorAll('[data-error-de]').forEach(function (el) { el.hidden = true; });
+  const general = fondo.querySelector('#cli-form-error-general');
+  if (general) general.hidden = true;
 }
 
 async function procesarGuardadoContacto(fondo, id, original, prefill) {
@@ -657,7 +700,23 @@ async function procesarGuardadoContacto(fondo, id, original, prefill) {
   boton.disabled = true;
   boton.textContent = 'Guardando...';
 
+  // Editar un contacto: la ventana se cierra al momento y el guardado
+  // sigue en segundo plano, como en el resto de la app. Crear uno
+  // nuevo: la ventana espera a que Google le dé su número; si falla,
+  // se queda abierta con lo escrito para volver a intentarlo.
   const resultado = await guardarRegistro('clientes', datos, pintarListaFiltrada, function () { fondo.remove(); });
+
+  if (resultado.noCreado) {
+    boton.disabled = false;
+    boton.textContent = 'Guardar';
+    const aviso = fondo.querySelector('#cli-form-error-general');
+    if (aviso) {
+      aviso.textContent = 'No se ha podido crear el contacto (sin conexión con la base de datos). ' +
+        'No se ha guardado nada: comprueba la conexión y vuelve a pulsar Guardar.';
+      aviso.hidden = false;
+    }
+    return;
+  }
 
   if (resultado.status === 'success' && prefill && typeof prefill.alCrear === 'function') {
     prefill.alCrear(resultado.data || datos);
@@ -854,8 +913,8 @@ function abrirComparacionFusion(existente, original, fondoFormulario) {
       '</div>' +
     '</div>';
 
+  // Pantalla con elecciones dentro: no se cierra al tocar fuera.
   document.body.appendChild(fondo);
-  fondo.addEventListener('click', function (ev) { if (ev.target === fondo) fondo.remove(); });
   fondo.querySelector('.cli-modal-cerrar').addEventListener('click', function () { fondo.remove(); });
   fondo.querySelector('#fusion-cancelar').addEventListener('click', function () { fondo.remove(); });
 

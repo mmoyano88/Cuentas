@@ -99,20 +99,7 @@
 }
 
 /* ---- Avatar / foto de perfil ---- */
-.avatar-editor {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.avatar-preview {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--gris-neutro);
-  background-size: cover;
-  background-position: center;
-  flex: 0 0 auto;
-}
+
 
 /* ---- Editor de listas (IVA, IRPF, tipos de cliente, equipos, servicios) ---- */
 .array-editor { display: flex; flex-direction: column; gap: 8px; }
@@ -216,32 +203,6 @@
   font-size: 13px;
   color: var(--texto-secundario);
   text-align: center;
-}
-
-/* ---- Preferencias: acciones sueltas ---- */
-.config-accion {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-top: 1px solid var(--gris-neutro);
-}
-.config-accion:first-child { border-top: none; padding-top: 0; }
-.config-accion-texto { font-size: 13px; }
-.config-accion-texto small { display: block; color: var(--texto-secundario); font-size: 11px; margin-top: 2px; }
-
-.enlace-discreto {
-  background: none;
-  border: none;
-  color: var(--texto-secundario);
-  font-family: inherit;
-  font-size: 11px;
-  text-decoration: underline;
-  cursor: pointer;
-  padding: 0;
-  margin-top: 10px;
-  align-self: flex-start;
 }
 
 /* ---- Pie del panel con el botón de guardar ---- */

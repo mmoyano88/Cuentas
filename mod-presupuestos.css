@@ -144,19 +144,6 @@
   gap: 12px;
   cursor: pointer;
 }
-.pre-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--gris-oscuro);
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  flex: 0 0 auto;
-}
 .pre-info { flex: 1; min-width: 0; }
 .pre-nombre {
   font-size: 15px;
@@ -221,6 +208,9 @@
 .pre-tabla tr.pre-fila-tabla:hover td { background: var(--fondo); }
 
 .pre-celda-numero { font-weight: 500; white-space: nowrap; }
+/* Icono del contacto al principio de la fila en PC, igual que en el
+   móvil (23/09/2026). Columna estrecha, sin título. */
+.pre-tabla td.pre-celda-icono { width: 32px; padding-right: 0; }
 .pre-celda-derecha { text-align: right; white-space: nowrap; }
 /* La regla general ".pre-tabla th" alinea a la izquierda y, por ser
    más específica, ganaba a la clase de arriba: los títulos Base/IVA/
@@ -237,7 +227,6 @@
 }
 
 /* ---- Acciones (fila) ---- */
-.pre-acciones { position: relative; display: flex; align-items: center; gap: 4px; }
 .pre-btn-icono {
   width: 32px;
   height: 32px;
@@ -319,19 +308,6 @@
   gap: 12px;
   padding: 18px 20px 14px;
   border-bottom: 1px solid var(--fondo);
-}
-.pre-modal-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--gris-oscuro);
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
-  flex: 0 0 auto;
 }
 .pre-modal-cabecera > .pre-modal-texto { flex: 1; min-width: 0; }
 .pre-modal-titulo { font-size: 17px; font-weight: 700; margin: 0; }
@@ -610,6 +586,5 @@
 .pre-punto.ok        { background: #3E9E4E; }
 .pre-punto.guardando { background: #E0A32E; }
 .pre-punto.error     { background: var(--rojo); }
-.pre-punto.prueba    { background: #B8B6AC; }
 
 .pre-menu-mas button.destacado { color: var(--rojo); font-weight: 600; }

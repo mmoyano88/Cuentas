@@ -1,7 +1,7 @@
 /**
  * MÓDULO CONFIGURACIÓN
  * ------------------------------------------------------------
- * 7 pestañas sobre la hoja "configuracion" (clave/valor). Cada
+ * 5 pestañas sobre la hoja "configuracion" (clave/valor). Cada
  * guardado envía SIEMPRE la configuración completa (decisión
  * documentada en el mapa 5.3), no solo la pestaña abierta.
  */
@@ -11,17 +11,14 @@
 // ============================================================
 
 const CONFIG_PESTANAS = [
-  { id: 'mis-datos', titulo: 'Mis Datos & Perfil' },
-  { id: 'datos-fiscales', titulo: 'Datos Fiscales' },
+  { id: 'mis-datos', titulo: 'Mis Datos' },
   { id: 'impuestos-config', titulo: 'Impuestos y Retenciones' },
   { id: 'params-calculadora', titulo: 'Parámetros Calculadora' },
   { id: 'series', titulo: 'Numeración y Series' },
-  { id: 'textos', titulo: 'Textos Presupuestos/Facturas' },
-  { id: 'preferencias', titulo: 'Preferencias Generales' }
+  { id: 'textos', titulo: 'Textos Presupuestos/Facturas' }
 ];
 
 let configPestanaActiva = 'mis-datos';
-let configFotoPendiente = null; // base64 nueva, mientras no se guarde
 
 // ============================================================
 // 1. UTILIDADES DE CONFIGURACIÓN
@@ -84,7 +81,6 @@ function pintarPestanas() {
   nav.querySelectorAll('.config-tab').forEach(function (boton) {
     boton.addEventListener('click', function () {
       configPestanaActiva = boton.dataset.tab;
-      configFotoPendiente = null;
       pintarPestanas();
       pintarPanelActivo();
     });
@@ -95,12 +91,10 @@ function pintarPanelActivo() {
   const panel = document.getElementById('config-panel');
   const renderes = {
     'mis-datos': renderMisDatos,
-    'datos-fiscales': renderDatosFiscales,
     'impuestos-config': renderImpuestosConfig,
     'params-calculadora': renderParamsCalculadora,
     'series': renderSeries,
-    'textos': renderTextos,
-    'preferencias': renderPreferencias
+    'textos': renderTextos
   };
   panel.innerHTML = renderes[configPestanaActiva]();
   cablearPanelActivo(panel);
@@ -109,35 +103,17 @@ function pintarPanelActivo() {
 // ============================================================
 // 3. PESTAÑA: MIS DATOS
 // ============================================================
+// Fusión de las antiguas "Mis Datos & Perfil" y "Datos Fiscales"
+// (20/09/2026): son lo mismo — los datos con los que apareces como
+// emisor en presupuestos, facturas e informes. Van en el mismo orden
+// en que se imprimen en el documento.
 
 function renderMisDatos() {
-  const foto = configFotoPendiente || cfgTexto('perfil_foto');
   return (
-    '<h2>Mis Datos &amp; Perfil</h2>' +
-    '<div class="avatar-editor">' +
-      '<div class="avatar-preview" id="avatar-preview" style="' +
-        (foto ? 'background-image:url(' + JSON.stringify(foto) + ')' : '') + '"></div>' +
-      '<div>' +
-        '<button type="button" class="boton-secundario" id="btn-cambiar-foto">Cambiar foto</button>' +
-        '<input type="file" accept="image/*" id="input-foto" hidden>' +
-      '</div>' +
+    '<h2>Mis Datos</h2>' +
+    '<div class="config-cartel">' +
+      'Estos son los datos con los que apareces en tus presupuestos, facturas e informes.' +
     '</div>' +
-    '<div class="config-grid dos-columnas">' +
-      campoTexto('perfil_nombre', 'Nombre', cfgTexto('perfil_nombre')) +
-      campoTexto('perfil_email', 'Email', cfgTexto('perfil_email'), 'email') +
-      campoTexto('perfil_telefono', 'Teléfono', cfgTexto('perfil_telefono')) +
-    '</div>' +
-    piePanelGuardar()
-  );
-}
-
-// ============================================================
-// 4. PESTAÑA: DATOS FISCALES
-// ============================================================
-
-function renderDatosFiscales() {
-  return (
-    '<h2>Datos Fiscales</h2>' +
     '<div class="config-grid dos-columnas">' +
       campoTexto('fiscal_nombre', 'Nombre fiscal', cfgTexto('fiscal_nombre')) +
       campoTexto('fiscal_nif', 'NIF', cfgTexto('fiscal_nif')) +
@@ -146,22 +122,10 @@ function renderDatosFiscales() {
       campoTexto('fiscal_codigo_postal', 'Código postal', cfgTexto('fiscal_codigo_postal')) +
       campoTexto('fiscal_poblacion', 'Población', cfgTexto('fiscal_poblacion')) +
       campoTexto('fiscal_provincia', 'Provincia', cfgTexto('fiscal_provincia')) +
-      campoTexto('fiscal_iban', 'IBAN', cfgTexto('fiscal_iban')) +
+      campoTexto('perfil_telefono', 'Teléfono', cfgTexto('perfil_telefono')) +
+      campoTexto('perfil_email', 'Email', cfgTexto('perfil_email'), 'email') +
     '</div>' +
     '<div class="direccion-preview" id="direccion-preview">' + escaparHtml(construirDireccionPreview()) + '</div>' +
-
-    // La imagen de cabecera de los PDF ya NO se sube desde aquí
-    // (06/09/2026): subirla como campo de configuración no se estaba
-    // guardando de forma fiable y el propietario tenía que repetirlo
-    // varias veces. Ahora es una URL fija alojada en su repositorio
-    // de GitHub (ver mod-pdf-documentos.js, PDF_DOC_URL_CABECERA).
-    // Para cambiarla, sube un archivo con el mismo nombre a esa
-    // carpeta de GitHub — no hace falta tocar la app.
-    '<h3 class="config-subtitulo" style="font-size:15px;font-weight:600;margin:24px 0 4px">Imagen de cabecera de los PDF</h3>' +
-    '<p class="config-ayuda" style="font-size:12px;color:var(--texto-secundario);margin:0 0 12px;line-height:1.4">' +
-      'Ya no se sube desde aquí. Vive como archivo fijo en tu repositorio de GitHub — para cambiarla, sube uno nuevo con el mismo nombre a esa carpeta.' +
-    '</p>' +
-
     piePanelGuardar()
   );
 }
@@ -175,7 +139,7 @@ function construirDireccionPreview() {
 }
 
 // ============================================================
-// 5. PESTAÑA: IMPUESTOS Y RETENCIONES
+// 4. PESTAÑA: IMPUESTOS Y RETENCIONES
 // ============================================================
 
 function renderImpuestosConfig() {
@@ -204,7 +168,7 @@ function renderImpuestosConfig() {
 }
 
 // ============================================================
-// 6. PESTAÑA: PARÁMETROS CALCULADORA
+// 5. PESTAÑA: PARÁMETROS CALCULADORA
 // ============================================================
 
 function renderParamsCalculadora() {
@@ -251,7 +215,7 @@ function renderParamsCalculadora() {
 }
 
 // ============================================================
-// 7. PESTAÑA: SERIES (informativa, sin cambios — decisión M2)
+// 6. PESTAÑA: SERIES (informativa, sin cambios — decisión M2)
 // ============================================================
 
 function renderSeries() {
@@ -265,7 +229,7 @@ function renderSeries() {
 }
 
 // ============================================================
-// 8. PESTAÑA: TEXTOS
+// 7. PESTAÑA: TEXTOS
 // ============================================================
 
 function renderTextos() {
@@ -284,43 +248,12 @@ function renderTextos() {
 }
 
 // ============================================================
-// 9. PESTAÑA: PREFERENCIAS
-// ============================================================
-
-function renderPreferencias() {
-  const enPrueba = estado.modoPrueba;
-  return (
-    '<h2>Preferencias Generales</h2>' +
-
-    '<div class="config-accion">' +
-      '<div class="config-accion-texto">' +
-        'Modo prueba' +
-        '<small>' + (enPrueba
-          ? 'Activo. Al desactivarlo se borran los datos de prueba del dispositivo.'
-          : 'Prueba la aplicación sin tocar tus datos reales.') + '</small>' +
-      '</div>' +
-      '<button type="button" class="boton-secundario" id="btn-modo-prueba">' +
-        (enPrueba ? 'Desactivar' : 'Activar') +
-      '</button>' +
-    '</div>' +
-
-    '<div class="config-accion">' +
-      '<div class="config-accion-texto">' +
-        'Eliminación de emergencia' +
-        '<small>Borra un registro a mano, saltándose todas las comprobaciones. Úsalo solo si sabes lo que haces.</small>' +
-      '</div>' +
-    '</div>' +
-    '<button type="button" class="enlace-discreto" id="btn-emergencia">Eliminación de emergencia…</button>'
-  );
-}
-
-// ============================================================
-// 10. COMPONENTES REUTILIZABLES
+// 8. COMPONENTES REUTILIZABLES
 // ============================================================
 
 function campoTexto(clave, etiqueta, valor, tipo) {
   const esNumero = tipo === 'numero';
-  const tipoInput = tipo === 'email' ? 'email' : (esNumero ? 'text' : 'text');
+  const tipoInput = tipo === 'email' ? 'email' : 'text';
   return (
     '<div class="campo-grupo">' +
       '<label for="cfg-' + clave + '">' + escaparHtml(etiqueta) + '</label>' +
@@ -524,14 +457,14 @@ function limpiarNodoRico(nodo, permitidas) {
 }
 
 // ============================================================
-// 11. CABLEADO DE CADA PANEL (eventos)
+// 9. CABLEADO DE CADA PANEL (eventos)
 // ============================================================
 
 function cablearPanelActivo(panel) {
   cablearArrayEditor(panel);
   cablearRichEditor(panel);
 
-  // Vista previa de dirección en vivo (solo pestaña Datos Fiscales)
+  // Vista previa de la dirección, en vivo (pestaña Mis Datos)
   panel.querySelectorAll('[data-config-key^="fiscal_"]').forEach(function (input) {
     input.addEventListener('input', function () {
       const preview = document.getElementById('direccion-preview');
@@ -548,63 +481,12 @@ function cablearPanelActivo(panel) {
     });
   });
 
-  const btnFoto = document.getElementById('btn-cambiar-foto');
-  if (btnFoto) {
-    const inputFoto = document.getElementById('input-foto');
-    btnFoto.addEventListener('click', function () { inputFoto.click(); });
-    inputFoto.addEventListener('change', function () {
-      const archivo = inputFoto.files[0];
-      if (!archivo) return;
-      procesarFotoPerfil(archivo, function (base64) {
-        configFotoPendiente = base64;
-        document.getElementById('avatar-preview').style.backgroundImage = 'url(' + base64 + ')';
-      });
-    });
-  }
-
   const btnGuardar = document.getElementById('btn-guardar-config');
   if (btnGuardar) btnGuardar.addEventListener('click', function () { guardarConfiguracionActual(btnGuardar); });
-
-  const btnModoPrueba = document.getElementById('btn-modo-prueba');
-  if (btnModoPrueba) {
-    btnModoPrueba.addEventListener('click', function () {
-      if (estado.modoPrueba) desactivarModoPrueba();
-      else activarModoPrueba();
-      pintarPanelActivo();
-    });
-  }
-
-  const btnEmergencia = document.getElementById('btn-emergencia');
-  if (btnEmergencia) btnEmergencia.addEventListener('click', eliminacionEmergencia);
 }
 
 // ============================================================
-// 12. FOTO DE PERFIL
-// ============================================================
-// Máximo 256px por el lado mayor, recortada a cuadrado con CSS
-// (background-image + background-size:cover en el avatar). JPEG
-// calidad 0.82, base64.
-function procesarFotoPerfil(archivo, callback) {
-  const lector = new FileReader();
-  lector.onload = function (ev) {
-    const img = new Image();
-    img.onload = function () {
-      const maxLado = 256;
-      let w = img.width, h = img.height;
-      if (w >= h && w > maxLado) { h = Math.round(h * maxLado / w); w = maxLado; }
-      else if (h > w && h > maxLado) { w = Math.round(w * maxLado / h); h = maxLado; }
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      callback(canvas.toDataURL('image/jpeg', 0.82));
-    };
-    img.src = ev.target.result;
-  };
-  lector.readAsDataURL(archivo);
-}
-
-// ============================================================
-// 13. GUARDADO
+// 10. GUARDADO
 // ============================================================
 // Se envía SIEMPRE la configuración completa (mapa 5.3), partiendo
 // de lo que ya había y sustituyendo solo lo de la pestaña visible.
@@ -630,7 +512,8 @@ async function guardarConfiguracionActual(boton) {
   if (panel.querySelector('#array-equipos')) payload.equipos = JSON.stringify(recogerArray('equipos'));
   if (panel.querySelector('#array-serviciosExtra')) payload.servicios_extra = JSON.stringify(recogerArray('serviciosExtra'));
 
-  if (configFotoPendiente) payload.perfil_foto = configFotoPendiente;
+  // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
+  if (!await confirmarConPin('Vas a guardar los cambios de la configuración.')) return;
 
   const textoOriginal = boton.textContent;
   boton.disabled = true;
@@ -643,7 +526,6 @@ async function guardarConfiguracionActual(boton) {
 
     estado.configuracion = payload;
     guardarTodoLocal();
-    configFotoPendiente = null;
     indicador('sincronizado');
     pintarPanelActivo();
   } catch (err) {
@@ -657,41 +539,7 @@ async function guardarConfiguracionActual(boton) {
 }
 
 // ============================================================
-// 14. ELIMINACIÓN DE EMERGENCIA
-// ============================================================
-// Escondida a propósito. Salta todas las comprobaciones de
-// integridad — solo para casos de apuro (mapa 5.7).
-
-async function eliminacionEmergencia() {
-  const hojasPermitidas = ['ventas', 'presupuestos', 'clientes', 'compras', 'apuntes'];
-
-  const hoja = prompt('Nombre exacto de la hoja (' + hojasPermitidas.join(', ') + '):');
-  if (hoja === null) return;
-  if (hojasPermitidas.indexOf(hoja.trim()) === -1) {
-    alert('Ese nombre no es válido. Tiene que ser exactamente uno de: ' + hojasPermitidas.join(', '));
-    return;
-  }
-
-  const id = prompt('ID exacto del registro a borrar:');
-  if (id === null || !id.trim()) return;
-
-  const confirmacion = prompt('Esto NO se puede deshacer y se salta todas las comprobaciones de seguridad. Escribe BORRAR para confirmar:');
-  if (confirmacion !== 'BORRAR') { alert('Cancelado, no se ha borrado nada.'); return; }
-
-  try {
-    indicador('guardando');
-    const resultado = await llamarBackend({ action: 'delete', sheet: hoja.trim(), data: { id: id.trim() } });
-    if (resultado.status !== 'success') throw new Error(resultado.message);
-    alert('Borrado. Sincronizando de nuevo...');
-    await sincronizar();
-  } catch (err) {
-    indicador('sinconexion');
-    alert('No se pudo borrar: ' + err);
-  }
-}
-
-// ============================================================
-// 15. REGISTRO COMO VISTA
+// 11. REGISTRO COMO VISTA
 // ============================================================
 // Sustituye al "próximamente" que mod-navegacion.js registra por
 // defecto para esta sección (por eso este archivo debe cargarse

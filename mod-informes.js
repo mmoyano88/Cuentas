@@ -155,20 +155,19 @@ function infFilaApunte(a) {
 
 function infVentasDelAnio(anio) {
   return infOrdenarPorFecha(estado.ventas.filter(function (f) {
-    return fvEstaActiva(f) && impVisible(f) && infAnioDe(f.fecha) === anio;
+    return fvEstaActiva(f) && infAnioDe(f.fecha) === anio;
   }));
 }
 
 function infComprasDelAnio(anio) {
   return infOrdenarPorFecha(estado.compras.filter(function (f) {
-    return fcEstaActiva(f) && impVisible(f) && infAnioDe(f.fecha) === anio;
+    return fcEstaActiva(f) && infAnioDe(f.fecha) === anio;
   }));
 }
 
 function infApuntesDelAnio(anio) {
   return infOrdenarPorFecha(estado.apuntes.filter(function (a) {
     if (a.id_factura_venta || a.id_factura_compra || a.id_impuesto) return false;
-    if (!impVisible(a)) return false;
     return infAnioDe(a.fecha) === anio;
   }));
 }
@@ -187,7 +186,6 @@ function infApuntesEmpresaDelTrimestre(anio, trimestre) {
   return infOrdenarPorFecha(estado.apuntes.filter(function (a) {
     if (String(a.ambito || '') !== 'empresa') return false;
     if (a.id_factura_venta || a.id_factura_compra || a.id_impuesto) return false;
-    if (!impVisible(a)) return false;
     return impEnTrimestre(a.fecha, anio, trimestre);
   }));
 }
@@ -462,17 +460,21 @@ function infTablaApuntes(titulo, filas, conConcepto, vacio) {
     '</tr></tfoot></table>';
 }
 
+// La estimación es SIEMPRE la calculada hoy, igual que en la pantalla de
+// Impuestos y en la de Informes (corrección del 06/09/2026, que el PDF
+// no había recibido: seguía usando la cifra congelada al pagar, así que
+// el PDF y la pantalla podían decir cosas distintas). 23/09/2026.
 function infTablaImpuestos(anio) {
   const filas = IMP_TRIMESTRES.map(function (t) {
     const r = impRegistroDe(anio, t);
     const c = impCalcular(anio, t);
     return {
       trimestre: t,
-      ivaEstimado: r && parsearNumero(r.iva_estimado) !== 0 ? parsearNumero(r.iva_estimado) : c.iva,
+      ivaEstimado: c.iva,
       ivaReal: r ? parsearNumero(r.iva_real) : 0,
       ivaEstado: r && infTexto(r.iva_estado).toLowerCase() === 'pagado' ? 'Pagado' : 'Pendiente',
       ivaFecha: r ? mostrarFecha(r.iva_fecha_pago) : '—',
-      irpfEstimado: r && parsearNumero(r.irpf_estimado) !== 0 ? parsearNumero(r.irpf_estimado) : c.irpf,
+      irpfEstimado: c.irpf,
       irpfReal: r ? parsearNumero(r.irpf_real) : 0,
       irpfEstado: r && infTexto(r.irpf_estado).toLowerCase() === 'pagado' ? 'Pagado' : 'Pendiente',
       irpfFecha: r ? mostrarFecha(r.irpf_fecha_pago) : '—'

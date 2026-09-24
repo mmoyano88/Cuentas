@@ -32,27 +32,15 @@ let ctFiltroAmbito = 'todos';   // 'todos' | 'empresa' | 'personal'
 let ctOrden = 'fecha-desc';
 let ctBusqueda = '';
 
-const ctSyncEstados = {};
-const ctPendientes = {};
-
-function ctMarcarSync(id, valor) {
-  if (!id) return;
-  if (valor) ctSyncEstados[String(id)] = valor;
-  else delete ctSyncEstados[String(id)];
-}
-
+// Punto de color de cada fila: lo decide el núcleo (estadoSyncDe).
 function ctEstadoSync(a) {
-  const marcado = ctSyncEstados[String(a.id)];
-  if (marcado) return marcado;
-  if (esDePrueba(a)) return 'prueba';
-  return 'ok';
+  return estadoSyncDe('apuntes', a);
 }
 
 const CT_PUNTOS = {
   ok:        { clase: 'ok',        titulo: 'Guardado en la base de datos' },
   guardando: { clase: 'guardando', titulo: 'Guardando...' },
-  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Más opciones" y reintenta.' },
-  prueba:    { clase: 'prueba',    titulo: 'Solo en este dispositivo (modo prueba)' }
+  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Más opciones" y reintenta.' }
 };
 
 function ctPuntoEstado(a) {
@@ -113,7 +101,6 @@ function ctCirculoTipo(a, tamanoPx) {
 // ============================================================
 
 function ctNuevoId(prefijo) {
-  if (estado.modoPrueba) return generarIdPrueba(prefijo);
   return prefijo + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
 }
 
@@ -505,41 +492,19 @@ async function ctEliminar(id) {
     return;
   }
   if (!confirm('¿Eliminar este apunte? Esta acción no se puede deshacer.')) return;
+
+  // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
+  if (!await confirmarConPin('Vas a eliminar el apunte «' + (a.concepto || '') + '».')) return;
+
   if (!puedeEscribir()) return;
 
-  ctMarcarSync(id, 'guardando');
-  ctRepintarLista();
-
-  const resultado = await borrarRegistro('apuntes', id, ctRepintarLista, null);
-  if (resultado.status !== 'success') {
-    ctMarcarSync(id, 'error');
-    ctRepintarLista();
-    return;
-  }
-  ctMarcarSync(id, null);
-  ctRepintarLista();
+  await borrarRegistro('apuntes', id, ctRepintarLista, null);
 }
 
+// Reintento manual desde "Más opciones": se reenvía lo que el núcleo
+// tenga pendiente de este apunte.
 function ctReintentarGuardado(id) {
-  const pendiente = ctPendientes[String(id)];
-  const registro = pendiente
-    ? pendiente.registro
-    : estado.apuntes.find(function (x) { return String(x.id) === String(id); });
-  if (!registro) return;
-
-  ctMarcarSync(id, 'guardando');
-  ctRepintarLista();
-
-  guardarRegistro('apuntes', registro, ctRepintarLista, null).then(function (resultado) {
-    if (resultado.status !== 'success') {
-      ctMarcarSync(id, 'error');
-      ctRepintarLista();
-      return;
-    }
-    ctMarcarSync(id, null);
-    delete ctPendientes[String(id)];
-    ctRepintarLista();
-  });
+  reintentarRegistro('apuntes', id, ctRepintarLista);
 }
 
 // ============================================================
@@ -910,39 +875,8 @@ function ctProcesarGuardado(fondo, original, datosSelector) {
   // La ventana se cierra al momento; el guardado sigue en segundo plano.
   fondo.remove();
 
-  ctMarcarSync(idApunte, 'guardando');
-  ctGuardarEnSegundoPlano(registro);
+  guardarRegistro('apuntes', registro, ctRepintarLista, null);
   pintarContabilidad();
-}
-
-function ctGuardarEnSegundoPlano(registro) {
-  return guardarRegistro('apuntes', registro, ctRepintarLista, null)
-    .then(function (resultado) {
-      if (resultado.status !== 'success') {
-        ctReponerLocal(registro);
-        ctMarcarSync(registro.id, 'error');
-        ctPendientes[String(registro.id)] = { registro: registro };
-        ctRepintarLista();
-        return;
-      }
-      ctMarcarSync(registro.id, null);
-      delete ctPendientes[String(registro.id)];
-      ctRepintarLista();
-    })
-    .catch(function (err) {
-      console.error('Fallo al guardar el apunte:', err);
-      ctReponerLocal(registro);
-      ctMarcarSync(registro.id, 'error');
-      ctPendientes[String(registro.id)] = { registro: registro };
-      ctRepintarLista();
-    });
-}
-
-function ctReponerLocal(registro) {
-  const i = estado.apuntes.findIndex(function (r) { return String(r.id) === String(registro.id); });
-  if (i >= 0) estado.apuntes[i] = registro;
-  else estado.apuntes.push(registro);
-  guardarEntidadLocal('apuntes');
 }
 
 // ============================================================
@@ -1232,10 +1166,6 @@ async function ctConvGuardar(fondo, apunte, esVenta) {
     ctMostrarError(fondo, 'id_contacto', 'Ese contacto ya no existe.');
     return;
   }
-  if (!estado.modoPrueba && esDePrueba(contacto)) {
-    alert('Ese contacto es de prueba y no puede usarse en una factura real.');
-    return;
-  }
 
   // Aviso no bloqueante de número repetido en compras, igual que en el
   // módulo de Facturas de compra.
@@ -1255,102 +1185,87 @@ async function ctConvGuardar(fondo, apunte, esVenta) {
   const nombre = contacto.nombre_fiscal || contacto.nombre_contacto || '';
 
   fondo.remove();
-  ctMarcarSync(apunte.id, 'guardando');
-  ctRepintarLista();
 
-  try {
-    if (esVenta) {
-      const idFactura = ctNuevoId('fv');
-      const factura = {
-        id: idFactura,
-        numero: d.numero,
-        fecha: fechaFactura,
-        id_cliente: contacto.id,
-        cliente: nombre,
-        nif: contacto.nif || '',
-        id_presupuesto: '',
-        concepto: d.concepto,
-        subtotal: t.base,
-        ajuste_cliente_pct: 0,
-        ajuste_cliente_importe: 0,
-        compensacion_irpf_pct: 0,
-        compensacion_irpf_importe: 0,
-        descuento_especial_tipo: 'percent',
-        descuento_especial_valor: 0,
-        descuento_especial_importe: 0,
-        base: t.base,
-        iva_pct: t.ivaPct,
-        iva: t.iva,
-        irpf_pct: t.irpfPct,
-        irpf: t.irpf,
-        total: t.total,
-        estado: 'pagada',
-        fecha_cobro: fechaMovimiento,
-        estado_registro: 'activo'
-      };
+  // La factura y el apunte (que pasa a ser el de esa factura) se guardan
+  // a la vez: sus ids ya se conocen. Si alguno falla, queda en rojo y se
+  // reenvía solo al sincronizar; no se pierde nada ni se duplica.
+  //
+  // Corregido el 23/09/2026: antes, después de la factura se hacía un
+  // guardado en `ventas_detalle`, una hoja que ya no existe (eliminada
+  // el 12/09/2026). Fallaba siempre en silencio, retrasaba el enganche
+  // del apunte y, si se cortaba la conexión justo ahí, dejaba la
+  // factura creada sin su apunte enganchado: la sincronización creaba
+  // entonces un segundo apunte y el cobro contaba dos veces.
+  if (esVenta) {
+    const idFactura = ctNuevoId('fv');
+    const factura = {
+      id: idFactura,
+      numero: d.numero,
+      fecha: fechaFactura,
+      id_cliente: contacto.id,
+      cliente: nombre,
+      nif: contacto.nif || '',
+      id_presupuesto: '',
+      concepto: d.concepto,
+      descripcion: '',
+      subtotal: 0,
+      ajuste_cliente_pct: 0,
+      ajuste_cliente_importe: 0,
+      compensacion_irpf_pct: 0,
+      compensacion_irpf_importe: 0,
+      descuento_especial_tipo: 'percent',
+      descuento_especial_valor: 0,
+      descuento_especial_importe: 0,
+      base: t.base,
+      iva_pct: t.ivaPct,
+      iva: t.iva,
+      irpf_pct: t.irpfPct,
+      irpf: t.irpf,
+      total: t.total,
+      estado: 'pagada',
+      fecha_cobro: fechaMovimiento,
+      estado_registro: 'activo'
+    };
 
-      const guardada = await guardarRegistro('ventas', factura, null, null);
-      if (guardada.status !== 'success') throw new Error('No se pudo crear la factura');
-
-      const idFinal = (guardada.data && guardada.data.id) || idFactura;
-
-      // Una sola línea con el concepto y la base (guardado en bloque, I9).
-      const resLineas = await llamarBackend({
-        action: 'save', sheet: 'ventas_detalle',
-        data: { id_factura: idFinal, lineas: [{ orden: 1, descripcion: d.concepto, importe: t.base }] }
-      });
-      if (resLineas.status === 'success') {
-        estado.ventas_detalle = estado.ventas_detalle.filter(function (l) { return String(l.id_factura) !== String(idFinal); });
-        (resLineas.lineas || []).forEach(function (l) { estado.ventas_detalle.push(l); });
-        guardarEntidadLocal('ventas_detalle');
-      }
-
-      await ctConvEngancharApunte(apunte, t, fechaMovimiento, contacto.id, {
-        id_factura_venta: idFinal, id_factura_compra: '',
+    await Promise.all([
+      guardarRegistro('ventas', factura, null, null),
+      ctConvEngancharApunte(apunte, t, fechaMovimiento, contacto.id, {
+        id_factura_venta: idFactura, id_factura_compra: '',
         concepto: 'Cobro factura ' + d.numero, tipo: 'ingreso'
-      });
+      })
+    ]);
 
-    } else {
-      const idFactura = ctNuevoId('fc');
-      const factura = {
-        id: idFactura,
-        numero: d.numero,
-        fecha: fechaFactura,
-        id_proveedor: contacto.id,
-        proveedor: nombre,
-        nif: contacto.nif || '',
-        concepto: d.concepto,
-        base: t.base,
-        iva_pct: t.ivaPct,
-        iva: t.iva,
-        irpf_pct: t.irpfPct,
-        irpf: t.irpf,
-        total: t.total,
-        estado: 'pagada',
-        fecha_pago: fechaMovimiento,
-        estado_registro: 'activo'
-      };
+  } else {
+    const idFactura = ctNuevoId('fc');
+    const factura = {
+      id: idFactura,
+      numero: d.numero,
+      fecha: fechaFactura,
+      id_proveedor: contacto.id,
+      proveedor: nombre,
+      nif: contacto.nif || '',
+      concepto: d.concepto,
+      base: t.base,
+      iva_pct: t.ivaPct,
+      iva: t.iva,
+      irpf_pct: t.irpfPct,
+      irpf: t.irpf,
+      total: t.total,
+      estado: 'pagada',
+      fecha_pago: fechaMovimiento,
+      estado_registro: 'activo'
+    };
 
-      const guardada = await guardarRegistro('compras', factura, null, null);
-      if (guardada.status !== 'success') throw new Error('No se pudo crear la factura');
-
-      const idFinal = (guardada.data && guardada.data.id) || idFactura;
-
-      await ctConvEngancharApunte(apunte, t, fechaMovimiento, contacto.id, {
-        id_factura_venta: '', id_factura_compra: idFinal,
+    await Promise.all([
+      guardarRegistro('compras', factura, null, null),
+      ctConvEngancharApunte(apunte, t, fechaMovimiento, contacto.id, {
+        id_factura_venta: '', id_factura_compra: idFactura,
         concepto: 'Pago factura ' + d.numero, tipo: 'gasto'
-      });
-    }
-
-    ctMarcarSync(apunte.id, null);
-    pintarContabilidad();
-
-  } catch (err) {
-    console.error('No se pudo convertir el apunte en factura:', err);
-    ctMarcarSync(apunte.id, 'error');
-    ctRepintarLista();
-    alert('No se ha podido crear la factura. El apunte se queda como estaba, no se ha perdido nada.');
+      })
+    ]);
   }
+
+  pintarContabilidad();
 }
 
 // El apunte no se borra ni se duplica: pasa a ser el apunte automático

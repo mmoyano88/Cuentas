@@ -111,34 +111,50 @@ function pdfDocObservaciones(clave) {
 // 3. CONTENIDO DEL DOCUMENTO
 // ============================================================
 // Presupuestos y facturas tienen ya la misma forma: concepto,
-// descripción y un único importe que ES la base imponible. Por eso
-// una sola función sirve para los dos.
+// descripción y un único importe. Por eso una sola función sirve para
+// los dos.
+//
+// El importe de la tabla es el precio ANTES del descuento especial
+// (23/09/2026): base imponible + descuento, los dos guardados en el
+// documento. Sin descuento, coincide con la base. En un presupuesto ya
+// lleva dentro el ajuste por tipo de cliente y la compensación de
+// IRPF, que NUNCA aparecen en el PDF: para el cliente es simplemente
+// el precio del trabajo.
 
 function pdfDocDatosDocumento(registro) {
   return {
     concepto: pdfDocTexto(registro.concepto),
     descripcion: pdfDocTexto(registro.descripcion),
-    base: parsearNumero(registro.base)
+    importe: roundMoney(parsearNumero(registro.base) + parsearNumero(registro.descuento_especial_importe))
   };
 }
 
 // ============================================================
 // 4. BLOQUE DE TOTALES
 // ============================================================
-// Base imponible · Descuento (solo si lo hay) · IVA (con %) ·
-// Retención IRPF (solo si la hay) · TOTAL.
+// Con descuento especial (23/09/2026), las cuentas se leen de arriba
+// abajo: Importe · Descuento (con % si lo es) · Base imponible · IVA ·
+// Retención IRPF (si la hay) · TOTAL. Antes salía la base (ya
+// descontada) y DESPUÉS el descuento, y la suma no cuadraba a la vista.
+// Sin descuento: Base imponible · IVA · Retención · TOTAL, como siempre.
+// Base imponible, IVA y Retención van en negrita (24/09/2026), para
+// distinguirlas de Importe y Descuento cuando aparecen.
 
 function pdfDocFilasTotales(registro) {
   const descuento = parsearNumero(registro.descuento_especial_importe);
   const irpf = parsearNumero(registro.irpf);
+  const etiquetaDescuento = String(registro.descuento_especial_tipo) === 'fixed'
+    ? 'Descuento'
+    : 'Descuento (' + parsearNumero(registro.descuento_especial_valor) + '%)';
 
-  return '<div class="summary-row"><span>Base imponible</span><span>' + escaparHtml(formatMoney(registro.base)) + '</span></div>' +
-    (descuento > 0
-      ? '<div class="summary-row"><span>Descuento</span><span>−' + escaparHtml(formatMoney(descuento)) + '</span></div>'
+  return (descuento > 0
+      ? '<div class="summary-row"><span>Importe</span><span>' + escaparHtml(formatMoney(pdfDocDatosDocumento(registro).importe)) + '</span></div>' +
+        '<div class="summary-row"><span>' + escaparHtml(etiquetaDescuento) + '</span><span>−' + escaparHtml(formatMoney(descuento)) + '</span></div>'
       : '') +
-    '<div class="summary-row"><span>IVA (' + parsearNumero(registro.iva_pct) + '%)</span><span>' + escaparHtml(formatMoney(registro.iva)) + '</span></div>' +
+    '<div class="summary-row fuerte"><span>Base imponible</span><span>' + escaparHtml(formatMoney(registro.base)) + '</span></div>' +
+    '<div class="summary-row fuerte"><span>IVA (' + parsearNumero(registro.iva_pct) + '%)</span><span>' + escaparHtml(formatMoney(registro.iva)) + '</span></div>' +
     (irpf > 0
-      ? '<div class="summary-row"><span>Retención IRPF (' + parsearNumero(registro.irpf_pct) + '%)</span><span>−' + escaparHtml(formatMoney(irpf)) + '</span></div>'
+      ? '<div class="summary-row fuerte"><span>Retención IRPF (' + parsearNumero(registro.irpf_pct) + '%)</span><span>−' + escaparHtml(formatMoney(irpf)) + '</span></div>'
       : '') +
     '<div class="summary-separator"></div>' +
     '<div class="summary-total"><span>TOTAL</span><span>' + escaparHtml(formatMoney(registro.total)) + '</span></div>';
@@ -214,11 +230,15 @@ function pdfDocConstruir(registro, contacto, tipo) {
 
         (doc.concepto ? '<div class="concept">' + escaparHtml(doc.concepto) + '</div>' : '') +
 
+        // Solo la descripción, a todo el ancho (24/09/2026). El importe ya
+        // sale abajo, en los totales: repetirlo aquí era el mismo dato dos
+        // veces. Así la descripción puede llevar varias líneas con su
+        // precio, como información; las cuentas se hacen siempre con lo
+        // que se escribe en el formulario, no con este texto.
         '<div class="desc-wrap">' +
-          '<div class="desc-head"><div>Descripción</div><div>Importe</div></div>' +
+          '<div class="desc-head"><div>Descripción</div></div>' +
           '<div class="detail-row" id="pdf-detalle">' +
             '<div class="detail-desc">' + escaparHtml(doc.descripcion || doc.concepto || 'Servicio') + '</div>' +
-            '<div class="detail-amount">' + escaparHtml(formatMoney(doc.base)) + '</div>' +
           '</div>' +
         '</div>' +
 
@@ -279,18 +299,17 @@ function pdfDocCss(acento) {
   '.concept{margin-top:6mm;font-size:10.5pt;line-height:1.3;font-weight:800}' +
 
   '.desc-wrap{margin-top:3mm}' +
-  '.desc-head{background:#172033;border-radius:1.5mm 1.5mm 0 0;display:grid;grid-template-columns:75% 25%;align-items:center;color:#fff;font-size:9.1pt;font-weight:800;padding:3mm 3%}' +
-  '.desc-head div:last-child{text-align:right}' +
-  '.detail-row{display:grid;grid-template-columns:75% 25%;align-items:start;font-size:8.9pt;line-height:1.35;padding:2.8mm 3%;border-bottom:.25mm solid #e5e7eb}' +
+  '.desc-head{background:#172033;border-radius:1.5mm 1.5mm 0 0;color:#fff;font-size:9.1pt;font-weight:800;padding:3mm 3%}' +
+  '.detail-row{font-size:8.9pt;line-height:1.35;padding:2.8mm 3%;border-bottom:.25mm solid #e5e7eb}' +
   // Los saltos de línea de la descripción se respetan tal cual, para
   // que cada punto quede en su propio renglón.
   '.detail-desc{white-space:pre-line}' +
-  '.detail-amount{text-align:right;white-space:nowrap}' +
 
   '.pie-doc{margin-top:auto;padding-top:8mm}' +
   '.summary-box{margin-left:50%;background:#eef1f4;border-radius:4mm;padding:4mm 4%}' +
   '.summary-row{display:flex;justify-content:space-between;align-items:center;font-size:8.9pt;line-height:1.3;margin:1mm 0}' +
   '.summary-row span:last-child{text-align:right;white-space:nowrap}' +
+  '.summary-row.fuerte{font-weight:700}' +
   '.summary-separator{height:.35mm;background:#172033;margin:2mm 0}' +
   '.summary-total{display:flex;justify-content:space-between;align-items:center;color:' + acento + ';font-weight:800;font-size:11pt;line-height:1}' +
   '.summary-total span:last-child{font-family:"Inter",Arial,sans-serif;font-size:14pt;font-weight:900;white-space:nowrap}' +
@@ -325,8 +344,10 @@ function pdfDocDescripcionSeSale(registro) {
   const texto = pdfDocTexto(registro.descripcion);
   if (!texto) return false;
 
-  // ~95 caracteres por renglón en la columna de descripción.
-  const CARACTERES_POR_RENGLON = 95;
+  // ~105 caracteres por renglón: la descripción ocupa ahora todo el
+  // ancho. Medido generando el documento de verdad (24/09/2026); se
+  // redondea a la baja para que el aviso salte antes, nunca tarde.
+  const CARACTERES_POR_RENGLON = 105;
   const ALTO_RENGLON = 15;      // px aproximados por renglón
   const ALTO_CONCEPTO = pdfDocTexto(registro.concepto) ? 30 : 0;
 

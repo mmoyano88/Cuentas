@@ -30,20 +30,9 @@ let fcFiltroRegistro = 'activas';  // 'activas' | 'todas' | 'inactivas'
 let fcOrden = 'fecha-desc';
 let fcBusqueda = '';
 
-const fcSyncEstados = {};
-const fcPendientes = {};
-
-function fcMarcarSync(id, valor) {
-  if (!id) return;
-  if (valor) fcSyncEstados[String(id)] = valor;
-  else delete fcSyncEstados[String(id)];
-}
-
+// Punto de color de cada fila: lo decide el núcleo (estadoSyncDe).
 function fcEstadoSync(f) {
-  const marcado = fcSyncEstados[String(f.id)];
-  if (marcado) return marcado;
-  if (esDePrueba(f)) return 'prueba';
-  return 'ok';
+  return estadoSyncDe('compras', f);
 }
 
 function fcPuntoEstado(f) {
@@ -68,7 +57,6 @@ function fcPastillaEstado(valor) {
 // ============================================================
 
 function fcNuevoId(prefijo) {
-  if (estado.modoPrueba) return generarIdPrueba(prefijo);
   return prefijo + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
 }
 
@@ -81,7 +69,6 @@ function fcProveedoresDisponibles() {
   return estado.clientes.filter(function (c) {
     if (c.estado !== 'activo') return false;
     if (c.rol !== 'proveedor' && c.rol !== 'ambos') return false;
-    if (!estado.modoPrueba && esDePrueba(c)) return false;
     return true;
   }).sort(function (a, b) {
     return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
@@ -257,7 +244,7 @@ function fcRepintarLista() {
   contenedor.innerHTML =
     '<div class="fv-lista-movil">' + lista.map(fcRenderFilaMovil).join('') + '</div>' +
     '<div class="fv-tabla-wrap"><table class="fv-tabla"><thead><tr>' +
-      '<th>Fecha</th><th>Número</th><th>Proveedor</th><th>Concepto</th>' +
+      '<th></th><th>Fecha</th><th>Número</th><th>Proveedor</th><th>Concepto</th>' +
       '<th class="fv-celda-derecha">Base</th><th class="fv-celda-derecha">Total</th><th></th>' +
     '</tr></thead><tbody>' + lista.map(fcRenderFilaTabla).join('') + '</tbody></table></div>';
 
@@ -289,6 +276,7 @@ function fcRenderFilaMovil(f) {
 function fcRenderFilaTabla(f) {
   const inactiva = !fcEstaActiva(f);
   return '<tr class="fv-fila-tabla' + (inactiva ? ' fv-fila-inactiva' : '') + '" data-id="' + escaparHtml(f.id) + '">' +
+    '<td class="fv-celda-icono">' + htmlIconoContacto((fcProveedorDe(f) || {}).icono, 32) + '</td>' +
     '<td>' + escaparHtml(mostrarFecha(f.fecha)) + '</td>' +
     '<td class="fv-celda-numero">' + escaparHtml(f.numero || '—') + (inactiva ? ' <span style="color:var(--texto-secundario);font-weight:400">(inactiva)</span>' : '') + '</td>' +
     '<td>' + escaparHtml(f.proveedor || '—') + '</td>' +
@@ -395,30 +383,31 @@ async function fcCambiarPago(id) {
   );
   if (eleccion !== 'confirmar') return;
 
-  if (!puedeEscribir()) return;
+  // Deshacer un pago borra su apunte de tesorería: acción delicada,
+  // pide el PIN cada vez (decisión 15/09/2026). Marcar como pagada es
+  // el sentido normal del día a día y no lo pide.
+  if (!pasaAPagada) {
+    const ok = await confirmarConPin('Vas a marcar como PENDIENTE la factura ' + (f.numero || '') +
+      '. Se borrará su apunte de tesorería.');
+    if (!ok) return;
+  }
 
-  fcMarcarSync(id, 'guardando');
-  fcRepintarLista();
+  if (!puedeEscribir()) return;
 
   const registro = pasaAPagada
     ? Object.assign({}, f, { estado: 'pagada', fecha_pago: fechaHoyISO() })
     : Object.assign({}, f, { estado: 'pendiente', fecha_pago: '' });
 
-  const resultado = await guardarRegistro('compras', registro, fcRepintarLista, null);
-  if (resultado.status !== 'success') {
-    fcMarcarSync(id, 'error');
-    fcPendientes[String(id)] = { registro: registro };
-    fcRepintarLista();
-    return;
-  }
-  fcMarcarSync(id, null);
-  delete fcPendientes[String(id)];
-
-  const okApunte = pasaAPagada
-    ? await fcCrearApuntePago(registro)
-    : await fcBorrarApuntePago(registro.id);
-
-  if (!okApunte) fcMarcarSync(id, 'error');
+  // Factura y apunte a la vez (23/09/2026). Antes el apunte no se
+  // creaba hasta que Google confirmaba la factura: dos viajes seguidos,
+  // y el apunte tardaba el doble en aparecer en Contabilidad. Ahora los
+  // dos aparecen al instante en el dispositivo y se guardan en paralelo.
+  // Si algo falla, lo que falte queda en rojo (la factura en su lista,
+  // el apunte en Contabilidad) y se reenvía solo al sincronizar.
+  await Promise.all([
+    guardarRegistro('compras', registro, fcRepintarLista, null),
+    pasaAPagada ? fcCrearApuntePago(registro) : fcBorrarApuntePago(registro.id)
+  ]);
   fcRepintarLista();
 }
 
@@ -426,26 +415,25 @@ async function fcDesactivar(id) {
   const f = estado.compras.find(function (x) { return String(x.id) === String(id); });
   if (!f) return;
   if (!confirm('¿Desactivar la factura ' + (f.numero || '') + '?\n\nLa factura no se borra: queda guardada pero deja de contar como activa, y no entrará en los cálculos de impuestos.')) return;
+
+  // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
+  if (!await confirmarConPin('Vas a desactivar la factura de compra ' + (f.numero || '') + '.')) return;
+
   if (!puedeEscribir()) return;
 
-  fcMarcarSync(id, 'guardando');
-  fcRepintarLista();
-
   const registro = Object.assign({}, f, { estado_registro: 'inactivo' });
-  const resultado = await guardarRegistro('compras', registro, fcRepintarLista, null);
-  if (resultado.status !== 'success') {
-    fcMarcarSync(id, 'error');
-    fcPendientes[String(id)] = { registro: registro };
-    fcRepintarLista();
-    return;
-  }
-  fcMarcarSync(id, null);
-  delete fcPendientes[String(id)];
-
-  if (String(f.estado) === 'pagada') {
-    const okApunte = await fcBorrarApuntePago(id);
-    if (!okApunte) fcMarcarSync(id, 'error');
-  }
+  // Factura y apunte a la vez (23/09/2026). Antes el apunte no se
+  // creaba hasta que Google confirmaba la factura: dos viajes seguidos,
+  // y el apunte tardaba el doble en aparecer en Contabilidad. Ahora los
+  // dos aparecen al instante en el dispositivo y se guardan en paralelo.
+  // Si algo falla, la factura queda en rojo como siempre y la
+  // reconciliación de la próxima sincronización lo termina de cuadrar.
+  // Si la factura estaba pagada, su apunte de tesorería se borra también.
+  const estabaPagada = String(f.estado) === 'pagada';
+  await Promise.all([
+    guardarRegistro('compras', registro, fcRepintarLista, null),
+    estabaPagada ? fcBorrarApuntePago(id) : Promise.resolve(true)
+  ]);
   fcRepintarLista();
 }
 
@@ -455,38 +443,26 @@ async function fcReactivar(id) {
   if (!confirm('¿Reactivar la factura ' + (f.numero || '') + '?')) return;
   if (!puedeEscribir()) return;
 
-  fcMarcarSync(id, 'guardando');
-  fcRepintarLista();
-
   const registro = Object.assign({}, f, { estado_registro: 'activo' });
-  const resultado = await guardarRegistro('compras', registro, fcRepintarLista, null);
-  if (resultado.status !== 'success') {
-    fcMarcarSync(id, 'error');
-    fcPendientes[String(id)] = { registro: registro };
-    fcRepintarLista();
-    return;
-  }
-  fcMarcarSync(id, null);
-  delete fcPendientes[String(id)];
-
-  if (String(f.estado) === 'pagada') {
-    const okApunte = await fcCrearApuntePago(registro);
-    if (!okApunte) fcMarcarSync(id, 'error');
-  }
+  // Factura y apunte a la vez (23/09/2026). Antes el apunte no se
+  // creaba hasta que Google confirmaba la factura: dos viajes seguidos,
+  // y el apunte tardaba el doble en aparecer en Contabilidad. Ahora los
+  // dos aparecen al instante en el dispositivo y se guardan en paralelo.
+  // Si algo falla, la factura queda en rojo como siempre y la
+  // reconciliación de la próxima sincronización lo termina de cuadrar.
+  // Si estaba pagada, se vuelve a crear su apunte de tesorería.
+  const estabaPagada = String(f.estado) === 'pagada';
+  await Promise.all([
+    guardarRegistro('compras', registro, fcRepintarLista, null),
+    estabaPagada ? fcCrearApuntePago(registro) : Promise.resolve(true)
+  ]);
   fcRepintarLista();
 }
 
+// Reintento manual desde "Más opciones": se reenvía lo que el núcleo
+// tenga pendiente de esta factura.
 function fcReintentarGuardado(id) {
-  const pendiente = fcPendientes[String(id)];
-  const registro = pendiente
-    ? pendiente.registro
-    : estado.compras.find(function (x) { return String(x.id) === String(id); });
-  if (!registro) return;
-
-  fcMarcarSync(id, 'guardando');
-  fcRepintarLista();
-
-  fcGuardarEnSegundoPlano(registro);
+  reintentarRegistro('compras', id, fcRepintarLista);
 }
 
 // ============================================================
@@ -501,7 +477,9 @@ function fcApunteDe(idFactura) {
 
 async function fcCrearApuntePago(factura) {
   const existente = fcApunteDe(factura.id);
-  const fecha = normalizarFecha(factura.fecha_pago || fechaHoyISO());
+  // Fecha del pago; si la factura no la tuviera guardada (facturas
+  // antiguas), se respeta la que ya tenía el apunte.
+  const fecha = normalizarFecha(factura.fecha_pago || (existente && existente.fecha) || fechaHoyISO());
   const registro = {
     id: existente ? existente.id : fcNuevoId('apu'),
     ambito: 'empresa',
@@ -527,10 +505,18 @@ async function fcCrearApuntePago(factura) {
   return resultado && resultado.status === 'success';
 }
 
-// Devuelve true si se borró con éxito, false si falló (borrarRegistro
-// ya deshace el cambio local y avisa con un alert si falla — aquí
-// además se informa a quien llama para que pueda marcar la factura en
-// rojo. Ver diario, 09/09/2026, punto 2).
+// ¿El apunte de pago ya no coincide con su factura? (importes o
+// proveedor cambiados al editarla). La fecha no se compara: es la del pago.
+function fcApunteDesfasado(factura, apunte) {
+  if (!apunte) return false;
+  const distinto = function (a, b) { return Math.abs(parsearNumero(a) - parsearNumero(b)) > 0.005; };
+  return distinto(apunte.base, factura.base) || distinto(apunte.iva, factura.iva) ||
+    distinto(apunte.irpf, factura.irpf) || distinto(apunte.total, factura.total) ||
+    String(apunte.id_contacto || '') !== String(factura.id_proveedor || '');
+}
+
+// Devuelve true si se borró con éxito, false si falló (en ese caso el
+// apunte queda pendiente en el núcleo, en rojo, y se reenvía solo).
 async function fcBorrarApuntePago(idFactura) {
   const apunte = fcApunteDe(idFactura);
   if (!apunte) return true;
@@ -918,10 +904,6 @@ function fcProcesarGuardado(fondo, original) {
     fcMostrarError(fondo, 'id_proveedor', 'Ese proveedor ya no existe.');
     return;
   }
-  if (!estado.modoPrueba && esDePrueba(proveedor)) {
-    alert('Este proveedor es de prueba y no puede utilizarse en una factura real. Activa el modo prueba para trabajar con datos de prueba.');
-    return;
-  }
   if (original && !fcEstaActiva(original)) {
     alert('Esta factura está desactivada y no se puede editar.');
     return;
@@ -953,51 +935,23 @@ function fcProcesarGuardado(fondo, original) {
   // La ventana se cierra al momento; el guardado sigue en segundo plano.
   fondo.remove();
 
-  fcMarcarSync(idFactura, 'guardando');
   fcGuardarEnSegundoPlano(registro);
   fcRepintarLista();
 }
 
 /**
  * Guarda sin bloquear la pantalla. Si la factura ya estaba pagada y se
- * han cambiado los importes, el apunte de tesorería se rehace para que
- * contabilidad siga cuadrando.
+ * han cambiado los importes o el proveedor, el apunte de tesorería se
+ * rehace a la vez para que contabilidad siga cuadrando (GUÍA 11.1).
  */
 function fcGuardarEnSegundoPlano(registro) {
-  return guardarRegistro('compras', registro, fcRepintarLista, null)
-    .then(function (resultado) {
-      if (resultado.status !== 'success') {
-        fcReponerLocal(registro);
-        fcMarcarSync(registro.id, 'error');
-        fcPendientes[String(registro.id)] = { registro: registro };
-        fcRepintarLista();
-        return;
-      }
-      fcMarcarSync(registro.id, null);
-      delete fcPendientes[String(registro.id)];
-
-      if (String(registro.estado) === 'pagada') {
-        return fcCrearApuntePago(registro).then(function (okApunte) {
-          if (!okApunte) fcMarcarSync(registro.id, 'error');
-          fcRepintarLista();
-        });
-      }
-      fcRepintarLista();
-    })
-    .catch(function (err) {
-      console.error('Fallo al guardar la factura de compra:', err);
-      fcReponerLocal(registro);
-      fcMarcarSync(registro.id, 'error');
-      fcPendientes[String(registro.id)] = { registro: registro };
-      fcRepintarLista();
-    });
-}
-
-function fcReponerLocal(registro) {
-  const i = estado.compras.findIndex(function (r) { return String(r.id) === String(registro.id); });
-  if (i >= 0) estado.compras[i] = registro;
-  else estado.compras.push(registro);
-  guardarEntidadLocal('compras');
+  const pagada = fcEstaActiva(registro) && String(registro.estado) === 'pagada';
+  const apunte = fcApunteDe(registro.id);
+  const rehacerApunte = pagada && (!apunte || fcApunteDesfasado(registro, apunte));
+  return Promise.all([
+    guardarRegistro('compras', registro, fcRepintarLista, null),
+    rehacerApunte ? fcCrearApuntePago(registro) : Promise.resolve(true)
+  ]).then(function () { fcRepintarLista(); });
 }
 
 // ============================================================
@@ -1006,7 +960,8 @@ function fcReponerLocal(registro) {
 // Mismo mecanismo que en Facturas de venta: en cada sincronización
 // general:
 //   1. Crea el apunte de pago de cualquier factura de compra pagada y
-//      activa que se haya quedado sin él.
+//      activa que se haya quedado sin él, o lo rehace si ya no cuadra
+//      con su factura (23/09/2026).
 //   2. Borra el apunte de cualquier factura que YA NO está pagada y
 //      activa — caso inverso añadido el 09/09/2026 (ver la misma
 //      fecha en Facturas de venta para el detalle completo).
@@ -1016,7 +971,8 @@ async function fcReconciliarApuntesPago() {
     return fcEstaActiva(f) && String(f.estado) === 'pagada';
   });
   for (const f of pagadasActivas) {
-    if (!fcApunteDe(f.id)) {
+    const apunte = fcApunteDe(f.id);
+    if (!apunte || fcApunteDesfasado(f, apunte)) {
       try {
         await fcCrearApuntePago(f);
       } catch (err) {

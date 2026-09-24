@@ -17,6 +17,20 @@
  * del negocio, es devolver dinero que nunca fue tuyo, pero sale del
  * banco igual.
  *
+ * SOLO DINERO QUE SE HA MOVIDO DE VERDAD (decisión del propietario,
+ * 23/09/2026): ingresos, gastos, beneficio, media, gráfico de líneas y
+ * donuts se calculan únicamente con los apuntes de Contabilidad —lo
+ * cobrado y lo pagado—, con la fecha del cobro o del pago. Una factura
+ * emitida pero sin cobrar (o recibida y sin pagar) no cuenta aquí
+ * hasta que se cobra o se paga. Es lo que ya hacía la app original
+ * (mapa 14.2). Antes de este cambio se contaban las facturas por su
+ * fecha aunque no estuvieran cobradas, y la cifra "Cobrado" incluía
+ * dinero que no había entrado.
+ *
+ * La EXCEPCIÓN son las tarjetas de impuestos (5 y 6): para Hacienda una
+ * factura cuenta desde que se emite, esté cobrada o no, así que esas
+ * dos siguen usando las facturas, igual que la pantalla de Impuestos.
+ *
  * PERSPECTIVAS: Empresa · Personal · Total. Filtran por el `ambito`
  * de los apuntes. «Total» no filtra. Las facturas son siempre de
  * empresa por naturaleza, así que en la perspectiva Personal no
@@ -70,15 +84,6 @@ function dashEsPagoImpuestos(a) {
   return !!a.id_impuesto && ['iva', 'irpf'].indexOf(dashTexto(a.impuesto_pago)) !== -1;
 }
 
-function dashVisible(r) {
-  // En modo prueba los datos ficticios se mezclan con los reales, a
-  // propósito, para que las pruebas se sientan realistas (guía). Al
-  // desactivar el modo prueba desaparecen solos, porque el núcleo los
-  // borra del almacenamiento local.
-  if (!estado.modoPrueba && esDePrueba(r)) return false;
-  return true;
-}
-
 // «2026-09» a partir de una fecha ISO. Sirve de clave para agrupar
 // por mes sin líos de zona horaria.
 function dashClaveMes(iso) {
@@ -112,23 +117,35 @@ function dashUltimos12Meses() {
   return claves;
 }
 
-// Mes del primer movimiento registrado de toda la aplicación: la
-// "antigüedad" del negocio. Sirve para no dividir la media entre
-// meses anteriores a que la actividad existiera (decisión del
-// propietario: si solo llevas 3 meses, se divide entre 3, no entre
-// 12).
-function dashMesInicioActividad() {
+// ÚLTIMOS 365 DÍAS HASTA HOY (23/09/2026, decisión del propietario).
+// Sustituye a "los 12 meses completos" en los donuts y en la media
+// mensual: así cuentan también el mes en curso y los datos no se
+// quedan un mes atrás. Ventana: desde hace 364 días hasta hoy, ambos
+// incluidos (365 días justos). Lo fechado en el futuro no entra.
+function dashIsoLocal(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+function dashVentana365() {
+  const hoy = new Date();
+  const desde = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 364);
+  return { desde: dashIsoLocal(desde), hasta: dashIsoLocal(hoy) };
+}
+
+function dashEnVentana(fechaIso, ventana) {
+  return !!fechaIso && fechaIso >= ventana.desde && fechaIso <= ventana.hasta;
+}
+
+// Día del primer movimiento de dinero registrado, para la media sobre
+// 365 días.
+function dashDiaInicioActividad() {
   let minimo = null;
-  const anotar = function (iso) {
-    const clave = dashClaveMes(iso);
-    if (!clave) return;
-    if (minimo === null || clave < minimo) minimo = clave;
-  };
-
-  estado.ventas.forEach(function (f) { if (fvEstaActiva(f) && dashVisible(f)) anotar(f.fecha); });
-  estado.compras.forEach(function (f) { if (fcEstaActiva(f) && dashVisible(f)) anotar(f.fecha); });
-  estado.apuntes.forEach(function (a) { if (dashVisible(a)) anotar(a.fecha); });
-
+  estado.apuntes.forEach(function (a) {
+    const f = normalizarFecha(a.fecha);
+    if (!f) return;
+    if (minimo === null || f < minimo) minimo = f;
+  });
   return minimo;
 }
 
@@ -136,62 +153,26 @@ function dashMesInicioActividad() {
 // 2. RECOGIDA DE MOVIMIENTOS
 // ============================================================
 // Todo el dashboard trabaja sobre una lista única y normalizada de
-// movimientos, para no repetir tres veces la misma lógica de filtro.
+// movimientos: los apuntes de Contabilidad, que son el dinero que ha
+// entrado o salido de verdad. Incluye los apuntes que vienen de una
+// factura cobrada o pagada (llevan el cliente o proveedor de esa
+// factura) y los manuales. Las facturas en sí no se leen aquí: una
+// factura sin cobrar no es dinero todavía (23/09/2026).
 //
-// Cada movimiento lleva: mes, tipo (ingreso/gasto), ámbito, si es un
-// pago de impuestos, su importe económico (base) y su importe de
-// tesorería (total).
+// Cada movimiento lleva: mes, fecha, tipo (ingreso/gasto), ámbito, si
+// es un pago de impuestos, su importe económico (base), su importe de
+// tesorería (total) y su contacto REGISTRADO (id_contacto). Un
+// contacto_libre (nombre suelto sin registrar) no cuenta para los
+// donuts de clientes y proveedores, tal como se decidió.
 
 function dashMovimientos() {
   const lista = [];
-
-  // --- Facturas de venta: ingreso de empresa ---
-  estado.ventas.forEach(function (f) {
-    if (!fvEstaActiva(f) || !dashVisible(f)) return;
-    const mes = dashClaveMes(f.fecha);
-    if (!mes) return;
-    lista.push({
-      mes: mes,
-      tipo: 'ingreso',
-      ambito: 'empresa',
-      pagoImpuestos: false,
-      base: parsearNumero(f.base),
-      total: parsearNumero(f.total),
-      idContacto: f.id_cliente || ''
-    });
-  });
-
-  // --- Facturas de compra: gasto de empresa ---
-  estado.compras.forEach(function (f) {
-    if (!fcEstaActiva(f) || !dashVisible(f)) return;
-    const mes = dashClaveMes(f.fecha);
-    if (!mes) return;
-    lista.push({
-      mes: mes,
-      tipo: 'gasto',
-      ambito: 'empresa',
-      pagoImpuestos: false,
-      base: parsearNumero(f.base),
-      total: parsearNumero(f.total),
-      idContacto: f.id_proveedor || ''
-    });
-  });
-
-  // --- Apuntes ---
-  // Los que vienen de una factura se saltan: esa factura ya está
-  // contada arriba y se duplicaría. Los pagos de impuestos SÍ entran,
-  // marcados, porque cuentan en tesorería aunque no en lo económico.
-  // idContacto solo se rellena si el apunte tiene un cliente/proveedor
-  // REGISTRADO (id_contacto) — un contacto_libre (nombre suelto sin
-  // registrar) no cuenta para el donut de concentración, tal como se
-  // decidió: ese donut es solo de contactos reales.
   estado.apuntes.forEach(function (a) {
-    if (!dashVisible(a)) return;
-    if (a.id_factura_venta || a.id_factura_compra) return;
     const mes = dashClaveMes(a.fecha);
     if (!mes) return;
     lista.push({
       mes: mes,
+      fecha: normalizarFecha(a.fecha),
       tipo: dashTexto(a.tipo) === 'ingreso' ? 'ingreso' : 'gasto',
       ambito: dashTexto(a.ambito) === 'personal' ? 'personal' : 'empresa',
       pagoImpuestos: dashEsPagoImpuestos(a),
@@ -200,7 +181,6 @@ function dashMovimientos() {
       idContacto: a.id_contacto || ''
     });
   });
-
   return lista;
 }
 
@@ -238,42 +218,53 @@ function dashTotales(movimientos) {
   };
 }
 
-// Media mensual sobre los 12 meses completos anteriores 🔒
-// (regla del propietario, sustituye a la del mapa 14.3):
-//   · Se suman los 12 meses y se divide entre 12.
-//   · Un mes sin actividad cuenta como CERO, no se descarta — la
+// Media mensual sobre los ÚLTIMOS 365 DÍAS hasta hoy 🔒
+// (regla del propietario; el 23/09/2026 pasó de "12 meses completos"
+// a "365 días hasta hoy", para que cuente también el mes en curso):
+//   · Se suma lo de los últimos 365 días y se divide entre 12.
+//   · Un periodo sin actividad cuenta como CERO, no se descarta — la
 //     media busca aproximar "un sueldo medio" para ver la viabilidad
 //     del negocio, y un mes sin ingresos también forma parte de eso.
-//   · PERO no se cuentan meses anteriores al primer movimiento
+//   · PERO no se cuenta el tiempo anterior al primer movimiento
 //     registrado: si la actividad empezó hace 3 meses, se divide
-//     entre 3, no entre 12.
+//     entre 3, no entre 12. Se calcula en días (días de actividad
+//     dentro de la ventana ÷ 30,42) y nunca por debajo de 1 mes, para
+//     que en las primeras semanas la media no salga disparada.
+const DASH_DIAS_POR_MES = 365 / 12;
+
 function dashMediaMensual(movimientos) {
-  const meses = dashUltimos12Meses();
-  const inicio = dashMesInicioActividad();
-
-  const mesesContados = inicio
-    ? meses.filter(function (m) { return m >= inicio; })
-    : [];
-
-  if (mesesContados.length === 0) {
+  const ventana = dashVentana365();
+  const inicio = dashDiaInicioActividad();
+  if (!inicio || inicio > ventana.hasta) {
     return { beneficio: 0, tesoreria: 0, meses: 0 };
   }
 
-  const enVentana = movimientos.filter(function (m) {
-    return mesesContados.indexOf(m.mes) !== -1;
-  });
+  const desde = inicio > ventana.desde ? inicio : ventana.desde;
+  const p = desde.split('-').map(Number), h = ventana.hasta.split('-').map(Number);
+  const dias = Math.round((new Date(h[0], h[1] - 1, h[2]) - new Date(p[0], p[1] - 1, p[2])) / 86400000) + 1;
+  const meses = Math.min(12, Math.max(1, dias / DASH_DIAS_POR_MES));
+
+  const enVentana = movimientos.filter(function (m) { return dashEnVentana(m.fecha, ventana); });
   const t = dashTotales(enVentana);
 
   return {
-    beneficio: roundMoney(t.beneficio / mesesContados.length),
-    tesoreria: roundMoney(t.tesNeta / mesesContados.length),
-    meses: mesesContados.length
+    beneficio: roundMoney(t.beneficio / meses),
+    tesoreria: roundMoney(t.tesNeta / meses),
+    meses: Math.round(meses)
   };
 }
 
-// Datos mes a mes para el gráfico grande de líneas.
+// Datos mes a mes para el gráfico grande de líneas: los 12 meses
+// completos y, al final, el mes en curso (23/09/2026). El mes en curso
+// va marcado como "en curso" y se dibuja punteado y con el punto
+// hueco, para que no se lea como una bajada: todavía está a medias.
+function dashMesActual() {
+  const hoy = new Date();
+  return hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
+}
+
 function dashSerieMensual(movimientos) {
-  const meses = dashUltimos12Meses();
+  const meses = dashUltimos12Meses().concat([dashMesActual()]);
   const porMes = {};
   meses.forEach(function (m) { porMes[m] = { ingresos: 0, gastos: 0 }; });
 
@@ -285,7 +276,9 @@ function dashSerieMensual(movimientos) {
   });
 
   return {
-    etiquetas: meses.map(dashEtiquetaMes),
+    etiquetas: meses.map(function (m, i) {
+      return i === meses.length - 1 ? dashEtiquetaMes(m) + ' (en curso)' : dashEtiquetaMes(m);
+    }),
     ingresos: meses.map(function (m) { return roundMoney(porMes[m].ingresos); }),
     gastos: meses.map(function (m) { return roundMoney(porMes[m].gastos); }),
     beneficio: meses.map(function (m) { return roundMoney(porMes[m].ingresos - porMes[m].gastos); })
@@ -301,23 +294,21 @@ function dashSerieMensual(movimientos) {
 // registrado, tiene sentido poder aislar solo esa parte. Ingresos y
 // Gastos por ámbito siguen fijos: su propio eje YA es empresa/
 // personal, filtrarlos por perspectiva los dejaría casi siempre con
-// una sola porción. Todos miran los últimos 12 meses completos.
+// una sola porción. Todos miran los últimos 365 días hasta hoy
+// (23/09/2026; antes, los 12 meses completos sin el mes en curso).
 
 function dashNombreContacto(id) {
   const c = estado.clientes.find(function (x) { return String(x.id) === String(id); });
   return c ? (dashTexto(c.nombre_fiscal) || dashTexto(c.nombre_contacto) || 'Sin nombre') : '';
 }
 
-// Top 5 por base + «Otros» agrupando el resto. Trabaja sobre
-// movimientos ya fusionados (ventas + compras + apuntes manuales de
-// empresa/personal), filtrados por tipo (ingreso→clientes,
-// gasto→proveedores) y por la perspectiva activa del Dashboard. Solo
-// cuentan los movimientos con un contacto REGISTRADO (idContacto): un
-// apunte con contacto_libre (nombre suelto sin registrar) no tiene un
-// id de cliente/proveedor real al que sumar, así que se queda fuera —
-// tal como se decidió al plantear este donut.
+// Top 5 por base + «Otros» agrupando el resto. Cuenta solo lo cobrado
+// (clientes) o pagado (proveedores), filtrado por la perspectiva activa
+// del Dashboard. Solo cuentan los movimientos con un contacto
+// REGISTRADO (idContacto): un apunte con contacto_libre no tiene un id
+// de cliente/proveedor real al que sumar, así que se queda fuera.
 function dashConcentracionPorTipo(tipo, perspectiva) {
-  const meses = dashUltimos12Meses();
+  const ventana = dashVentana365();
   const porContacto = {};
 
   dashMovimientos().forEach(function (m) {
@@ -325,7 +316,7 @@ function dashConcentracionPorTipo(tipo, perspectiva) {
     if (m.pagoImpuestos) return;
     if (!m.idContacto) return;
     if (perspectiva !== 'total' && m.ambito !== perspectiva) return;
-    if (meses.indexOf(m.mes) === -1) return;
+    if (!dashEnVentana(m.fecha, ventana)) return;
     const nombre = dashNombreContacto(m.idContacto);
     if (!nombre) return; // contacto ya no existe en Clientes
     porContacto[nombre] = (porContacto[nombre] || 0) + m.base;
@@ -356,16 +347,16 @@ function dashConcentracionProveedores(perspectiva) {
   return dashConcentracionPorTipo('gasto', perspectiva);
 }
 
-// Empresa contra personal, sobre los últimos 12 meses. Sin pagos de
+// Empresa contra personal, sobre los últimos 365 días. Sin pagos de
 // impuestos: es una comparación económica, no de tesorería.
 function dashPorAmbito(tipo) {
-  const meses = dashUltimos12Meses();
+  const ventana = dashVentana365();
   let empresa = 0, personal = 0;
 
   dashMovimientos().forEach(function (m) {
     if (m.tipo !== tipo) return;
     if (m.pagoImpuestos) return;
-    if (meses.indexOf(m.mes) === -1) return;
+    if (!dashEnVentana(m.fecha, ventana)) return;
     if (m.ambito === 'personal') personal += m.base;
     else empresa += m.base;
   });
@@ -398,7 +389,7 @@ function dashImpuestos() {
   // año, sumando los apuntes de pago (no las estimaciones).
   let pagadoAnio = 0;
   estado.apuntes.forEach(function (ap) {
-    if (!dashVisible(ap) || !dashEsPagoImpuestos(ap)) return;
+    if (!dashEsPagoImpuestos(ap)) return;
     if (dashClaveMes(ap.fecha) && dashClaveMes(ap.fecha).slice(0, 4) === String(anio)) {
       pagadoAnio += parsearNumero(ap.total) * (dashTexto(ap.tipo) === 'ingreso' ? -1 : 1);
     }
@@ -408,7 +399,7 @@ function dashImpuestos() {
   // facturas de venta activas todavía sin cobrar.
   let pendienteCobro = 0;
   estado.ventas.forEach(function (f) {
-    if (!fvEstaActiva(f) || !dashVisible(f)) return;
+    if (!fvEstaActiva(f)) return;
     if (dashTexto(f.estado).toLowerCase() === 'pagada') return;
     pendienteCobro += parsearNumero(f.total);
   });
@@ -465,7 +456,7 @@ function pintarDashboard() {
     '<div id="dash-tarjetas" class="dash-tarjetas"></div>' +
     '<div class="dash-grafico-grande">' +
       '<div class="dash-grafico-cabecera">' +
-        '<p class="dash-grafico-titulo">Evolución de los últimos 12 meses</p>' +
+        '<p class="dash-grafico-titulo">Evolución: 12 meses y el mes en curso</p>' +
         '<div class="dash-selector pequeno" id="dash-selector-grafico">' +
           DASH_PERSPECTIVAS.map(function (p) {
             return '<button type="button" data-perspectiva="' + p.id + '"' +
@@ -493,7 +484,7 @@ function pintarDashboard() {
         '<div class="dash-lienzo"><canvas id="dash-g-gastos-ambito"></canvas></div>' +
       '</div>' +
     '</div>' +
-    '<p class="dash-nota">Cifra grande sin impuestos (lo que gana el negocio); debajo, en pequeño, el dinero que se mueve en el banco. Los donuts de Empresa/Personal no cambian con el selector. Los cuatro donuts circulares miran siempre los últimos 12 meses completos (sin contar el mes en curso).</p>';
+    '<p class="dash-nota">Solo cuenta el dinero ya cobrado o pagado (lo que está en Contabilidad), por la fecha del cobro o del pago; las facturas pendientes entran cuando se cobran o se pagan. La excepción son las dos tarjetas de impuestos, que cuentan las facturas desde que se emiten. Cifra grande sin impuestos (lo que gana el negocio); debajo, en pequeño, el dinero que se mueve en el banco. Los donuts de Empresa/Personal no cambian con el selector. Los cuatro donuts y la media mensual miran los últimos 365 días hasta hoy.</p>';
 
   // Los dos selectores hacen lo mismo: cambian toda la pantalla.
   ['dash-selector', 'dash-selector-grafico'].forEach(function (id) {
@@ -594,20 +585,20 @@ function dashRepintarGraficos() {
   }
 
   dashGraficoEvolucion();
-  dashGraficoDonut('dash-g-clientes', dashConcentracionClientes(dashPerspectiva), 'Todavía no hay ingresos con contacto registrado en los últimos 12 meses.');
-  dashGraficoDonut('dash-g-proveedores', dashConcentracionProveedores(dashPerspectiva), 'Todavía no hay gastos con contacto registrado en los últimos 12 meses.');
+  dashGraficoDonut('dash-g-clientes', dashConcentracionClientes(dashPerspectiva), 'Todavía no hay ingresos con contacto registrado en los últimos 365 días.');
+  dashGraficoDonut('dash-g-proveedores', dashConcentracionProveedores(dashPerspectiva), 'Todavía no hay gastos con contacto registrado en los últimos 365 días.');
 
   const ingAmbito = dashPorAmbito('ingreso');
   dashGraficoDonut('dash-g-ingresos-ambito', [
     { nombre: 'Empresa', importe: ingAmbito.empresa },
     { nombre: 'Personal', importe: ingAmbito.personal }
-  ].filter(function (x) { return x.importe > 0; }), 'Todavía no hay ingresos en los últimos 12 meses.');
+  ].filter(function (x) { return x.importe > 0; }), 'Todavía no hay ingresos en los últimos 365 días.');
 
   const gasAmbito = dashPorAmbito('gasto');
   dashGraficoDonut('dash-g-gastos-ambito', [
     { nombre: 'Empresa', importe: gasAmbito.empresa },
     { nombre: 'Personal', importe: gasAmbito.personal }
-  ].filter(function (x) { return x.importe > 0; }), 'Todavía no hay gastos en los últimos 12 meses.');
+  ].filter(function (x) { return x.importe > 0; }), 'Todavía no hay gastos en los últimos 365 días.');
 }
 
 function dashGraficoEvolucion() {
@@ -619,18 +610,26 @@ function dashGraficoEvolucion() {
 
   const hayAlgo = serie.ingresos.concat(serie.gastos).some(function (v) { return v !== 0; });
   if (!hayAlgo) {
-    dashMensajeVacio('dash-g-evolucion', 'Todavía no hay movimientos en los últimos 12 meses.');
+    dashMensajeVacio('dash-g-evolucion', 'Todavía no hay movimientos en los últimos 12 meses ni en el mes en curso.');
     return;
   }
+
+  // El último punto es el mes en curso: tramo final punteado y punto
+  // hueco (blanco), para que se vea que aún no está cerrado.
+  const ultimo = serie.etiquetas.length - 1;
+  const tramoEnCurso = { borderDash: function (ctx) { return ctx.p1DataIndex === ultimo ? [2, 4] : undefined; } };
+  const rellenoPuntos = function (color) {
+    return serie.etiquetas.map(function (e, i) { return i === ultimo ? '#FFFFFF' : color; });
+  };
 
   dashGraficos.evolucion = new Chart(lienzo, {
     type: 'line',
     data: {
       labels: serie.etiquetas,
       datasets: [
-        { label: 'Ingresos',  data: serie.ingresos,  borderColor: '#3E9E4E', backgroundColor: '#3E9E4E', tension: 0.3, borderWidth: 2, pointRadius: 2 },
-        { label: 'Gastos',    data: serie.gastos,    borderColor: '#D32F2F', backgroundColor: '#D32F2F', tension: 0.3, borderWidth: 2, pointRadius: 2 },
-        { label: 'Beneficio', data: serie.beneficio, borderColor: '#2F6FB5', backgroundColor: '#2F6FB5', tension: 0.3, borderWidth: 2, pointRadius: 2 }
+        { label: 'Ingresos',  data: serie.ingresos,  borderColor: '#3E9E4E', backgroundColor: '#3E9E4E', pointBackgroundColor: rellenoPuntos('#3E9E4E'), tension: 0.3, borderWidth: 1.5, pointRadius: 2, borderDash: [4, 3], segment: tramoEnCurso },
+        { label: 'Gastos',    data: serie.gastos,    borderColor: '#D32F2F', backgroundColor: '#D32F2F', pointBackgroundColor: rellenoPuntos('#D32F2F'), tension: 0.3, borderWidth: 1.5, pointRadius: 2, borderDash: [4, 3], segment: tramoEnCurso },
+        { label: 'Beneficio', data: serie.beneficio, borderColor: '#2F6FB5', backgroundColor: '#2F6FB5', pointBackgroundColor: rellenoPuntos('#2F6FB5'), tension: 0.3, borderWidth: 3.5, pointRadius: 3, order: 0, segment: tramoEnCurso }
       ]
     },
     options: {

@@ -16,9 +16,14 @@
  * ⚠️ Al cambiar cualquier archivo de la app, subir también este con
  * el número de VERSION aumentado (v2, v3...). Eso obliga al móvil a
  * tirar la copia vieja.
+ *
+ * Actualización automática (22/09/2026): al instalar una versión
+ * nueva, cada archivo se descarga directamente del servidor (sin
+ * copias intermedias del navegador), y en cuanto esta versión toma el
+ * control, la app se recarga sola una vez (ver el final de app.js).
  */
 
-const VERSION = 'cuentas-v23';
+const VERSION = 'cuentas-v35';
 
 const ARCHIVOS = [
   './',
@@ -50,6 +55,7 @@ const ARCHIVOS = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
+  './icon-512-maskable.png',
   'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
 ];
@@ -61,7 +67,7 @@ self.addEventListener('install', function (evento) {
         // Se añaden de uno en uno para que un fallo puntual (por
         // ejemplo el CDN de iconos) no impida instalar el resto.
         return Promise.all(ARCHIVOS.map(function (url) {
-          return cache.add(url).catch(function () { /* se ignora */ });
+          return cache.add(new Request(url, { cache: 'reload' })).catch(function () { /* se ignora */ });
         }));
       })
       .then(function () { return self.skipWaiting(); })
@@ -96,10 +102,18 @@ self.addEventListener('fetch', function (evento) {
     caches.match(peticion).then(function (guardada) {
       const actualizacionEnSegundoPlano = fetch(peticion)
         .then(function (respuesta) {
-          const copia = respuesta.clone();
-          caches.open(VERSION).then(function (cache) {
-            cache.put(peticion, copia).catch(function () { /* se ignora */ });
-          });
+          // Solo se guarda lo que ha venido BIEN. Antes se guardaba
+          // cualquier respuesta, incluidos los errores: si un archivo
+          // fallaba una vez (servidor caído, acceso denegado...), ese
+          // error quedaba guardado y la app lo seguía sirviendo para
+          // siempre, aunque el archivo ya funcionara. Fue lo que pasó
+          // con manifest.json (15/09/2026).
+          if (respuesta && respuesta.ok) {
+            const copia = respuesta.clone();
+            caches.open(VERSION).then(function (cache) {
+              cache.put(peticion, copia).catch(function () { /* se ignora */ });
+            });
+          }
           return respuesta;
         })
         .catch(function () { return null; });

@@ -201,27 +201,12 @@ body {
 .ind-azul  { background: var(--azul-fondo);  color: var(--azul-texto); }
 .ind-ambar { background: var(--ambar-fondo); color: var(--ambar-texto); }
 .ind-rojo  { background: var(--rojo-fondo);  color: var(--rojo-texto); }
-.ind-gris  { background: var(--gris-fondo);  color: var(--gris-texto); }
 
 /* Giro suave del icono mientras sincroniza */
 .pastilla.girando i { animation: girar 1s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .pastilla.girando i { animation: none; }
-}
-
-/* ---------------- Banda de modo prueba ---------------- */
-/* Visible desde cualquier pantalla mientras el modo prueba esté
-   activo, para que sea imposible olvidar que lo está. */
-
-.banda-prueba {
-  background: var(--ambar-fondo);
-  color: var(--ambar-texto);
-  text-align: center;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .04em;
-  padding: 6px;
 }
 
 /* ---------------- Contenido ---------------- */
@@ -258,11 +243,6 @@ main {
   #contenido {
     padding-bottom: calc(192px + env(safe-area-inset-bottom));
   }
-}
-
-.nota-provisional {
-  color: var(--texto-secundario);
-  font-size: 13px;
 }
 
 /* ---------------- Escritorio ---------------- */
@@ -313,6 +293,20 @@ main {
   flex-direction: column;
   gap: 8px;
   margin-top: 4px;
+}
+
+/* Campo del PIN dentro del diálogo de confirmación. Los dígitos van
+   separados y centrados, para que se vea claro lo que se escribe. */
+.campo-pin-dialogo {
+  text-align: center;
+  letter-spacing: 6px;
+  font-size: 18px;
+}
+
+.dialogo-error {
+  font-size: 13px;
+  color: var(--rojo);
+  margin: 0;
 }
 
 /* ---------------- Icono de contacto ---------------- */

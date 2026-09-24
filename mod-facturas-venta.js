@@ -48,29 +48,15 @@ let fvBusqueda = '';
 // Mismo planteamiento que PRE_PREFIJO_SERIE en Presupuestos.
 const FV_PREFIJO_SERIE = 'F';
 
-// Estado de sincronización de cada factura, para el punto de color de
-// la lista. Mismo patrón que preSyncEstados en Presupuestos.
-const fvSyncEstados = {};
-const fvPendientes = {};
-
-function fvMarcarSync(id, valor) {
-  if (!id) return;
-  if (valor) fvSyncEstados[String(id)] = valor;
-  else delete fvSyncEstados[String(id)];
-}
-
+// Punto de color de cada fila: lo decide el núcleo (estadoSyncDe).
 function fvEstadoSync(f) {
-  const marcado = fvSyncEstados[String(f.id)];
-  if (marcado) return marcado;
-  if (esDePrueba(f)) return 'prueba';
-  return 'ok';
+  return estadoSyncDe('ventas', f);
 }
 
 const FV_PUNTOS = {
   ok:        { clase: 'ok',        titulo: 'Guardado en la base de datos' },
   guardando: { clase: 'guardando', titulo: 'Guardando...' },
-  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Más opciones" y reintenta.' },
-  prueba:    { clase: 'prueba',    titulo: 'Solo en este dispositivo (modo prueba)' }
+  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Más opciones" y reintenta.' }
 };
 
 function fvPuntoEstado(f) {
@@ -87,15 +73,7 @@ const FV_ESTADOS = {
 // 1. UTILIDADES DEL MÓDULO
 // ============================================================
 
-function fvIniciales(texto) {
-  const limpio = String(texto || '').trim();
-  if (!limpio) return '?';
-  const partes = limpio.split(/\s+/);
-  return (partes[0][0] + (partes[1] ? partes[1][0] : '')).toUpperCase();
-}
-
 function fvNuevoId(prefijo) {
-  if (estado.modoPrueba) return generarIdPrueba(prefijo);
   return prefijo + '-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
 }
 
@@ -129,7 +107,6 @@ function fvClientesDisponibles() {
   return estado.clientes.filter(function (c) {
     if (c.estado !== 'activo') return false;
     if (c.rol !== 'cliente' && c.rol !== 'ambos') return false;
-    if (!estado.modoPrueba && esDePrueba(c)) return false;
     return true;
   }).sort(function (a, b) {
     return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
@@ -184,10 +161,6 @@ function pintarFacturas() {
   document.getElementById('fv-selector').querySelectorAll('[data-area]').forEach(function (b) {
     b.classList.toggle('activa', b.dataset.area === fvArea);
     b.addEventListener('click', function () {
-      if (b.dataset.area === 'compras' && typeof pintarFacturasCompra !== 'function') {
-        alert('El módulo de Facturas de compra todavía no está construido.');
-        return;
-      }
       fvArea = b.dataset.area;
       pintarFacturas();
     });
@@ -325,7 +298,7 @@ function fvRepintarLista() {
   contenedor.innerHTML =
     '<div class="fv-lista-movil">' + lista.map(fvRenderFilaMovil).join('') + '</div>' +
     '<div class="fv-tabla-wrap"><table class="fv-tabla"><thead><tr>' +
-      '<th>Fecha</th><th>Número</th><th>Cliente</th><th>Concepto</th>' +
+      '<th></th><th>Fecha</th><th>Número</th><th>Cliente</th><th>Concepto</th>' +
       '<th class="fv-celda-derecha">Base</th><th class="fv-celda-derecha">Total</th><th></th>' +
     '</tr></thead><tbody>' + lista.map(fvRenderFilaTabla).join('') + '</tbody></table></div>';
 
@@ -357,6 +330,7 @@ function fvRenderFilaMovil(f) {
 function fvRenderFilaTabla(f) {
   const inactiva = !fvEstaActiva(f);
   return '<tr class="fv-fila-tabla' + (inactiva ? ' fv-fila-inactiva' : '') + '" data-id="' + escaparHtml(f.id) + '">' +
+    '<td class="fv-celda-icono">' + htmlIconoContacto((fvClienteDe(f) || {}).icono, 32) + '</td>' +
     '<td>' + escaparHtml(mostrarFecha(f.fecha)) + '</td>' +
     '<td class="fv-celda-numero">' + escaparHtml(f.numero || '—') + (inactiva ? ' <span style="color:var(--texto-secundario);font-weight:400">(inactiva)</span>' : '') + '</td>' +
     '<td>' + escaparHtml(f.cliente || '—') + '</td>' +
@@ -453,12 +427,6 @@ function fvPosicionarMenu(menu, boton) {
   menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + 'px';
 }
 
-// Botones de interfaz que todavía no tienen función asignada (PDF: se
-// diseña en el módulo Informes/PDFs, más adelante).
-function fvBotonDePrueba(nombre) {
-  alert('Botón de prueba: "' + nombre + '" todavía no tiene función. Se conectará cuando se construya su módulo.');
-}
-
 // Marcar Pagada/Pendiente (mapa 9.7). Genera o borra el apunte de
 // tesorería correspondiente en la misma operación.
 async function fvCambiarCobro(id) {
@@ -481,36 +449,31 @@ async function fvCambiarCobro(id) {
   );
   if (eleccion !== 'confirmar') return;
 
-  if (!puedeEscribir()) return;
+  // Deshacer un cobro borra su apunte de tesorería: acción delicada,
+  // pide el PIN cada vez (decisión 15/09/2026). Marcar como pagada es
+  // el sentido normal del día a día y no lo pide.
+  if (!pasaAPagada) {
+    const ok = await confirmarConPin('Vas a marcar como PENDIENTE la factura ' + (f.numero || '') +
+      '. Se borrará su apunte de tesorería.');
+    if (!ok) return;
+  }
 
-  fvMarcarSync(id, 'guardando');
-  fvRepintarLista();
+  if (!puedeEscribir()) return;
 
   const registro = pasaAPagada
     ? Object.assign({}, f, { estado: 'pagada', fecha_cobro: fechaHoyISO() })
     : Object.assign({}, f, { estado: 'pendiente', fecha_cobro: '' });
 
-  const resultado = await guardarRegistro('ventas', registro, fvRepintarLista, null);
-  if (resultado.status !== 'success') {
-    fvMarcarSync(id, 'error');
-    fvPendientes[String(id)] = { registro: registro };
-    fvRepintarLista();
-    return;
-  }
-  fvMarcarSync(id, null);
-  delete fvPendientes[String(id)];
-
-  const okApunte = pasaAPagada
-    ? await fvCrearApunteCobro(registro)
-    : await fvBorrarApunteCobro(registro.id);
-
-  if (!okApunte) {
-    // La factura ya se guardó bien; lo que falló es su apunte de
-    // tesorería. Se marca en rojo para que quede un aviso visible y
-    // persistente — el alert de borrarRegistro/guardarRegistro es
-    // puntual y se puede pasar por alto.
-    fvMarcarSync(id, 'error');
-  }
+  // Factura y apunte a la vez (23/09/2026). Antes el apunte no se
+  // creaba hasta que Google confirmaba la factura: dos viajes seguidos,
+  // y el apunte tardaba el doble en aparecer en Contabilidad. Ahora los
+  // dos aparecen al instante en el dispositivo y se guardan en paralelo.
+  // Si algo falla, lo que falte queda en rojo (la factura en su lista,
+  // el apunte en Contabilidad) y se reenvía solo al sincronizar.
+  await Promise.all([
+    guardarRegistro('ventas', registro, fvRepintarLista, null),
+    pasaAPagada ? fvCrearApunteCobro(registro) : fvBorrarApunteCobro(registro.id)
+  ]);
   fvRepintarLista();
 }
 
@@ -518,27 +481,25 @@ async function fvDesactivar(id) {
   const f = estado.ventas.find(function (x) { return String(x.id) === String(id); });
   if (!f) return;
   if (!confirm('¿Desactivar la factura ' + (f.numero || '') + '?\n\nLa factura no se borra: queda guardada mas deja de contar como activa. Su número podrá volver a usarse en la siguiente factura.')) return;
+
+  // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
+  if (!await confirmarConPin('Vas a desactivar la factura ' + (f.numero || '') + '.')) return;
+
   if (!puedeEscribir()) return;
 
-  fvMarcarSync(id, 'guardando');
-  fvRepintarLista();
-
   const registro = Object.assign({}, f, { estado_registro: 'inactivo' });
-  const resultado = await guardarRegistro('ventas', registro, fvRepintarLista, null);
-  if (resultado.status !== 'success') {
-    fvMarcarSync(id, 'error');
-    fvPendientes[String(id)] = { registro: registro };
-    fvRepintarLista();
-    return;
-  }
-  fvMarcarSync(id, null);
-  delete fvPendientes[String(id)];
-
+  // Factura y apunte a la vez (23/09/2026). Antes el apunte no se
+  // creaba hasta que Google confirmaba la factura: dos viajes seguidos,
+  // y el apunte tardaba el doble en aparecer en Contabilidad. Ahora los
+  // dos aparecen al instante en el dispositivo y se guardan en paralelo.
+  // Si algo falla, la factura queda en rojo como siempre y la
+  // reconciliación de la próxima sincronización lo termina de cuadrar.
   // Si la factura estaba pagada, su apunte de tesorería se borra también.
-  if (String(f.estado) === 'pagada') {
-    const okApunte = await fvBorrarApunteCobro(id);
-    if (!okApunte) fvMarcarSync(id, 'error');
-  }
+  const estabaPagada = String(f.estado) === 'pagada';
+  await Promise.all([
+    guardarRegistro('ventas', registro, fvRepintarLista, null),
+    estabaPagada ? fvBorrarApunteCobro(id) : Promise.resolve(true)
+  ]);
   fvRepintarLista();
 }
 
@@ -548,47 +509,26 @@ async function fvReactivar(id) {
   if (!confirm('¿Reactivar la factura ' + (f.numero || '') + '?')) return;
   if (!puedeEscribir()) return;
 
-  fvMarcarSync(id, 'guardando');
-  fvRepintarLista();
-
   const registro = Object.assign({}, f, { estado_registro: 'activo' });
-  const resultado = await guardarRegistro('ventas', registro, fvRepintarLista, null);
-  if (resultado.status !== 'success') {
-    fvMarcarSync(id, 'error');
-    fvPendientes[String(id)] = { registro: registro };
-    fvRepintarLista();
-    return;
-  }
-  fvMarcarSync(id, null);
-  delete fvPendientes[String(id)];
-
+  // Factura y apunte a la vez (23/09/2026). Antes el apunte no se
+  // creaba hasta que Google confirmaba la factura: dos viajes seguidos,
+  // y el apunte tardaba el doble en aparecer en Contabilidad. Ahora los
+  // dos aparecen al instante en el dispositivo y se guardan en paralelo.
+  // Si algo falla, la factura queda en rojo como siempre y la
+  // reconciliación de la próxima sincronización lo termina de cuadrar.
   // Si estaba pagada, se vuelve a crear su apunte de tesorería.
-  if (String(f.estado) === 'pagada') {
-    const okApunte = await fvCrearApunteCobro(registro);
-    if (!okApunte) fvMarcarSync(id, 'error');
-  }
+  const estabaPagada = String(f.estado) === 'pagada';
+  await Promise.all([
+    guardarRegistro('ventas', registro, fvRepintarLista, null),
+    estabaPagada ? fvCrearApunteCobro(registro) : Promise.resolve(true)
+  ]);
   fvRepintarLista();
 }
 
-/**
- * Reintento manual desde "Más opciones" de una factura que quedó en
- * rojo. Si lo que falló fue solo el cambio de cobro/estado (sin
- * líneas pendientes), se reintenta solo ese guardado; si lo que falló
- * fue la creación/edición con líneas, se reintenta el ciclo completo
- * (factura + líneas) con fvGuardarEnSegundoPlano, para no dejar la
- * factura guardada con líneas antiguas o sin líneas nuevas.
- */
+// Reintento manual desde "Más opciones" de una factura que quedó en
+// rojo: se reenvía lo que el núcleo tenga pendiente de ella.
 function fvReintentarGuardado(id) {
-  const pendiente = fvPendientes[String(id)];
-  const registro = pendiente
-    ? pendiente.registro
-    : estado.ventas.find(function (x) { return String(x.id) === String(id); });
-  if (!registro) return;
-
-  fvMarcarSync(id, 'guardando');
-  fvRepintarLista();
-
-  fvGuardarEnSegundoPlano(registro);
+  reintentarRegistro('ventas', id, fvRepintarLista);
 }
 
 // ============================================================
@@ -628,7 +568,9 @@ function fvTrimestreDeFecha(iso) {
 // Impuestos y Dashboard verían el apunte a cero.
 async function fvCrearApunteCobro(factura) {
   const existente = fvApunteDe(factura.id);
-  const fecha = normalizarFecha(factura.fecha_cobro || fechaHoyISO());
+  // Fecha del cobro; si la factura no la tuviera guardada (facturas
+  // antiguas), se respeta la que ya tenía el apunte.
+  const fecha = normalizarFecha(factura.fecha_cobro || (existente && existente.fecha) || fechaHoyISO());
   const registro = {
     id: existente ? existente.id : fvNuevoId('apu'),
     ambito: 'empresa',
@@ -654,11 +596,19 @@ async function fvCrearApunteCobro(factura) {
   return resultado && resultado.status === 'success';
 }
 
-// Devuelve true si se borró con éxito, false si falló (borrarRegistro
-// ya deshace el cambio local y avisa con un alert si falla — aquí
-// además se informa a quien llama para que pueda marcar la factura en
-// rojo, ya que sin esto el aviso quedaba solo en el alert puntual, sin
-// ningún rastro visible después. Ver diario, 09/09/2026, punto 2).
+// ¿El apunte de cobro ya no coincide con su factura? Pasa si se edita
+// una factura ya cobrada (cambia el importe o el cliente). Se comparan
+// los importes y el contacto; la fecha no, porque es la del cobro.
+function fvApunteDesfasado(factura, apunte) {
+  if (!apunte) return false;
+  const distinto = function (a, b) { return Math.abs(parsearNumero(a) - parsearNumero(b)) > 0.005; };
+  return distinto(apunte.base, factura.base) || distinto(apunte.iva, factura.iva) ||
+    distinto(apunte.irpf, factura.irpf) || distinto(apunte.total, factura.total) ||
+    String(apunte.id_contacto || '') !== String(factura.id_cliente || '');
+}
+
+// Devuelve true si se borró con éxito, false si falló (en ese caso el
+// apunte queda pendiente en el núcleo, en rojo, y se reenvía solo).
 async function fvBorrarApunteCobro(idFactura) {
   const apunte = fvApunteDe(idFactura);
   if (!apunte) return true;
@@ -751,16 +701,31 @@ function fvLinea(etiqueta, valor, clase) {
 // se muestran únicamente si existen, para no ensuciar el resumen con
 // líneas a cero. Se conservan las columnas antiguas en la hoja, así
 // que las facturas viejas siguen abriéndose sin problema.
+//
+// Con descuento especial, el orden es Importe → Descuento → Base
+// imponible, para que las cuentas se lean de arriba abajo (23/09/2026).
+// El importe de partida no se guarda aparte: es la base más el
+// descuento, que sí están guardados (sale exacto al céntimo).
+function fvImporteAntesDeDescuento(f) {
+  return roundMoney(parsearNumero(f.base) + parsearNumero(f.descuento_especial_importe));
+}
+
+// "Descuento especial (5%)" si es porcentaje; sin paréntesis si es un
+// importe fijo (la cifra ya se ve a la derecha).
+function fvEtiquetaDescuento(tipo, valor) {
+  return String(tipo) === 'fixed'
+    ? 'Descuento especial'
+    : 'Descuento especial (' + parsearNumero(valor) + '%)';
+}
+
 function fvBloqueImportes(f) {
   const descuento = parsearNumero(f.descuento_especial_importe);
   const irpf = parsearNumero(f.irpf);
   return '<div class="fv-bloque">' +
     '<p class="fv-bloque-titulo">Resumen económico</p>' +
     (descuento > 0
-      ? fvLinea('Descuento especial' + (String(f.descuento_especial_tipo) === 'fixed'
-          ? ' (' + formatMoney(f.descuento_especial_valor) + ')'
-          : ' (' + parsearNumero(f.descuento_especial_valor) + '%)'),
-        '−' + formatMoney(descuento))
+      ? fvLinea('Importe', formatMoney(fvImporteAntesDeDescuento(f))) +
+        fvLinea(fvEtiquetaDescuento(f.descuento_especial_tipo, f.descuento_especial_valor), '−' + formatMoney(descuento))
       : '') +
     fvLinea('Base imponible', formatMoney(f.base), 'destacada') +
     fvLinea('IVA (' + parsearNumero(f.iva_pct) + '%)', '+' + formatMoney(f.iva)) +
@@ -859,20 +824,27 @@ function abrirFormularioFacturaVenta(id, prefill) {
   if (!datos.iva_id && tiposIva[0]) datos.iva_id = tiposIva[0].id;
   if (!datos.irpf_id && tiposIrpf[0]) datos.irpf_id = tiposIrpf[0].id;
 
-  // Descripción y base imponible sustituyen a las líneas de detalle
-  // (simplificación 07/09/2026, GUÍA 20): la factura tiene un único
-  // importe, que ya ES la base imponible — sin ajuste de tipo de
+  // Descripción e importe sustituyen a las líneas de detalle
+  // (simplificación 07/09/2026, GUÍA 20) — sin ajuste de tipo de
   // cliente ni compensación de IRPF, que viven solo en presupuestos.
+  //
+  // El campo "Importe" es el precio ANTES del descuento especial; la
+  // base imponible se calcula a partir de él. Al editar, se rellena con
+  // base + descuento guardados (23/09/2026). Antes se rellenaba con la
+  // base, que ya llevaba el descuento restado, y al guardar se volvía a
+  // descontar: cada edición de una factura con descuento la rebajaba
+  // otra vez (100 € con un 5 % → 95 € → 90,25 €...).
   datos.descripcion = editando ? String(original.descripcion || '') : '';
-  datos.base = editando ? parsearNumero(original.base) : 0;
+  datos.importe = editando ? fvImporteAntesDeDescuento(original) : 0;
 
-  // Desde un presupuesto: se hereda su base (YA ajustada), nunca el
-  // subtotal sin ajustar — ese fue justo un fallo corregido el
-  // 06/09/2026 y se deja escrito para no repetirlo.
+  // Desde un presupuesto: se hereda su base (YA ajustada y ya con su
+  // descuento aplicado), nunca el subtotal sin ajustar — ese fue justo
+  // un fallo corregido el 06/09/2026 y se deja escrito para no
+  // repetirlo. El descuento no se hereda (se aplicaría dos veces).
   if (!editando && prefill) {
     if (prefill.descripcion !== undefined) datos.descripcion = String(prefill.descripcion || '');
-    if (prefill.base !== undefined) datos.base = parsearNumero(prefill.base);
-    else if (prefill.subtotal !== undefined) datos.base = parsearNumero(prefill.subtotal);
+    if (prefill.base !== undefined) datos.importe = parsearNumero(prefill.base);
+    else if (prefill.subtotal !== undefined) datos.importe = parsearNumero(prefill.subtotal);
   }
 
   const titulo = editando ? 'Editar factura' : 'Nueva factura';
@@ -908,12 +880,12 @@ function abrirFormularioFacturaVenta(id, prefill) {
             '<p class="fv-info-cliente" id="fv-info-cliente" hidden></p>' +
             (deDesdePresupuesto
               ? '<p class="fv-aviso verde">Desde presupuesto ' + escaparHtml(fvNumeroPresupuestoDe(prefill.id_presupuesto)) +
-                '. La base imponible ya viene calculada del presupuesto, con su ajuste incluido. Puedes cambiarla si hace falta.</p>'
+                '. El importe ya viene calculado del presupuesto, con su ajuste y su descuento incluidos. Puedes cambiarlo si hace falta.</p>'
               : '<p class="fv-aviso" id="fv-aviso-tipo" hidden></p>') +
 
             fvCampo('concepto', 'Concepto', datos.concepto, { textarea: true, anchoTotal: true }) +
             fvCampo('descripcion', 'Descripción (una línea por punto)', datos.descripcion, { textarea: true, anchoTotal: true }) +
-            fvCampo('base', 'Base imponible', datos.base, { numero: true, requerido: true, anchoTotal: true }) +
+            fvCampo('importe', 'Importe (antes de descuento)', datos.importe, { numero: true, requerido: true, anchoTotal: true }) +
 
             '<div class="fv-campo-grupo">' +
               '<label for="fv-campo-desc_valor">Descuento especial</label>' +
@@ -1035,7 +1007,7 @@ function fvLeerFormulario(fondo) {
     id_cliente: valor('id_cliente'),
     concepto: valor('concepto').trim(),
     descripcion: valor('descripcion').trim(),
-    base: parsearNumero(valor('base')),
+    importe: parsearNumero(valor('importe')),
     desc_tipo: valor('desc_tipo') === 'fixed' ? 'fixed' : 'percent',
     desc_valor: parsearNumero(valor('desc_valor')),
     iva_id: valor('iva_id'),
@@ -1055,19 +1027,19 @@ function fvCalcularFormulario(datos, prefill) {
   const iva = preTiposIva().find(function (x) { return x.id === datos.iva_id; }) || { porcentaje: 0 };
   const irpf = preTiposIrpf().find(function (x) { return x.id === datos.irpf_id; }) || { porcentaje: 0 };
 
-  const baseBruta = roundMoney(parsearNumero(datos.base));
+  const importe = roundMoney(parsearNumero(datos.importe));
 
-  // Descuento especial sobre la base introducida.
+  // Descuento especial sobre el importe introducido.
   const descuento = String(datos.desc_tipo) === 'fixed'
     ? roundMoney(parsearNumero(datos.desc_valor))
-    : roundMoney(baseBruta * parsearNumero(datos.desc_valor) / 100);
+    : roundMoney(importe * parsearNumero(datos.desc_valor) / 100);
 
-  const base = roundMoney(baseBruta - descuento);
+  const base = roundMoney(importe - descuento);
   const importeIva = roundMoney(base * parsearNumero(iva.porcentaje) / 100);
   const importeIrpf = roundMoney(base * parsearNumero(irpf.porcentaje) / 100);
 
   const totales = {
-    subtotal: baseBruta,
+    importe: importe,
     ajustePct: 0,
     ajusteImporte: 0,
     compensacionPct: 0,
@@ -1112,7 +1084,8 @@ function fvActualizarFormulario(fondo, prefill) {
   fondo.querySelector('#fv-totales').innerHTML =
     '<p class="fv-bloque-titulo">Resumen económico</p>' +
     (t.descuentoImporte > 0
-      ? fvLinea('Descuento especial', '−' + formatMoney(t.descuentoImporte))
+      ? fvLinea('Importe', formatMoney(t.importe)) +
+        fvLinea(fvEtiquetaDescuento(datos.desc_tipo, datos.desc_valor), '−' + formatMoney(t.descuentoImporte))
       : '') +
     fvLinea('Base imponible', formatMoney(t.base), 'destacada') +
     fvLinea('IVA (' + t.ivaPct + '%)', '+' + formatMoney(t.iva)) +
@@ -1156,8 +1129,8 @@ function fvProcesarGuardado(fondo, original, prefill) {
   }
 
   // Base imponible: es el importe final de la factura, obligatorio.
-  if (!(datos.base > 0)) {
-    fvMostrarError(fondo, 'base', 'Escribe la base imponible de la factura.');
+  if (!(datos.importe > 0)) {
+    fvMostrarError(fondo, 'importe', 'Escribe el importe de la factura.');
     valido = false;
   }
   if (!valido) return;
@@ -1165,10 +1138,6 @@ function fvProcesarGuardado(fondo, original, prefill) {
   const cliente = estado.clientes.find(function (c) { return String(c.id) === String(datos.id_cliente); });
   if (!cliente) {
     fvMostrarError(fondo, 'id_cliente', 'Ese cliente ya no existe.');
-    return;
-  }
-  if (!estado.modoPrueba && esDePrueba(cliente)) {
-    alert('Este cliente es de prueba y no puede utilizarse en una factura real. Activa el modo prueba para trabajar con datos de prueba.');
     return;
   }
   if (original && !fvEstaActiva(original)) {
@@ -1221,60 +1190,37 @@ function fvProcesarGuardado(fondo, original, prefill) {
   // plano (guía, sección 9).
   fondo.remove();
 
-  fvMarcarSync(idFactura, 'guardando');
   fvGuardarEnSegundoPlano(registro);
 
   pintarFacturas();
 }
 
 /**
- * Guarda sin bloquear la pantalla. Primero la factura, después sus
- * líneas en una sola llamada. Si algo falla, el registro se conserva
- * en el dispositivo marcado en rojo, y aparece "Reintentar guardado"
- * en su menú de tres puntos (mismo patrón que Presupuestos).
+ * Guarda sin bloquear la pantalla. Si falla, el registro se conserva en
+ * el dispositivo marcado en rojo, y aparece "Reintentar guardado" en su
+ * menú de tres puntos (lo lleva el núcleo).
+ *
+ * Si la factura ya estaba cobrada y se han cambiado los importes o el
+ * cliente, su apunte de tesorería se rehace a la vez (GUÍA 11.1: "Editar
+ * una factura ya pagada → se rehace el apunte con los importes nuevos").
+ * Esto se había perdido con la simplificación del 07/09/2026: el apunte
+ * se quedaba con el importe antiguo. Corregido el 23/09/2026.
  */
-// Una sola llamada al backend (simplificación 07/09/2026, GUÍA 20):
-// al desaparecer las líneas de detalle ya no hace falta la segunda
-// escritura en `ventas_detalle`, ni su manejo de errores por separado.
 function fvGuardarEnSegundoPlano(registro) {
-  return guardarRegistro('ventas', registro, fvRepintarLista, null)
-    .then(function (resultado) {
-      if (resultado.status !== 'success') {
-        fvReponerLocal(registro);
-        fvMarcarSync(registro.id, 'error');
-        fvPendientes[String(registro.id)] = { registro: registro };
-        fvRepintarLista();
-        return;
-      }
-
-      const idFinal = (resultado.data && resultado.data.id) || registro.id;
-      fvMarcarSync(registro.id, null);
-      fvMarcarSync(idFinal, null);
-      delete fvPendientes[String(registro.id)];
-      fvRepintarLista();
-    })
-    .catch(function (err) {
-      console.error('Fallo al guardar la factura:', err);
-      fvReponerLocal(registro);
-      fvMarcarSync(registro.id, 'error');
-      fvPendientes[String(registro.id)] = { registro: registro };
-      fvRepintarLista();
-    });
-}
-
-function fvReponerLocal(registro) {
-  const i = estado.ventas.findIndex(function (r) { return String(r.id) === String(registro.id); });
-  if (i >= 0) estado.ventas[i] = registro;
-  else estado.ventas.push(registro);
-  guardarEntidadLocal('ventas');
+  const cobrada = fvEstaActiva(registro) && String(registro.estado) === 'pagada';
+  const apunte = fvApunteDe(registro.id);
+  const rehacerApunte = cobrada && (!apunte || fvApunteDesfasado(registro, apunte));
+  return Promise.all([
+    guardarRegistro('ventas', registro, fvRepintarLista, null),
+    rehacerApunte ? fvCrearApunteCobro(registro) : Promise.resolve(true)
+  ]).then(function () { fvRepintarLista(); });
 }
 
 // ============================================================
 // 10. DESDE PRESUPUESTO (mapa 9.5) — llamado desde mod-presupuestos.js
 // ============================================================
 // Validaciones: el presupuesto debe estar aceptado, no tener ya una
-// factura asociada, el cliente debe existir y, en modo real, no ser de
-// prueba.
+// factura asociada y el cliente debe existir.
 //
 // Traslada cliente, concepto, descripción y la BASE ya calculada del
 // presupuesto (simplificación 07/09/2026, GUÍA 20). Ya no traslada
@@ -1300,11 +1246,6 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
     alert('El cliente de este presupuesto ya no existe. No se puede facturar.');
     return;
   }
-  if (!estado.modoPrueba && esDePrueba(cliente)) {
-    alert('Este cliente es de prueba y no puede utilizarse para una factura real. Activa el modo prueba para trabajar con datos de prueba.');
-    return;
-  }
-
   // Se hereda la BASE del presupuesto, que ya lleva aplicados el
   // ajuste por tipo de cliente y la compensación de IRPF — nunca el
   // `subtotal`, que es la cifra ANTES de esos ajustes. Pasar el
@@ -1360,7 +1301,8 @@ registrarVista('facturas', {
 // En cada sincronización general:
 //   1. Crea el apunte de cualquier factura pagada y activa que se haya
 //      quedado sin él (por ejemplo, si la factura se guardó bien pero
-//      la llamada que crea el apunte falló justo después).
+//      la llamada que crea el apunte falló justo después), o lo rehace
+//      si ya no cuadra con su factura (23/09/2026).
 //   2. Borra el apunte de cualquier factura que YA NO está pagada y
 //      activa — el caso inverso, añadido el 09/09/2026: si al pasar
 //      de Pagada a Pendiente/Inactiva falla el borrado del apunte
@@ -1377,7 +1319,10 @@ async function fvReconciliarApuntesCobro() {
     return fvEstaActiva(f) && String(f.estado) === 'pagada';
   });
   for (const f of pagadasActivas) {
-    if (!fvApunteDe(f.id)) {
+    const apunte = fvApunteDe(f.id);
+    // Sin apunte, o con un apunte que ya no cuadra con su factura
+    // (importe o cliente cambiados): se crea o se rehace.
+    if (!apunte || fvApunteDesfasado(f, apunte)) {
       try {
         await fvCrearApunteCobro(f);
       } catch (err) {

@@ -20,9 +20,9 @@
  * calcule el asesor.
  *
  * Al marcar un trimestre como pagado se escribe UNA sola vez en la
- * hoja de impuestos (decisión I10): primero se crea el apunte de
- * tesorería con su id ya conocido, y después se guarda el registro
- * fiscal con ese id dentro. No hace falta tocar el backend.
+ * hoja de impuestos (decisión I10): el id del apunte de tesorería se
+ * genera aquí, así que el registro fiscal se guarda ya con ese id
+ * dentro. No hace falta tocar el backend.
  *
  * Esta pantalla no tiene buscador ni botón "+": no hay nada que
  * crear a mano, los trimestres salen solos de las facturas.
@@ -42,31 +42,15 @@ let impArea = 'impuestos';   // 'impuestos' | 'informes'
 let impAnio = null;        // se decide al pintar por primera vez
 let impTrimestre = null;
 
-const impSyncEstados = {};
-const impPendientes = {};
-
-function impMarcarSync(id, valor) {
-  if (!id) return;
-  if (valor) impSyncEstados[String(id)] = valor;
-  else delete impSyncEstados[String(id)];
-}
-
-function impEstadoSync(r) {
-  const marcado = impSyncEstados[String(r.id)];
-  if (marcado) return marcado;
-  if (esDePrueba(r)) return 'prueba';
-  return 'ok';
-}
-
+// Punto de color del registro fiscal: lo decide el núcleo (estadoSyncDe).
 const IMP_PUNTOS = {
   ok:        { clase: 'ok',        titulo: 'Guardado en la base de datos' },
   guardando: { clase: 'guardando', titulo: 'Guardando...' },
-  error:     { clase: 'error',     titulo: 'No se pudo guardar. Abre "Más opciones" y reintenta.' },
-  prueba:    { clase: 'prueba',    titulo: 'Solo en este dispositivo (modo prueba)' }
+  error:     { clase: 'error',     titulo: 'No se pudo guardar. Pulsa el botón de sincronizar para reintentarlo.' }
 };
 
 function impPuntoEstado(r) {
-  const info = IMP_PUNTOS[impEstadoSync(r)] || IMP_PUNTOS.ok;
+  const info = IMP_PUNTOS[estadoSyncDe('impuestos', r)] || IMP_PUNTOS.ok;
   return '<span class="imp-punto ' + info.clase + '" title="' + escaparHtml(info.titulo) + '"></span>';
 }
 
@@ -74,17 +58,12 @@ function impPuntoEstado(r) {
 // 1. UTILIDADES
 // ============================================================
 
-// El id del registro fiscal es determinista: imp-2026-Q2. En modo
-// prueba lleva delante "test-" para que el núcleo lo reconozca como
-// dato local y NO lo escriba en Google Sheets. Sigue siendo
-// determinista, así que se localiza igual.
+// El id del registro fiscal es determinista: imp-2026-Q2.
 function impIdRegistro(anio, trimestre) {
-  const base = 'imp-' + anio + '-' + trimestre;
-  return estado.modoPrueba ? 'test-' + base : base;
+  return 'imp-' + anio + '-' + trimestre;
 }
 
 function impNuevoIdApunte() {
-  if (estado.modoPrueba) return generarIdPrueba('apu');
   return 'apu-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
 }
 
@@ -96,20 +75,9 @@ function impMismoPeriodo(registro, anio, trimestre) {
 }
 
 function impRegistroDe(anio, trimestre) {
-  if (estado.modoPrueba) {
-    const prueba = estado.impuestos.find(function (r) {
-      return esDePrueba(r) && impMismoPeriodo(r, anio, trimestre);
-    });
-    if (prueba) return prueba;
-  }
   return estado.impuestos.find(function (r) {
-    return !esDePrueba(r) && impMismoPeriodo(r, anio, trimestre);
+    return impMismoPeriodo(r, anio, trimestre);
   }) || null;
-}
-
-function impVisible(registro) {
-  if (!estado.modoPrueba && esDePrueba(registro)) return false;
-  return true;
 }
 
 function impEnTrimestre(iso, anio, trimestre) {
@@ -136,7 +104,6 @@ function impSuma(lista, campo) {
 function impVentasDelPeriodo(anio, trimestre) {
   return estado.ventas.filter(function (f) {
     if (!fvEstaActiva(f)) return false;
-    if (!impVisible(f)) return false;
     return impEnTrimestre(f.fecha, anio, trimestre);
   });
 }
@@ -144,7 +111,6 @@ function impVentasDelPeriodo(anio, trimestre) {
 function impComprasDelPeriodo(anio, trimestre) {
   return estado.compras.filter(function (f) {
     if (!fcEstaActiva(f)) return false;
-    if (!impVisible(f)) return false;
     return impEnTrimestre(f.fecha, anio, trimestre);
   });
 }
@@ -156,7 +122,6 @@ function impApuntesManuales(anio, trimestre) {
   return estado.apuntes.filter(function (a) {
     if (String(a.ambito || '') !== 'empresa') return false;
     if (a.id_factura_venta || a.id_factura_compra || a.id_impuesto) return false;
-    if (!impVisible(a)) return false;
     return impEnTrimestre(a.fecha, anio, trimestre);
   });
 }
@@ -284,7 +249,6 @@ function impAdelantar(anio, trimestre) {
 
   const todas = estado.ventas.filter(function (f) {
     if (!fvEstaActiva(f)) return false;
-    if (!impVisible(f)) return false;
     return String(f.estado || '').toLowerCase() !== 'pagada';
   });
 
@@ -312,13 +276,12 @@ function impAniosDisponibles() {
     if (anio > 1990) anios[anio] = true;
   }
 
-  estado.ventas.forEach(function (f) { if (impVisible(f)) anotar(f.fecha); });
-  estado.compras.forEach(function (f) { if (impVisible(f)) anotar(f.fecha); });
+  estado.ventas.forEach(function (f) { anotar(f.fecha); });
+  estado.compras.forEach(function (f) { anotar(f.fecha); });
   estado.apuntes.forEach(function (a) {
-    if (String(a.ambito || '') === 'empresa' && impVisible(a)) anotar(a.fecha);
+    if (String(a.ambito || '') === 'empresa') anotar(a.fecha);
   });
   estado.impuestos.forEach(function (r) {
-    if (!impVisible(r)) return;
     const anio = parseInt(String(r['año'] || ''), 10);
     if (anio > 1990) anios[anio] = true;
   });
@@ -440,13 +403,6 @@ function pintarPantallaImpuestos() {
 
   impRepintarDetalle();
 }
-
-// El histórico de trimestres ya no vive aquí (decisión 05/09/2026):
-// Impuestos enseña SOLO el trimestre que estés mirando, y el
-// histórico con sus comparaciones vive en la pestaña Informes. Se
-// conserva esta función vacía porque el flujo de guardado la llama en
-// varios sitios y así no hay que tocar esa parte, ya probada.
-function impRepintarHistorico() { /* el histórico vive ahora en Informes */ }
 
 function impRepintarDetalle() {
   const zona = document.getElementById('imp-detalle');
@@ -675,9 +631,9 @@ function impIrAlPeriodoDe(id) {
 // ============================================================
 // 9. MARCAR COMO PAGADO 🔒 (mapa 12.7, corregido por I10)
 // ============================================================
-// Una sola escritura en la hoja de impuestos: primero se crea el
-// apunte de tesorería (su id lo genera esta pantalla, así que ya se
-// conoce), y después se guarda el registro fiscal con ese id dentro.
+// Una sola escritura en la hoja de impuestos: el id del apunte de
+// tesorería lo genera esta pantalla, así que ya se conoce y se guarda
+// dentro del registro fiscal desde el principio.
 
 function impMostrarError(tipo, mensaje) {
   const p = document.querySelector('[data-error-de="' + tipo + '"]');
@@ -755,38 +711,24 @@ async function impAlternarPago(tipo) {
     const etiqueta = tipo === 'iva' ? 'IVA' : 'IRPF';
     if (!confirm('¿Marcar el ' + etiqueta + ' de ' + trimestre + ' ' + anio + ' como pendiente?\n\nSe borrará también su apunte de tesorería en Contabilidad.')) return;
 
+    // Deshacer un pago borra su apunte de tesorería: acción delicada,
+    // pide el PIN, igual que deshacer el cobro de una factura (23/09/2026).
+    if (!await confirmarConPin('Vas a marcar como PENDIENTE el ' + etiqueta + ' de ' + trimestre + ' ' + anio +
+      '. Se borrará su apunte de tesorería.')) return;
+
     const idApunte = registro['id_apunte_' + tipo];
-
-    impMarcarSync(registro.id, 'guardando');
-    impRepintarHistorico();
-
-    if (idApunte) {
-      const borrado = await borrarRegistro('apuntes', idApunte, null, null);
-      if (borrado.status !== 'success') {
-        impMarcarSync(registro.id, 'error');
-        impRepintarHistorico();
-        impMostrarError(tipo, 'No se pudo borrar el apunte. Inténtalo otra vez.');
-        return;
-      }
-    }
 
     registro[tipo + '_estado'] = 'pendiente';
     registro[tipo + '_fecha_pago'] = '';
     registro['id_apunte_' + tipo] = '';
 
-    const guardado = await guardarRegistro('impuestos', registro, null, null);
-    if (guardado.status !== 'success') {
-      impMarcarSync(registro.id, 'error');
-      impPendientes[String(registro.id)] = { registro: registro };
-      impRepintarDetalle();
-      impRepintarHistorico();
-      return;
-    }
-
-    impMarcarSync(registro.id, null);
-    delete impPendientes[String(registro.id)];
+    // El registro fiscal y el borrado del apunte van a la vez. Si algo
+    // falla, queda en rojo y se reenvía solo al sincronizar.
+    await Promise.all([
+      guardarRegistro('impuestos', registro, impRepintarDetalle, null),
+      idApunte ? borrarRegistro('apuntes', idApunte, null, null) : Promise.resolve(null)
+    ]);
     impRepintarDetalle();
-    impRepintarHistorico();
     return;
   }
 
@@ -807,19 +749,6 @@ async function impAlternarPago(tipo) {
   const idApunte = registro['id_apunte_' + tipo] || impNuevoIdApunte();
   const apunte = impConstruirApunte(tipo, importe, fecha, registro.id, anio, trimestre, idApunte);
 
-  impMarcarSync(registro.id, 'guardando');
-  impRepintarHistorico();
-
-  // 1) Primero el apunte, con su id ya conocido.
-  const apunteGuardado = await guardarRegistro('apuntes', apunte, null, null);
-  if (apunteGuardado.status !== 'success') {
-    impMarcarSync(registro.id, 'error');
-    impRepintarHistorico();
-    impMostrarError(tipo, 'No se pudo crear el apunte de tesorería. No se ha guardado nada.');
-    return;
-  }
-
-  // 2) Y después el registro fiscal, ya completo. Una sola escritura.
   registro.iva_estimado = c.iva;
   registro.irpf_estimado = c.irpf;
   registro[tipo + '_real'] = importe;
@@ -827,45 +756,16 @@ async function impAlternarPago(tipo) {
   registro[tipo + '_fecha_pago'] = fecha;
   registro['id_apunte_' + tipo] = apunte.id;
 
-  const guardado = await guardarRegistro('impuestos', registro, null, null);
-  if (guardado.status !== 'success') {
-    // Si falla, se deshace el apunte para no dejar un movimiento
-    // huérfano en Contabilidad.
-    await borrarRegistro('apuntes', apunte.id, null, null);
-    impMarcarSync(registro.id, 'error');
-    impPendientes[String(registro.id)] = { registro: registro };
-    impRepintarDetalle();
-    impRepintarHistorico();
-    return;
-  }
-
-  impMarcarSync(registro.id, null);
-  delete impPendientes[String(registro.id)];
+  // El apunte y el registro fiscal se guardan a la vez: el id del apunte
+  // lo genera esta pantalla, así que ya se conoce y el registro se
+  // escribe una sola vez (decisión I10). Si alguno falla, queda en rojo
+  // y se reenvía solo al sincronizar; ya no se deshace el otro, porque
+  // el núcleo conserva los dos hasta que Google los confirme.
+  await Promise.all([
+    guardarRegistro('apuntes', apunte, null, null),
+    guardarRegistro('impuestos', registro, impRepintarDetalle, null)
+  ]);
   impRepintarDetalle();
-  impRepintarHistorico();
-}
-
-function impReintentarGuardado(id) {
-  const pendiente = impPendientes[String(id)];
-  const registro = pendiente
-    ? pendiente.registro
-    : estado.impuestos.find(function (x) { return String(x.id) === String(id); });
-  if (!registro) return;
-
-  impMarcarSync(id, 'guardando');
-  impRepintarHistorico();
-
-  guardarRegistro('impuestos', registro, null, null).then(function (resultado) {
-    if (resultado.status !== 'success') {
-      impMarcarSync(id, 'error');
-      impRepintarHistorico();
-      return;
-    }
-    impMarcarSync(id, null);
-    delete impPendientes[String(id)];
-    impRepintarDetalle();
-    impRepintarHistorico();
-  });
 }
 
 // ============================================================
@@ -877,8 +777,6 @@ function impReintentarGuardado(id) {
 
 async function impReconciliarApuntesPago() {
   for (const r of estado.impuestos) {
-    if (!impVisible(r)) continue;
-
     for (const tipo of ['iva', 'irpf']) {
       if (String(r[tipo + '_estado'] || '').toLowerCase() !== 'pagado') continue;
 

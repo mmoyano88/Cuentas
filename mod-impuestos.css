@@ -236,7 +236,6 @@
 .imp-punto.ok        { background: #3E9E4E; }
 .imp-punto.guardando { background: #E0A32E; }
 .imp-punto.error     { background: var(--rojo); }
-.imp-punto.prueba    { background: #B8B6AC; }
 
 .imp-tarjeta-subtitulo {
   font-size: 11px;

@@ -145,19 +145,6 @@
 }
 .fv-fila.fv-fila-inactiva { opacity: .55; }
 
-.fv-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--gris-oscuro);
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  flex: 0 0 auto;
-}
 .fv-info { flex: 1; min-width: 0; }
 .fv-nombre {
   font-size: 15px;
@@ -223,6 +210,9 @@
 .fv-tabla tr.fv-fila-inactiva { opacity: .55; }
 
 .fv-celda-numero { font-weight: 500; white-space: nowrap; }
+/* Icono del contacto al principio de la fila en PC, igual que en el
+   móvil (23/09/2026). Columna estrecha, sin título. */
+.fv-tabla td.fv-celda-icono { width: 32px; padding-right: 0; }
 .fv-celda-derecha { text-align: right; white-space: nowrap; }
 /* La regla general ".fv-tabla th" alinea a la izquierda y, por ser
    más específica, ganaba a la clase de arriba: los títulos Base/IVA/
@@ -239,7 +229,6 @@
 }
 
 /* ---- Acciones (fila) ---- */
-.fv-acciones { position: relative; display: flex; align-items: center; gap: 4px; }
 .fv-btn-icono {
   width: 32px;
   height: 32px;
@@ -321,19 +310,6 @@
   padding: 18px 20px 14px;
   border-bottom: 1px solid var(--fondo);
 }
-.fv-modal-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--gris-oscuro);
-  color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 600;
-  flex: 0 0 auto;
-}
 .fv-modal-cabecera > .fv-modal-texto { flex: 1; min-width: 0; }
 .fv-modal-titulo { font-size: 17px; font-weight: 700; margin: 0; }
 .fv-modal-subtitulo { font-size: 12px; color: var(--texto-secundario); margin: 2px 0 0; }
@@ -409,7 +385,6 @@
 .fv-total-final span { font-size: 13px; font-weight: 500; }
 .fv-total-final strong { font-size: 22px; font-weight: 500; color: var(--rojo); }
 
-.fv-negativo { color: var(--rojo); }
 
 /* ---- Formularios ---- */
 .fv-form-grid {
@@ -478,60 +453,6 @@
   text-decoration: underline;
 }
 
-/* ---- Líneas de la factura ---- */
-.fv-lineas-titulo {
-  grid-column: 1 / -1;
-  font-size: 13px;
-  font-weight: 500;
-  margin: 4px 0 0;
-}
-
-.fv-lineas-tabla {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.fv-linea-fila {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-}
-.fv-linea-fila .fv-linea-descripcion { flex: 1; }
-.fv-linea-fila .fv-linea-importe { flex: 0 0 110px; }
-.fv-linea-fila input.campo { height: 40px; }
-
-.fv-linea-borrar {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radio-control);
-  border: 1px solid #D8D8D2;
-  background: var(--superficie);
-  color: var(--texto-secundario);
-  cursor: pointer;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.fv-linea-borrar:hover { background: var(--fondo); color: var(--rojo); }
-
-.fv-lineas-anadir {
-  grid-column: 1 / -1;
-  align-self: flex-start;
-}
-
-.fv-lineas-subtotal {
-  grid-column: 1 / -1;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  font-size: 13px;
-  padding-top: 4px;
-}
-.fv-lineas-subtotal strong { font-weight: 600; }
-
 /* ---- Bloque de control de la fila: [más opciones] [punto] ---- */
 .fv-control {
   display: flex;
@@ -551,4 +472,3 @@
 .fv-punto.ok        { background: #3E9E4E; }
 .fv-punto.guardando { background: #E0A32E; }
 .fv-punto.error     { background: var(--rojo); }
-.fv-punto.prueba    { background: #B8B6AC; }
