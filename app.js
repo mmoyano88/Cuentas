@@ -1054,6 +1054,47 @@ function formatMoney(v) {
   }) + ' €';
 }
 
+// ------------------------------------------------------------
+// CIFRAS OCULTAS (24/09/2026)
+// ------------------------------------------------------------
+// El botón del ojo de la cabecera oculta las cifras de dinero de las
+// pantallas principales (Dashboard, listas de Presupuestos, Facturas y
+// Contabilidad, Impuestos e Informes), para que no las vea nadie por
+// encima del hombro. Las fichas, los formularios, la calculadora y los
+// PDF enseñan siempre todo: si se abre algo, es para verlo.
+//
+// Al abrir la app: en el móvil empiezan ocultas, en el PC visibles
+// (mismo corte de 900 px que decide qué menú se pinta). Mientras la
+// app siga abierta se respeta lo último elegido; no se guarda en el
+// dispositivo, así que al volver a abrirla empieza otra vez así.
+//
+// Las pantallas principales pintan sus cifras con dineroVisible() en
+// lugar de formatMoney(). No cambia ningún cálculo ni ningún dato.
+
+const CIFRA_OCULTA = '••••• €';
+let cifrasOcultas = window.matchMedia('(max-width: 899px)').matches;
+
+function dineroVisible(v) {
+  return cifrasOcultas ? CIFRA_OCULTA : formatMoney(v);
+}
+
+function pintarBotonOjo() {
+  const boton = document.getElementById('boton-ojo');
+  if (!boton) return;
+  boton.classList.toggle('oculto', cifrasOcultas);
+  boton.innerHTML = '<i class="ti ' + (cifrasOcultas ? 'ti-eye-off' : 'ti-eye') + '"></i>';
+  const texto = cifrasOcultas ? 'Mostrar las cifras' : 'Ocultar las cifras';
+  boton.title = texto;
+  boton.setAttribute('aria-label', texto);
+  boton.setAttribute('aria-pressed', cifrasOcultas ? 'true' : 'false');
+}
+
+function alternarCifras() {
+  cifrasOcultas = !cifrasOcultas;
+  pintarBotonOjo();
+  pintarVistaActiva();
+}
+
 // ============================================================
 // 10. UTILIDADES — FECHAS
 // ============================================================
@@ -1392,6 +1433,10 @@ window.addEventListener('DOMContentLoaded', function () {
 
   const indicadorEl = document.getElementById('indicador-sync');
   if (indicadorEl) indicadorEl.addEventListener('click', sincronizar);
+
+  const botonOjo = document.getElementById('boton-ojo');
+  if (botonOjo) botonOjo.addEventListener('click', alternarCifras);
+  pintarBotonOjo();
 
   if (haySesion()) {
     entrarEnLaApp();

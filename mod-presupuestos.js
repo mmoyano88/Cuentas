@@ -534,7 +534,7 @@ function preRenderFilaMovil(p) {
       '<p class="pre-meta">' + escaparHtml(p.concepto || '—') + '</p>' +
     '</div>' +
     '<div class="pre-derecha">' +
-      '<span class="pre-total-fila">' + escaparHtml(formatMoney(p.total)) + '</span>' +
+      '<span class="pre-total-fila">' + escaparHtml(dineroVisible(p.total)) + '</span>' +
       '<button type="button" class="pre-pastilla-boton" data-estado-de="' + escaparHtml(p.id) + '">' +
         prePastillaEstado(p.estado) +
       '</button>' +
@@ -558,8 +558,8 @@ function preRenderFilaTabla(p) {
         prePastillaEstado(p.estado) +
       '</button>' +
     '</td>' +
-    '<td class="pre-celda-derecha">' + escaparHtml(formatMoney(p.base)) + '</td>' +
-    '<td class="pre-celda-derecha">' + escaparHtml(formatMoney(p.total)) + '</td>' +
+    '<td class="pre-celda-derecha">' + escaparHtml(dineroVisible(p.base)) + '</td>' +
+    '<td class="pre-celda-derecha">' + escaparHtml(dineroVisible(p.total)) + '</td>' +
     '<td><div class="pre-control">' +
       '<button type="button" class="pre-btn-icono" data-mas="' + escaparHtml(p.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
       prePuntoEstado(p) +

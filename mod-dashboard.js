@@ -433,9 +433,9 @@ function dashTarjeta(clave, titulo, valor, etiquetaTesoreria, valorTesoreria) {
       '<span class="dash-tarjeta-titulo">' + escaparHtml(titulo) + '</span>' +
       '<i class="ti ' + info.icono + '"></i>' +
     '</div>' +
-    '<p class="dash-tarjeta-valor">' + escaparHtml(formatMoney(valor)) + '</p>' +
+    '<p class="dash-tarjeta-valor">' + escaparHtml(dineroVisible(valor)) + '</p>' +
     '<p class="dash-tarjeta-tesoreria">' +
-      escaparHtml(etiquetaTesoreria) + ' ' + escaparHtml(formatMoney(valorTesoreria)) +
+      escaparHtml(etiquetaTesoreria) + ' ' + escaparHtml(dineroVisible(valorTesoreria)) +
     '</p>' +
   '</div>';
 }
@@ -640,13 +640,16 @@ function dashGraficoEvolucion() {
         legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
         tooltip: {
           callbacks: {
-            label: function (ctx) { return ctx.dataset.label + ': ' + formatMoney(ctx.parsed.y); }
+            label: function (ctx) { return ctx.dataset.label + ': ' + dineroVisible(ctx.parsed.y); }
           }
         }
       },
       scales: {
         y: {
+          // Con las cifras ocultas (botón del ojo) no se pintan los
+          // números del eje: la forma de las líneas se sigue viendo.
           ticks: {
+            display: !cifrasOcultas,
             font: { size: 10 },
             callback: function (v) { return formatMoney(v); }
           },
@@ -694,7 +697,7 @@ function dashGraficoDonut(idCanvas, datos, textoVacio) {
             label: function (ctx) {
               const total = ctx.dataset.data.reduce(function (s, v) { return s + v; }, 0);
               const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0;
-              return ctx.label + ': ' + formatMoney(ctx.parsed) + ' (' + pct + '%)';
+              return ctx.label + ': ' + dineroVisible(ctx.parsed) + ' (' + pct + '%)';
             }
           }
         }

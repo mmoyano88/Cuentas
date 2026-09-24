@@ -261,7 +261,7 @@ function fcRenderFilaMovil(f) {
       '<p class="fv-meta">' + escaparHtml(f.concepto || '—') + '</p>' +
     '</div>' +
     '<div class="fv-derecha">' +
-      '<span class="fv-total-fila">' + escaparHtml(formatMoney(f.total)) + '</span>' +
+      '<span class="fv-total-fila">' + escaparHtml(dineroVisible(f.total)) + '</span>' +
       '<button type="button" class="fv-pastilla-boton" data-estado-de="' + escaparHtml(f.id) + '">' +
         fcPastillaEstado(f.estado) +
       '</button>' +
@@ -286,8 +286,8 @@ function fcRenderFilaTabla(f) {
         fcPastillaEstado(f.estado) +
       '</button>' +
     '</td>' +
-    '<td class="fv-celda-derecha">' + escaparHtml(formatMoney(f.base)) + '</td>' +
-    '<td class="fv-celda-derecha">' + escaparHtml(formatMoney(f.total)) + '</td>' +
+    '<td class="fv-celda-derecha">' + escaparHtml(dineroVisible(f.base)) + '</td>' +
+    '<td class="fv-celda-derecha">' + escaparHtml(dineroVisible(f.total)) + '</td>' +
     '<td><div class="fv-control">' +
       '<button type="button" class="fv-btn-icono" data-mas="' + escaparHtml(f.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
       fcPuntoEstado(f) +

@@ -716,16 +716,16 @@ function infResumenPantallaHtml(resumen) {
           : '<span class="pastilla ind-ambar">Pendiente</span>') +
       '</div>' +
       '<div class="inf-resumen-par">' +
-        '<span class="inf-resumen-dato"><small>Estimado</small>' + escaparHtml(formatMoney(estimado)) + '</span>' +
+        '<span class="inf-resumen-dato"><small>Estimado</small>' + escaparHtml(dineroVisible(estimado)) + '</span>' +
         '<span class="inf-resumen-dato"><small>Pagado</small>' +
-          (pagado ? escaparHtml(formatMoney(real)) : '—') + '</span>' +
+          (pagado ? escaparHtml(dineroVisible(real)) : '—') + '</span>' +
       '</div>' +
       // La cifra que se congeló al pagar ya no coincide con la de hoy:
       // se han añadido facturas o apuntes de ese trimestre después de
       // marcarlo como pagado. Se enseñan las dos para que no parezca
       // un error.
       (desfasado
-        ? '<p class="inf-resumen-desfase">Al pagar se estimó ' + escaparHtml(formatMoney(guardado)) + '</p>'
+        ? '<p class="inf-resumen-desfase">Al pagar se estimó ' + escaparHtml(dineroVisible(guardado)) + '</p>'
         : '') +
     '</div>';
   };
@@ -741,8 +741,8 @@ function infResumenPantallaHtml(resumen) {
   return '<div class="inf-resumen-anual">' +
     '<div class="inf-resumen-trimestres">' + resumen.filas.map(filaTrimestre).join('') + '</div>' +
     '<div class="inf-resumen-total">' +
-      '<div class="inf-resumen-total-linea"><span>Pagado en el año</span><strong>' + escaparHtml(formatMoney(resumen.totalPagado)) + '</strong></div>' +
-      '<div class="inf-resumen-total-linea"><span>Estimado total del año</span><strong>' + escaparHtml(formatMoney(resumen.totalEstimado)) + '</strong></div>' +
+      '<div class="inf-resumen-total-linea"><span>Pagado en el año</span><strong>' + escaparHtml(dineroVisible(resumen.totalPagado)) + '</strong></div>' +
+      '<div class="inf-resumen-total-linea"><span>Estimado total del año</span><strong>' + escaparHtml(dineroVisible(resumen.totalEstimado)) + '</strong></div>' +
       (resumen.trimestresPendientes > 0
         ? '<p class="inf-resumen-pendiente">' + resumen.trimestresPendientes + ' de 4 trimestres pendientes de cerrar</p>'
         : '<p class="inf-resumen-pendiente ok">Los 4 trimestres del año están cerrados</p>') +

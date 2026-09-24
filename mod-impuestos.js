@@ -435,7 +435,7 @@ function impBloqueResultado(valor, etiquetaPagar, etiquetaFavor) {
   return '<div class="imp-resultado">' +
     '<span>' + escaparHtml(aFavor ? etiquetaFavor : etiquetaPagar) + '</span>' +
     '<strong class="' + (aFavor ? 'favor' : 'pagar') + '">' +
-      escaparHtml(formatMoney(Math.abs(valor))) +
+      escaparHtml(dineroVisible(Math.abs(valor))) +
     '</strong>' +
   '</div>';
 }
@@ -454,8 +454,8 @@ function impTarjetaIva(c, registro) {
       '</span>' +
     '</div>' +
 
-    '<div class="imp-linea"><span>IVA repercutido (ventas)</span><strong>+' + escaparHtml(formatMoney(c.ivaRepercutido)) + '</strong></div>' +
-    '<div class="imp-linea"><span>IVA soportado (compras)</span><strong>−' + escaparHtml(formatMoney(c.ivaSoportado)) + '</strong></div>' +
+    '<div class="imp-linea"><span>IVA repercutido (ventas)</span><strong>+' + escaparHtml(dineroVisible(c.ivaRepercutido)) + '</strong></div>' +
+    '<div class="imp-linea"><span>IVA soportado (compras)</span><strong>−' + escaparHtml(dineroVisible(c.ivaSoportado)) + '</strong></div>' +
 
     impBloqueResultado(c.iva, 'A pagar este trimestre', 'A tu favor este trimestre') +
 
@@ -516,23 +516,23 @@ function impTarjetaIrpf(c, acumulado, registro) {
     '</div>' +
     '<p class="imp-tarjeta-subtitulo">Referencia: modelo 130</p>' +
 
-    '<div class="imp-linea"><span>Ingresos del trimestre (base)</span><strong>+' + escaparHtml(formatMoney(c.ingresos)) + '</strong></div>' +
-    '<div class="imp-linea"><span>Gastos del trimestre (base)</span><strong>−' + escaparHtml(formatMoney(c.gastos)) + '</strong></div>' +
-    '<div class="imp-linea destacada"><span>Rendimiento neto</span><strong>' + escaparHtml(formatMoney(c.rendimiento)) + '</strong></div>' +
-    '<div class="imp-linea"><span>' + c.pct + '% sobre el rendimiento</span><strong>' + escaparHtml(formatMoney(c.irpfTeorico)) + '</strong></div>' +
-    '<div class="imp-linea"><span>Retenciones que ya te han hecho</span><strong>−' + escaparHtml(formatMoney(c.retencionesSoportadas)) + '</strong></div>' +
+    '<div class="imp-linea"><span>Ingresos del trimestre (base)</span><strong>+' + escaparHtml(dineroVisible(c.ingresos)) + '</strong></div>' +
+    '<div class="imp-linea"><span>Gastos del trimestre (base)</span><strong>−' + escaparHtml(dineroVisible(c.gastos)) + '</strong></div>' +
+    '<div class="imp-linea destacada"><span>Rendimiento neto</span><strong>' + escaparHtml(dineroVisible(c.rendimiento)) + '</strong></div>' +
+    '<div class="imp-linea"><span>' + c.pct + '% sobre el rendimiento</span><strong>' + escaparHtml(dineroVisible(c.irpfTeorico)) + '</strong></div>' +
+    '<div class="imp-linea"><span>Retenciones que ya te han hecho</span><strong>−' + escaparHtml(dineroVisible(c.retencionesSoportadas)) + '</strong></div>' +
 
     impBloqueResultado(c.irpf, 'A apartar este trimestre', 'A tu favor este trimestre') +
 
     avisoRetencion +
 
     '<p class="imp-nota">Acumulado del año hasta ' + escaparHtml(impTrimestre) + ': ' +
-      escaparHtml(formatMoney(acumulado.irpf)) + ' sobre un rendimiento de ' +
-      escaparHtml(formatMoney(acumulado.rendimiento)) + '. Es la forma en que se calcula el 130 oficial, ' +
+      escaparHtml(dineroVisible(acumulado.irpf)) + ' sobre un rendimiento de ' +
+      escaparHtml(dineroVisible(acumulado.rendimiento)) + '. Es la forma en que se calcula el 130 oficial, ' +
       'por si quieres comparar con tu asesor.</p>' +
 
     (c.retencionesTerceros > 0
-      ? '<p class="imp-nota aviso">Has retenido ' + escaparHtml(formatMoney(c.retencionesTerceros)) +
+      ? '<p class="imp-nota aviso">Has retenido ' + escaparHtml(dineroVisible(c.retencionesTerceros)) +
         ' de IRPF a terceros este trimestre. Ese dinero se lo debes tú a Hacienda por otro modelo ' +
         '(111 o 115) y NO está incluido en la cifra de arriba. Consúltalo con tu asesor.</p>'
       : '') +
@@ -550,12 +550,18 @@ function impBloquePago(tipo, registro, pagado) {
   const real = registro ? parsearNumero(registro[tipo + '_real']) : 0;
   const fecha = registro ? normalizarFecha(registro[tipo + '_fecha_pago']) : '';
 
+  // Ya pagado, el campo está bloqueado y solo enseña lo que se pagó: con
+  // las cifras ocultas (botón del ojo) se tapa. Sin pagar se deja tal
+  // cual, porque es el campo donde se escribe el importe y se lee al
+  // pulsar "Marcar como pagado".
+  const valorCampo = (pagado && cifrasOcultas) ? '•••••' : (real ? String(real) : '');
+
   return '<div class="imp-pago">' +
     '<div class="imp-pago-campos">' +
       '<div class="imp-campo-grupo">' +
         '<label for="imp-real-' + tipo + '">Importe real de ' + etiqueta + '</label>' +
         '<input class="campo" type="text" inputmode="decimal" id="imp-real-' + tipo + '"' +
-          ' value="' + escaparHtml(real ? String(real) : '') + '"' +
+          ' value="' + escaparHtml(valorCampo) + '"' +
           (pagado ? ' disabled' : '') + ' placeholder="0,00">' +
       '</div>' +
       '<div class="imp-campo-grupo">' +
@@ -576,11 +582,11 @@ function impTarjetaTotal(c) {
   const aFavor = c.total < 0;
   return '<div class="imp-tarjeta imp-tarjeta-total">' +
     '<p class="imp-tarjeta-titulo">Total estimado del trimestre</p>' +
-    '<div class="imp-linea"><span>IVA</span><strong>' + escaparHtml(formatMoney(c.iva)) + '</strong></div>' +
-    '<div class="imp-linea"><span>IRPF</span><strong>' + escaparHtml(formatMoney(c.irpf)) + '</strong></div>' +
+    '<div class="imp-linea"><span>IVA</span><strong>' + escaparHtml(dineroVisible(c.iva)) + '</strong></div>' +
+    '<div class="imp-linea"><span>IRPF</span><strong>' + escaparHtml(dineroVisible(c.irpf)) + '</strong></div>' +
     '<div class="imp-total-final">' +
       '<span>' + (aFavor ? 'A TU FAVOR' : 'A APARTAR') + '</span>' +
-      '<strong class="' + (aFavor ? 'favor' : '') + '">' + escaparHtml(formatMoney(Math.abs(c.total))) + '</strong>' +
+      '<strong class="' + (aFavor ? 'favor' : '') + '">' + escaparHtml(dineroVisible(Math.abs(c.total))) + '</strong>' +
     '</div>' +
   '</div>';
 }
@@ -593,14 +599,14 @@ function impTarjetaAdelantar(a) {
     '<p class="imp-nota">Impuestos de facturas que todavía no has cobrado: ese dinero sale de tu bolsillo antes de entrar.</p>' +
 
     '<div class="imp-linea destacada"><span>De este trimestre (' + a.numTrimestre + ' factura' + (a.numTrimestre === 1 ? '' : 's') + ')</span><strong>' +
-      escaparHtml(formatMoney(roundMoney(a.iva + a.irpf))) + '</strong></div>' +
-    '<div class="imp-linea"><span>· IVA</span><strong>' + escaparHtml(formatMoney(a.iva)) + '</strong></div>' +
-    '<div class="imp-linea"><span>· IRPF</span><strong>' + escaparHtml(formatMoney(a.irpf)) + '</strong></div>' +
+      escaparHtml(dineroVisible(roundMoney(a.iva + a.irpf))) + '</strong></div>' +
+    '<div class="imp-linea"><span>· IVA</span><strong>' + escaparHtml(dineroVisible(a.iva)) + '</strong></div>' +
+    '<div class="imp-linea"><span>· IRPF</span><strong>' + escaparHtml(dineroVisible(a.irpf)) + '</strong></div>' +
 
     '<div class="imp-linea destacada"><span>Todas las pendientes (' + a.numTotal + ' factura' + (a.numTotal === 1 ? '' : 's') + ')</span><strong>' +
-      escaparHtml(formatMoney(roundMoney(a.ivaTotal + a.irpfTotal))) + '</strong></div>' +
-    '<div class="imp-linea"><span>· IVA</span><strong>' + escaparHtml(formatMoney(a.ivaTotal)) + '</strong></div>' +
-    '<div class="imp-linea"><span>· IRPF</span><strong>' + escaparHtml(formatMoney(a.irpfTotal)) + '</strong></div>' +
+      escaparHtml(dineroVisible(roundMoney(a.ivaTotal + a.irpfTotal))) + '</strong></div>' +
+    '<div class="imp-linea"><span>· IVA</span><strong>' + escaparHtml(dineroVisible(a.ivaTotal)) + '</strong></div>' +
+    '<div class="imp-linea"><span>· IRPF</span><strong>' + escaparHtml(dineroVisible(a.irpfTotal)) + '</strong></div>' +
   '</div>';
 }
 

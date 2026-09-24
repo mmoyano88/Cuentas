@@ -349,7 +349,7 @@ function ctRenderFilaMovil(a) {
     '</div>' +
     '<div class="ct-derecha">' +
       '<span class="ct-total-fila ' + (esIngreso ? 'ingreso' : 'gasto') + '">' +
-        (esIngreso ? '+' : '−') + escaparHtml(formatMoney(a.total)) +
+        (esIngreso ? '+' : '−') + escaparHtml(dineroVisible(a.total)) +
       '</span>' +
     '</div>' +
     '<div class="ct-control">' +
@@ -369,11 +369,11 @@ function ctRenderFilaTabla(a) {
       '<div class="ct-concepto-texto">' + escaparHtml(ctConceptoMostrado(a)) + '</div>' +
       '<div class="ct-concepto-subtitulo">' + (esIngreso ? 'Ingreso' : 'Gasto') + ' · ' + (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</div>' +
     '</td>' +
-    '<td class="ct-celda-derecha">' + escaparHtml(formatMoney(a.base)) + '</td>' +
-    '<td class="ct-celda-derecha">' + (parsearNumero(a.iva) > 0 ? '+' + escaparHtml(formatMoney(a.iva)) : '—') + '</td>' +
-    '<td class="ct-celda-derecha">' + (parsearNumero(a.irpf) > 0 ? '−' + escaparHtml(formatMoney(a.irpf)) : '—') + '</td>' +
+    '<td class="ct-celda-derecha">' + escaparHtml(dineroVisible(a.base)) + '</td>' +
+    '<td class="ct-celda-derecha">' + (parsearNumero(a.iva) > 0 ? '+' + escaparHtml(dineroVisible(a.iva)) : '—') + '</td>' +
+    '<td class="ct-celda-derecha">' + (parsearNumero(a.irpf) > 0 ? '−' + escaparHtml(dineroVisible(a.irpf)) : '—') + '</td>' +
     '<td class="ct-celda-derecha ct-importe ' + (esIngreso ? 'ingreso' : 'gasto') + '" style="font-weight:600">' +
-      (esIngreso ? '+' : '−') + escaparHtml(formatMoney(a.total)) +
+      (esIngreso ? '+' : '−') + escaparHtml(dineroVisible(a.total)) +
     '</td>' +
     '<td><div class="ct-control">' +
       '<button type="button" class="ct-btn-icono" data-mas="' + escaparHtml(a.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
