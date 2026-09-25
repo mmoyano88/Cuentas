@@ -24,7 +24,13 @@
  *       ajuste de cliente, GUÍA 20);
  *     · apunte: copia exacta; solo se eligen fecha y, si se quiere,
  *       otro contacto.
- *   La plantilla no se toca ni se gasta.
+ *   Junto al contacto y la fecha se puede cambiar además la
+ *   DESCRIPCIÓN (presupuestos y facturas) o el CONCEPTO (apuntes, que
+ *   no tienen descripción), para poner, por ejemplo, el mes facturado
+ *   (decisión del propietario, 25/09/2026). Viene rellenado con el de
+ *   la plantilla. Los importes no se tocan en ese paso.
+ *   La plantilla no se toca ni se gasta: el cambio va solo al
+ *   documento creado.
  * - Numeración del documento creado: la siguiente de la serie del año
  *   en curso, con las mismas funciones que Presupuestos y Facturas.
  * - El desglose de la Calculadora de una plantilla de presupuesto vive
@@ -496,8 +502,10 @@ function plAbrirPlantilla(tipo, id) {
       '</div>' +
 
       '<div class="pre-modal-cuerpo">' +
-        (pl.concepto ? '<p class="pl-ficha-etiqueta">Concepto</p><p class="pl-ficha-concepto">' + escaparHtml(pl.concepto) + '</p>' : '') +
-        (pl.descripcion ? '<p class="pl-ficha-etiqueta">Descripción</p><p class="pl-ficha-texto">' + escaparHtml(pl.descripcion) + '</p>' : '') +
+        // Lo que se puede cambiar al crear (descripción, o concepto en los
+        // apuntes) no se enseña aquí arriba: está abajo, editable, para
+        // que no salga dos veces.
+        (tipo !== 'apunte' && pl.concepto ? '<p class="pl-ficha-etiqueta">Concepto</p><p class="pl-ficha-concepto">' + escaparHtml(pl.concepto) + '</p>' : '') +
         (pl.detalles
           ? '<div class="pl-detalles"><p class="pl-detalles-titulo">Detalles del trabajo <span>solo en la plantilla</span></p>' +
             '<p class="pl-ficha-texto">' + escaparHtml(pl.detalles) + '</p></div>'
@@ -523,6 +531,18 @@ function plAbrirPlantilla(tipo, id) {
               '<input class="campo" type="date" id="pl-usar-fecha" value="' + escaparHtml(fechaHoyISO()) + '">' +
               '<p class="pre-mensaje-error" data-error-de="fecha" hidden></p>' +
             '</div>' +
+            (tipo === 'apunte'
+              ? '<div class="pre-campo-grupo ancho-total">' +
+                  '<label for="pl-usar-texto">Concepto *</label>' +
+                  '<input class="campo" type="text" id="pl-usar-texto" value="' + escaparHtml(pl.concepto || '') + '">' +
+                  '<p class="pre-mensaje-error" data-error-de="texto" hidden></p>' +
+                '</div>'
+              : '<div class="pre-campo-grupo ancho-total">' +
+                  '<label for="pl-usar-texto">Descripción (una línea por punto)</label>' +
+                  '<textarea class="campo" id="pl-usar-texto">' + escaparHtml(pl.descripcion || '') + '</textarea>' +
+                  '<p class="pl-nota-campo">Pasa ' + (tipo === 'presupuesto' ? 'al presupuesto' : 'a la factura') +
+                    ' y a su PDF. La plantilla no cambia.</p>' +
+                '</div>') +
           '</div>' +
         '</div>' +
 
@@ -644,8 +664,12 @@ async function plCrearDesdePlantilla(tipo, id, fondo, eleccion, cerrar) {
   };
 
   const fecha = normalizarFecha(fondo.querySelector('#pl-usar-fecha').value);
+  // Descripción (presupuesto/factura) o concepto (apunte), tal como se
+  // haya dejado en la ventana. String() por si Sheets devolvió cifras.
+  const texto = String(fondo.querySelector('#pl-usar-texto').value || '').trim();
   let valido = true;
   if (!fecha) { error('fecha', 'Obligatoria'); valido = false; }
+  if (tipo === 'apunte' && !texto) { error('texto', 'Escribe un concepto para el movimiento.'); valido = false; }
 
   let contacto = null;
   if (eleccion.id_contacto) {
@@ -660,16 +684,16 @@ async function plCrearDesdePlantilla(tipo, id, fondo, eleccion, cerrar) {
 
   if (tipo === 'presupuesto') {
     cerrar();
-    plCrearPresupuesto(pl, contacto, fecha);
+    plCrearPresupuesto(pl, contacto, fecha, texto);
   } else if (tipo === 'factura') {
     // Avisos que no bloquean (acordado el 24/09/2026): el número es
     // siempre el siguiente de la serie del año en curso.
     if (!await plAvisosFechaFactura(fecha)) return;
     cerrar();
-    plCrearFactura(pl, contacto, fecha);
+    plCrearFactura(pl, contacto, fecha, texto);
   } else {
     cerrar();
-    plCrearApunte(pl, contacto, eleccion.contacto_libre, fecha);
+    plCrearApunte(pl, contacto, eleccion.contacto_libre, fecha, texto);
   }
 }
 
@@ -696,7 +720,7 @@ async function plAvisosFechaFactura(fecha) {
   return eleccion === 'seguir';
 }
 
-function plCrearPresupuesto(pl, cliente, fecha) {
+function plCrearPresupuesto(pl, cliente, fecha, descripcion) {
   const t = plCalcularPresupuesto(pl, cliente.id);
 
   // Mismos campos, en el mismo orden, que un presupuesto hecho a mano
@@ -710,7 +734,7 @@ function plCrearPresupuesto(pl, cliente, fecha) {
     cliente: cliente.nombre_fiscal || cliente.nombre_contacto || '',
     nif: cliente.nif || '',
     concepto: String(pl.concepto || ''),
-    descripcion: String(pl.descripcion || ''),
+    descripcion: String(descripcion || ''),
     subtotal: t.subtotal,
     ajuste_cliente_pct: t.ajustePct,
     ajuste_cliente_importe: t.ajusteImporte,
@@ -742,7 +766,7 @@ function plCrearPresupuesto(pl, cliente, fecha) {
   plAvisarCreado('presupuesto', registro);
 }
 
-function plCrearFactura(pl, cliente, fecha) {
+function plCrearFactura(pl, cliente, fecha, descripcion) {
   const t = plCalcularFactura(pl);
 
   // Mismos campos que una factura hecha a mano (fvProcesarGuardado):
@@ -757,7 +781,7 @@ function plCrearFactura(pl, cliente, fecha) {
     nif: cliente.nif || '',
     id_presupuesto: '',
     concepto: String(pl.concepto || ''),
-    descripcion: String(pl.descripcion || ''),
+    descripcion: String(descripcion || ''),
     subtotal: 0,
     ajuste_cliente_pct: 0,
     ajuste_cliente_importe: 0,
@@ -781,7 +805,7 @@ function plCrearFactura(pl, cliente, fecha) {
   plAvisarCreado('factura', registro);
 }
 
-function plCrearApunte(pl, contacto, contactoLibre, fecha) {
+function plCrearApunte(pl, contacto, contactoLibre, fecha, concepto) {
   const ambito = pl.ambito === 'personal' ? 'personal' : 'empresa';
   const t = plCalcularApunte(pl);
 
@@ -791,7 +815,7 @@ function plCrearApunte(pl, contacto, contactoLibre, fecha) {
     ambito: ambito,
     tipo: pl.tipo === 'ingreso' ? 'ingreso' : 'gasto',
     fecha: fecha,
-    concepto: String(pl.concepto || ''),
+    concepto: String(concepto || ''),
     base: t.base,
     iva_pct: t.ivaPct,
     iva: t.iva,
@@ -960,7 +984,7 @@ function plAbrirFormulario(tipo, id, prefill, snapshot, opciones) {
             plCampo('concepto', 'Concepto', datos.concepto, { textarea: tipo !== 'apunte', anchoTotal: true, requerido: tipo !== 'presupuesto' }) +
             (tipo !== 'apunte'
               ? plCampo('descripcion', 'Descripción (una línea por punto)', datos.descripcion, { textarea: true, anchoTotal: true,
-                  nota: 'Pasa al ' + (tipo === 'presupuesto' ? 'presupuesto' : 'factura') + ' y a su PDF, igual que ahora.' })
+                  nota: 'Pasa ' + (tipo === 'presupuesto' ? 'al presupuesto' : 'a la factura') + ' y a su PDF. Al usar la plantilla se puede cambiar.' })
               : '') +
             plCampo('detalles', 'Detalles del trabajo', datos.detalles, { textarea: true, grande: true, anchoTotal: true,
               nota: 'Solo para ti: se ven al abrir la plantilla y no pasan a ningún documento.' }) +
