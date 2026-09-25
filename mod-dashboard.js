@@ -409,6 +409,61 @@ function dashImpuestos() {
 }
 
 // ============================================================
+// 5.1 INFO DEL DASHBOARD (tarjeta desplegable)
+// ============================================================
+// Sustituye a la nota de texto suelta que iba debajo de los donuts
+// (25/09/2026, a petición del propietario: "me chirría ahí"). Misma
+// información, pero en una tarjeta plegable, punto por punto por cada
+// tarjeta y gráfico, con su mismo icono para reconocerlos de un
+// vistazo. Cerrada siempre al entrar en el Dashboard: no se recuerda
+// el estado entre visitas.
+
+function dashPuntoInfo(icono, titulo, texto) {
+  return '<div class="dash-info-punto">' +
+    '<i class="ti ' + icono + '"></i>' +
+    '<div>' +
+      '<p class="dash-info-punto-titulo">' + escaparHtml(titulo) + '</p>' +
+      '<p class="dash-info-punto-texto">' + escaparHtml(texto) + '</p>' +
+    '</div>' +
+  '</div>';
+}
+
+function dashBloqueInfo() {
+  return (
+    dashPuntoInfo(DASH_TARJETAS_COLOR.ingresos.icono, 'Ingresos',
+      'Suma de lo cobrado en el año (apuntes de Contabilidad), sin impuestos. Debajo, en pequeño, lo cobrado con impuestos incluidos (lo que ha entrado en el banco).') +
+    dashPuntoInfo(DASH_TARJETAS_COLOR.gastos.icono, 'Gastos',
+      'Suma de lo pagado en el año, sin impuestos. Debajo, lo pagado con impuestos incluidos (lo que ha salido del banco).') +
+    dashPuntoInfo(DASH_TARJETAS_COLOR.beneficio.icono, 'Beneficio',
+      'Ingresos menos gastos del año, sin impuestos: lo que de verdad gana el negocio. Debajo, el resultado en banco (con impuestos).') +
+    dashPuntoInfo(DASH_TARJETAS_COLOR.media.icono, 'Media mensual',
+      'Beneficio medio de los últimos 365 días, repartido entre los meses reales de actividad (si el negocio lleva menos de un año, se divide solo entre esos meses). Debajo, la misma media pero en banco.') +
+    dashPuntoInfo(DASH_TARJETAS_COLOR.impuestos.icono, 'Próximo pago',
+      'Lo que queda por pagar del trimestre que toca (IVA + IRPF, cada uno desde 0 €). Debajo, el plazo: hasta cuándo hay tiempo o si ya está pagado. A diferencia del resto, cuenta las facturas desde que se emiten, aunque no estén cobradas.') +
+    dashPuntoInfo(DASH_TARJETAS_COLOR.adelantar.icono, 'Te deben',
+      'Total de las facturas de venta activas todavía sin cobrar. Debajo, cuánto de los impuestos de esas facturas se adelanta a Hacienda en el próximo pago, antes de haber cobrado el dinero.') +
+    dashPuntoInfo('ti-chart-line', 'Gráfico de evolución',
+      'Ingresos, gastos y beneficio de los últimos 12 meses completos más el mes en curso (línea punteada, todavía a medias). Sin impuestos, igual que las tarjetas económicas.') +
+    dashPuntoInfo('ti-chart-donut', 'Clientes y Proveedores',
+      'De qué contactos viene el dinero cobrado o pagado en los últimos 365 días (solo contactos registrados en Clientes). Sí cambian con el selector de arriba (Empresa/Personal/Total).') +
+    dashPuntoInfo('ti-chart-donut', 'Ingresos y Gastos: empresa y personal',
+      'Compara lo de empresa con lo personal en los últimos 365 días. Estos dos donuts NO cambian con el selector de arriba: su propio gráfico ya separa empresa de personal.')
+  );
+}
+
+function dashCablearInfo() {
+  const cabecera = document.getElementById('dash-info-cabecera');
+  const cuerpo = document.getElementById('dash-info-cuerpo');
+  const flecha = document.getElementById('dash-info-flecha');
+  if (!cabecera || !cuerpo || !flecha) return;
+
+  cabecera.addEventListener('click', function () {
+    const abierta = cuerpo.classList.toggle('abierta');
+    flecha.classList.toggle('girada', abierta);
+  });
+}
+
+// ============================================================
 // 6. PINTADO
 // ============================================================
 
@@ -482,7 +537,15 @@ function pintarDashboard() {
         '<div class="dash-lienzo"><canvas id="dash-g-gastos-ambito"></canvas></div>' +
       '</div>' +
     '</div>' +
-    '<p class="dash-nota">Solo cuenta el dinero ya cobrado o pagado (lo que está en Contabilidad), por la fecha del cobro o del pago; las facturas pendientes entran cuando se cobran o se pagan. La excepción son Próximo pago y Te deben, que cuentan las facturas desde que se emiten. Cifra grande sin impuestos (lo que gana el negocio); debajo, en pequeño, el dinero que se mueve en el banco. Los donuts de Empresa/Personal no cambian con el selector. Los cuatro donuts y la media mensual miran los últimos 365 días hasta hoy.</p>';
+    '<div class="dash-info">' +
+      '<button type="button" class="dash-info-cabecera" id="dash-info-cabecera">' +
+        '<span>Info del Dashboard</span>' +
+        '<i class="ti ti-chevron-down" id="dash-info-flecha"></i>' +
+      '</button>' +
+      '<div class="dash-info-cuerpo" id="dash-info-cuerpo">' +
+        dashBloqueInfo() +
+      '</div>' +
+    '</div>';
 
   // Los dos selectores hacen lo mismo: cambian toda la pantalla.
   ['dash-selector', 'dash-selector-grafico'].forEach(function (id) {
@@ -498,6 +561,7 @@ function pintarDashboard() {
 
   dashRepintarTarjetas();
   dashRepintarGraficos();
+  dashCablearInfo();
 }
 
 function dashRepintarTarjetas() {
@@ -524,7 +588,7 @@ function dashRepintarTarjetas() {
       'Media mensual' + (media.meses > 0 && media.meses < 12 ? ' (' + media.meses + ' meses)' : ''),
       media.beneficio, 'En banco:', media.tesoreria) +
     dashTarjeta('impuestos', 'Próximo pago ' + imp.trimestre, imp.pendiente, imp.plazo, null) +
-    dashTarjeta('adelantar', 'Te deben', imp.teDeben, 'Adelantas:', imp.adelantas);
+    dashTarjeta('adelantar', 'Te deben', imp.teDeben, 'Adelanto ' + imp.trimestre + ':', imp.adelantas);
 }
 
 // ============================================================
