@@ -699,10 +699,34 @@ function dashGraficoEvolucion() {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        // Cuadraditos de color macizos en la leyenda y en el aviso
+        // (25/09/2026). Chart.js los dibuja con el mismo borde que su
+        // línea, así que los de Ingresos y Gastos salían discontinuos y
+        // finos ("rotos") y el de Beneficio macizo. Aquí se les quita la
+        // línea discontinua y se rellenan enteros con su color; las
+        // líneas del gráfico siguen igual.
+        legend: {
+          position: 'bottom',
+          labels: {
+            boxWidth: 12,
+            font: { size: 11 },
+            generateLabels: function (grafico) {
+              return Chart.defaults.plugins.legend.labels.generateLabels(grafico).map(function (etiqueta) {
+                etiqueta.lineDash = [];
+                etiqueta.lineWidth = 1;
+                etiqueta.strokeStyle = etiqueta.fillStyle;
+                return etiqueta;
+              });
+            }
+          }
+        },
         tooltip: {
           callbacks: {
-            label: function (ctx) { return ctx.dataset.label + ': ' + dineroVisible(ctx.parsed.y); }
+            label: function (ctx) { return ctx.dataset.label + ': ' + dineroVisible(ctx.parsed.y); },
+            labelColor: function (ctx) {
+              const color = ctx.dataset.borderColor;
+              return { borderColor: color, backgroundColor: color, borderWidth: 1, borderDash: [], borderDashOffset: 0, borderRadius: 0 };
+            }
           }
         }
       },

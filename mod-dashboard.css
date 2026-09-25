@@ -232,11 +232,14 @@
 /* Sustituye a la nota de texto suelta que iba debajo de los donuts
    (25/09/2026): mismo contenido, pero plegado y punto por punto, con
    el icono de cada tarjeta/gráfico delante de su explicación. Cerrada
-   siempre al entrar en el Dashboard. */
+   siempre al entrar en el Dashboard.
+   Lleva hueco también por ARRIBA: el bloque de donuts no deja margen
+   por debajo (cada donut lo tiene a cero), y sin él la tarjeta quedaba
+   pegada a los donuts. 12px, lo mismo que separa al resto de bloques. */
 .dash-info {
   background: var(--superficie);
   border-radius: var(--radio-tarjeta);
-  margin: 0 0 12px;
+  margin: 12px 0 12px;
   overflow: hidden;
 }
 
