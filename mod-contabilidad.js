@@ -421,6 +421,7 @@ function ctAbrirMenuMas(boton, id) {
           (ctVieneDeImpuesto(a) ? 'Ver en Impuestos' : 'Ver factura') + '</button>'
       : '<button type="button" data-accion="editar">Editar</button>' +
         (ctEsConvertible(a) ? '<button type="button" data-accion="convertir">Convertir en factura</button>' : '') +
+        (typeof plDesdeApunte === 'function' ? '<button type="button" data-accion="plantilla">Guardar como plantilla</button>' : '') +
         '<button type="button" class="peligro" data-accion="eliminar">Eliminar</button>');
 
   document.body.appendChild(menu);
@@ -438,6 +439,7 @@ function ctAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="verfactura"]')?.addEventListener('click', function () { cerrarMenu(); ctVerFactura(a); });
   menu.querySelector('[data-accion="verimpuesto"]')?.addEventListener('click', function () { cerrarMenu(); ctVerImpuesto(a); });
   menu.querySelector('[data-accion="convertir"]')?.addEventListener('click', function () { cerrarMenu(); abrirConversorFactura(id); });
+  menu.querySelector('[data-accion="plantilla"]')?.addEventListener('click', function () { cerrarMenu(); plDesdeApunte(id); });
 
   setTimeout(function () { document.addEventListener('click', cerrarSiFuera); }, 0);
 }

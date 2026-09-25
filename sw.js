@@ -23,7 +23,7 @@
  * control, la app se recarga sola una vez (ver el final de app.js).
  */
 
-const VERSION = 'cuentas-v36';
+const VERSION = 'cuentas-v37';
 
 const ARCHIVOS = [
   './',
@@ -31,6 +31,7 @@ const ARCHIVOS = [
   './app.css',
   './app.js',
   './iconos-contacto.js',
+  './iconos-plantilla.js',
   './mod-navegacion.css',
   './mod-navegacion.js',
   './mod-dashboard.css',
@@ -52,6 +53,8 @@ const ARCHIVOS = [
   './mod-impuestos.js',
   './mod-informes.css',
   './mod-informes.js',
+  './mod-plantillas.css',
+  './mod-plantillas.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

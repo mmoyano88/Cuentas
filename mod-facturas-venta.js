@@ -394,6 +394,7 @@ function fvAbrirMenuMas(boton, id) {
     (activa ? '<button type="button" data-accion="editar">Editar</button>' : '') +
     (activa ? '<button type="button" data-accion="cobro">Marcar como ' + (String(f.estado) === 'pagada' ? 'pendiente' : 'pagada') + '</button>' : '') +
     '<button type="button" data-accion="pdf">Descargar PDF</button>' +
+    (typeof plDesdeFactura === 'function' ? '<button type="button" data-accion="plantilla">Guardar como plantilla</button>' : '') +
     (activa
       ? '<button type="button" class="peligro" data-accion="desactivar">Desactivar factura</button>'
       : '<button type="button" data-accion="reactivar">Reactivar factura</button>');
@@ -411,6 +412,7 @@ function fvAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); abrirFormularioFacturaVenta(id); });
   menu.querySelector('[data-accion="cobro"]')?.addEventListener('click', function () { cerrarMenu(); fvCambiarCobro(id); });
   menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); pdfDocAbrirFactura(id); });
+  menu.querySelector('[data-accion="plantilla"]')?.addEventListener('click', function () { cerrarMenu(); plDesdeFactura(id); });
   menu.querySelector('[data-accion="desactivar"]')?.addEventListener('click', function () { cerrarMenu(); fvDesactivar(id); });
   menu.querySelector('[data-accion="reactivar"]')?.addEventListener('click', function () { cerrarMenu(); fvReactivar(id); });
 

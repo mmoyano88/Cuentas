@@ -33,6 +33,11 @@ let preAvisoCalculadora = '';
 // vez de crear uno nuevo.
 let preCalcEditandoId = null;
 
+// Si la calculadora se abrió para editar una PLANTILLA de presupuesto
+// (módulo Plantillas, 25/09/2026), aquí queda su id: al terminar se
+// guarda esa plantilla en vez de crear un presupuesto.
+let preCalcPlantillaId = null;
+
 // Contenido de la calculadora. Vive aquí para que no se pierda al
 // cambiar de pestaña o de sección y volver.
 const PRE_CALC_VACIA = {
@@ -633,6 +638,7 @@ function preAbrirMenuMas(boton, id) {
     (preBloqueado(p) ? '' : '<button type="button" data-accion="editar">Editar</button>') +
     '<button type="button" data-accion="estado">Cambiar estado</button>' +
     '<button type="button" data-accion="duplicar">Duplicar presupuesto</button>' +
+    (typeof plDesdePresupuesto === 'function' ? '<button type="button" data-accion="plantilla">Guardar como plantilla</button>' : '') +
     '<button type="button" data-accion="pdf">Descargar PDF</button>' +
     '<button type="button" data-accion="factura"' + (puedeFacturar ? '' : ' disabled') + '>Convertir en factura</button>' +
     (tieneFactura ? '' : '<button type="button" class="peligro" data-accion="eliminar">Eliminar</button>');
@@ -650,6 +656,7 @@ function preAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="editar"]')?.addEventListener('click', function () { cerrarMenu(); preAbrirEdicion(id); });
   menu.querySelector('[data-accion="estado"]')?.addEventListener('click', function () { cerrarMenu(); preCambiarEstado(id); });
   menu.querySelector('[data-accion="duplicar"]')?.addEventListener('click', function () { cerrarMenu(); preDuplicar(id); });
+  menu.querySelector('[data-accion="plantilla"]')?.addEventListener('click', function () { cerrarMenu(); plDesdePresupuesto(id); });
   menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); pdfDocAbrirPresupuesto(id); });
   menu.querySelector('[data-accion="factura"]')?.addEventListener('click', function () {
     cerrarMenu();
@@ -1595,8 +1602,14 @@ function preRecalcularCalculadora() {
 
     '<div class="pre-calc-botones">' +
       '<button type="button" class="boton-principal" id="pcalc-usar">' +
-        (preCalcEditandoId ? 'Guardar cambios' : 'Crear presupuesto') +
+        (preCalcPlantillaId ? 'Guardar plantilla' : (preCalcEditandoId ? 'Guardar cambios' : 'Crear presupuesto')) +
       '</button>' +
+      // "Guardar como plantilla" (25/09/2026): no aparece mientras se
+      // está editando una plantilla, porque entonces el botón de arriba
+      // ya es "Guardar plantilla".
+      ((!preCalcPlantillaId && typeof plAbrirFormulario === 'function')
+        ? '<button type="button" class="boton-secundario" id="pcalc-plantilla">Guardar como plantilla</button>'
+        : '') +
       '<div class="pre-calc-botones-fila">' +
         '<button type="button" class="boton-secundario" id="pcalc-limpiar">Limpiar</button>' +
         '<button type="button" class="boton-secundario" id="pcalc-cerrar">Cerrar</button>' +
@@ -1609,6 +1622,7 @@ function preRecalcularCalculadora() {
   });
   document.getElementById('pcalc-limpiar').addEventListener('click', preLimpiarCalculadora);
   document.getElementById('pcalc-usar').addEventListener('click', preUsarCalculadora);
+  document.getElementById('pcalc-plantilla')?.addEventListener('click', preGuardarComoPlantilla);
 }
 
 function preLimpiarCalculadora() {
@@ -1616,6 +1630,7 @@ function preLimpiarCalculadora() {
   preCalc = Object.assign({}, PRE_CALC_VACIA, { equipos: [], servicios: [] });
   preAvisoCalculadora = '';
   preCalcEditandoId = null;
+  preCalcPlantillaId = null;
   pintarCalculadora();
 }
 
@@ -1657,6 +1672,37 @@ function preSnapshotCalculadora(r) {
 // Paso de la calculadora al presupuesto (mapa 7.4). El subtotal se pasa
 // como número directo, no leyendo el texto de la pantalla.
 function preUsarCalculadora() {
+  // Editando una plantilla en la calculadora: se guarda la plantilla
+  // (se abre su formulario con los importes nuevos), no un presupuesto.
+  if (preCalcPlantillaId) {
+    const existe = (estado.plantillas_presupuesto || []).some(function (x) { return String(x.id) === String(preCalcPlantillaId); });
+    if (!existe) {
+      alert('La plantilla que estabas editando ya no existe. Puedes guardarla como plantilla nueva.');
+      preCalcPlantillaId = null;
+      preAvisoCalculadora = '';
+      pintarCalculadora();
+      return;
+    }
+    const idPlantilla = preCalcPlantillaId;
+    const rPl = preCalcularCalculadora(preCalc);
+    const datosPl = preDatosPlantillaDesdeCalculadora(rPl);
+    // El concepto de la plantilla se conserva si ya lo tenía: puede
+    // haberse retocado en su formulario después de la calculadora.
+    const plActual = estado.plantillas_presupuesto.find(function (x) { return String(x.id) === String(idPlantilla); });
+    if (plActual && plActual.concepto) delete datosPl.concepto;
+    plAbrirFormulario('presupuesto', idPlantilla, datosPl, preSnapshotCalculadora(rPl), {
+      alGuardar: function () {
+        // Guardada: la calculadora queda limpia y se vuelve a Plantillas.
+        preCalc = Object.assign({}, PRE_CALC_VACIA, { equipos: [], servicios: [] });
+        preCalcPlantillaId = null;
+        preAvisoCalculadora = '';
+        preSubvista = 'relacion';
+        cambiarVista('plantillas');
+      }
+    });
+    return;
+  }
+
   // Si se está editando un presupuesto que ya no es editable (por
   // ejemplo, se aceptó desde otro dispositivo), no se sigue.
   if (preCalcEditandoId) {
@@ -1695,6 +1741,24 @@ function preEditarEnCalculadora(id) {
     return;
   }
 
+  const perdidos = preCargarCalculadora(p, d);
+  preCalcPlantillaId = null;
+  preCalcEditandoId = preBloqueado(p) ? null : p.id;
+  preAvisoCalculadora = (preCalcEditandoId
+      ? 'Editando el presupuesto ' + (p.numero || '') + ' en la calculadora. Cuando termines, pulsa "Guardar cambios": se actualizará ese mismo presupuesto, no se creará otro.'
+      : 'Calculadora recuperada del presupuesto ' + (p.numero || '') + '. Ese presupuesto ya no se puede editar, así que al terminar se creará uno nuevo.') +
+    (perdidos > 0 ? ' Aviso: ' + perdidos + ' equipo(s)/servicio(s) ya no existen en Configuración y no se han podido marcar.' : '');
+
+  preSubvista = 'calculadora';
+  pintarPresupuestos();
+}
+
+// Carga en la calculadora los datos de un presupuesto (o de una
+// plantilla de presupuesto, que usa los mismos nombres de campo) y de
+// su desglose. Devuelve cuántos equipos/servicios ya no existen en
+// Configuración. Separado de preEditarEnCalculadora el 25/09/2026 para
+// poder usarlo también con las plantillas; el contenido no cambia.
+function preCargarCalculadora(p, d) {
   let equipos = [];
   let servicios = [];
   try { equipos = JSON.parse(d.equipos_json || '[]') || []; } catch (err) { equipos = []; }
@@ -1736,15 +1800,83 @@ function preEditarEnCalculadora(id) {
     servicios: servicios.map(function (s) { return String(s.id || ''); }).filter(function (x) { return idsServicios.indexOf(x) !== -1; })
   };
 
-  const perdidos = (equipos.length - preCalc.equipos.length) + (servicios.length - preCalc.servicios.length);
-  preCalcEditandoId = preBloqueado(p) ? null : p.id;
-  preAvisoCalculadora = (preCalcEditandoId
-      ? 'Editando el presupuesto ' + (p.numero || '') + ' en la calculadora. Cuando termines, pulsa "Guardar cambios": se actualizará ese mismo presupuesto, no se creará otro.'
-      : 'Calculadora recuperada del presupuesto ' + (p.numero || '') + '. Ese presupuesto ya no se puede editar, así que al terminar se creará uno nuevo.') +
+  return (equipos.length - preCalc.equipos.length) + (servicios.length - preCalc.servicios.length);
+}
+
+// ============================================================
+// 10.1 CALCULADORA Y PLANTILLAS (25/09/2026)
+// ============================================================
+
+// Datos de plantilla sacados del resultado de la calculadora, con los
+// mismos nombres que las columnas de plantillas_presupuesto. Se guarda
+// el SUBTOTAL: el ajuste por tipo de cliente se aplica al usar la
+// plantilla, según el cliente que se elija.
+function preDatosPlantillaDesdeCalculadora(r) {
+  return {
+    concepto: preCalc.concepto || '',
+    subtotal: r.subtotal,
+    descuento_especial_tipo: preCalc.desc_tipo === 'fixed' ? 'fixed' : 'percent',
+    descuento_especial_valor: parsearNumero(preCalc.desc_valor),
+    iva_pct: r.tipoIva ? r.tipoIva.porcentaje : 0,
+    irpf_pct: r.tipoIrpf ? r.tipoIrpf.porcentaje : 0
+  };
+}
+
+// Botón "Guardar como plantilla" de la calculadora: pregunta si es de
+// presupuesto o de factura. La de factura se queda con la BASE ya
+// calculada (con ajuste, compensación y descuento incluidos), igual
+// que al convertir un presupuesto en factura, y sin desglose.
+async function preGuardarComoPlantilla() {
+  const eleccion = await mostrarDialogoOpciones(
+    'Guardar como plantilla',
+    '¿Qué quieres crear después con esta plantilla?',
+    [
+      { id: 'presupuesto', texto: 'Plantilla de presupuesto', tipo: 'principal' },
+      { id: 'factura', texto: 'Plantilla de factura' },
+      { id: 'cancelar', texto: 'Cancelar' }
+    ]
+  );
+  if (eleccion !== 'presupuesto' && eleccion !== 'factura') return;
+
+  const r = preCalcularCalculadora(preCalc);
+  const nombre = String(preCalc.concepto || '').slice(0, 60);
+
+  if (eleccion === 'presupuesto') {
+    plAbrirFormulario('presupuesto', null,
+      Object.assign({ nombre: nombre }, preDatosPlantillaDesdeCalculadora(r)),
+      preSnapshotCalculadora(r), { avisarAlGuardar: true });
+  } else {
+    plAbrirFormulario('factura', null, {
+      nombre: nombre,
+      concepto: preCalc.concepto || '',
+      importe: r.base,
+      descuento_especial_tipo: 'percent',
+      descuento_especial_valor: 0,
+      iva_pct: r.tipoIva ? r.tipoIva.porcentaje : 0,
+      irpf_pct: r.tipoIrpf ? r.tipoIrpf.porcentaje : 0
+    }, null, { avisarAlGuardar: true });
+  }
+}
+
+// Editar en la calculadora una plantilla de presupuesto que se hizo
+// con ella (desde Plantillas → Editar). Al terminar, el botón dice
+// "Guardar plantilla".
+function preEditarPlantillaEnCalculadora(idPlantilla) {
+  const pl = (estado.plantillas_presupuesto || []).find(function (x) { return String(x.id) === String(idPlantilla); });
+  const d = preDetalleDe(idPlantilla);
+  if (!pl || !d) {
+    alert('Esta plantilla no tiene guardado el desglose de la calculadora.');
+    return;
+  }
+
+  const perdidos = preCargarCalculadora(pl, d);
+  preCalcEditandoId = null;
+  preCalcPlantillaId = pl.id;
+  preAvisoCalculadora = 'Editando la plantilla «' + (pl.nombre || '') + '» en la calculadora. Cuando termines, pulsa "Guardar plantilla". Para dejarlo sin guardar, pulsa "Limpiar".' +
     (perdidos > 0 ? ' Aviso: ' + perdidos + ' equipo(s)/servicio(s) ya no existen en Configuración y no se han podido marcar.' : '');
 
   preSubvista = 'calculadora';
-  pintarPresupuestos();
+  cambiarVista('presupuestos');
 }
 
 // ============================================================

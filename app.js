@@ -104,9 +104,15 @@ async function llamarBackend(cuerpo) {
 // 1. ESTADO GLOBAL
 // ============================================================
 
+// Las tres hojas de plantillas (25/09/2026) van al final. El desglose
+// de la Calculadora de una plantilla de presupuesto NO tiene hoja
+// propia: vive en presupuestos_detalle, y se distingue por el id de su
+// dueño (las plantillas empiezan por "plp-", los presupuestos por
+// "pres-").
 const ENTIDADES = [
   'clientes', 'presupuestos', 'presupuestos_detalle', 'ventas',
-  'compras', 'apuntes', 'impuestos'
+  'compras', 'apuntes', 'impuestos',
+  'plantillas_presupuesto', 'plantillas_factura', 'plantillas_apunte'
 ];
 
 const estado = {
@@ -118,6 +124,9 @@ const estado = {
   compras: [],
   apuntes: [],
   impuestos: [],
+  plantillas_presupuesto: [],
+  plantillas_factura: [],
+  plantillas_apunte: [],
   syncReady: false
 };
 
@@ -571,15 +580,23 @@ function reintentarRegistro(entidad, id, repintar) {
 function nombreLegible(entidad, registro) {
   if (!registro) return 'el elemento';
   const r = registro;
-  const texto = r.nombre_contacto || r.numero || r.concepto || r.descripcion || r.nombre || '';
+  // Las plantillas se reconocen por su nombre, no por su concepto.
+  const esPlantilla = String(entidad).indexOf('plantillas_') === 0;
+  const texto = esPlantilla
+    ? (r.nombre || r.concepto || '')
+    : (r.nombre_contacto || r.numero || r.concepto || r.descripcion || r.nombre || '');
   const etiquetas = {
     clientes: 'el contacto',
     presupuestos: 'el presupuesto',
-    presupuestos_detalle: 'el desglose del presupuesto',
+    // Vale para presupuestos y para plantillas (25/09/2026).
+    presupuestos_detalle: 'el desglose de la calculadora',
     ventas: 'la factura',
     compras: 'la factura de compra',
     apuntes: 'el apunte',
-    impuestos: 'el impuesto'
+    impuestos: 'el impuesto',
+    plantillas_presupuesto: 'la plantilla',
+    plantillas_factura: 'la plantilla',
+    plantillas_apunte: 'la plantilla'
   };
   const base = etiquetas[entidad] || 'el elemento';
   return texto ? base + ' «' + texto + '»' : base;
@@ -730,7 +747,14 @@ function tituloIconoContacto(id) {
 
 // Abre el selector y devuelve una promesa con el id elegido, o null
 // si se cierra sin elegir nada.
-function abrirSelectorIcono(idActual) {
+//
+// `catalogo` es opcional (25/09/2026): sin él se usa el de contactos,
+// como siempre. Plantillas pasa el suyo (iconos-plantilla.js), que
+// trae sus propias categorías, su color por categoría y su forma de
+// dibujar cada icono: { categorias, dibujar(id) }.
+function abrirSelectorIcono(idActual, catalogo) {
+  const categorias = (catalogo && catalogo.categorias) || CATEGORIAS_ICONOS_CONTACTO;
+  const dibujar = (catalogo && catalogo.dibujar) || svgIconoContacto;
   return new Promise(function (resolve) {
     const fondo = document.createElement('div');
     fondo.className = 'selector-icono-fondo';
@@ -755,17 +779,22 @@ function abrirSelectorIcono(idActual) {
       let huboResultados = false;
       let html = '';
 
-      CATEGORIAS_ICONOS_CONTACTO.forEach(function (cat) {
+      categorias.forEach(function (cat) {
         const iconosFiltrados = !texto ? cat.iconos : cat.iconos.filter(function (i) {
           return normalizarBusqueda(i.titulo + ' ' + i.buscar + ' ' + i.id).indexOf(texto) !== -1;
         });
         if (iconosFiltrados.length === 0) return;
         huboResultados = true;
-        html += '<p class="selector-icono-categoria-titulo">' + escaparHtml(cat.nombre) + '</p>';
+        html += '<p class="selector-icono-categoria-titulo">' +
+          (cat.color ? '<span class="selector-icono-color" style="background:' + escaparHtml(cat.color) + '"></span>' : '') +
+          escaparHtml(cat.nombre) + '</p>';
         html += '<div class="selector-icono-rejilla">';
         html += iconosFiltrados.map(function (i) {
+          const estiloElegido = (i.id === idActual && cat.color)
+            ? ' style="background:' + escaparHtml(cat.color) + ';border-color:' + escaparHtml(cat.color) + '"'
+            : '';
           return '<button type="button" class="selector-icono-opcion' + (i.id === idActual ? ' seleccionado' : '') +
-            '" data-icono="' + i.id + '" title="' + escaparHtml(i.titulo) + '">' + svgIconoContacto(i.id) + '</button>';
+            '" data-icono="' + i.id + '" title="' + escaparHtml(i.titulo) + '"' + estiloElegido + '>' + dibujar(i.id) + '</button>';
         }).join('');
         html += '</div>';
       });

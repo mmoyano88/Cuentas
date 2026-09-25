@@ -2,7 +2,7 @@
  * MÓDULO NAVEGACIÓN
  * ------------------------------------------------------------
  * Estructura general de la app: barra lateral en PC, barra inferior
- * + panel "Más" en Android. Registra las 7 secciones con un
+ * + panel "Más" en Android. Registra las 8 secciones con un
  * "próximamente" por defecto; cuando el módulo real de cada sección
  * se cargue (mod-clientes.js, mod-facturas.js...), su propio
  * registro sustituye a este placeholder.
@@ -15,6 +15,7 @@
 const MENU = [
   { id: 'dashboard', titulo: 'Inicio', icono: 'ti-home' },
   { id: 'clientes', titulo: 'Clientes', icono: 'ti-users' },
+  { id: 'plantillas', titulo: 'Plantillas', icono: 'ti-template' },
   { id: 'presupuestos', titulo: 'Presupuestos', icono: 'ti-file-text' },
   { id: 'facturas', titulo: 'Facturas', icono: 'ti-receipt-2' },
   { id: 'contabilidad', titulo: 'Contabilidad', icono: 'ti-report-money' },
@@ -23,9 +24,11 @@ const MENU = [
 ];
 
 // Móvil: 4 accesos directos en la barra inferior + "Más" con el resto.
+// El orden de "Más" se fija aquí a mano (25/09/2026): Plantillas va la
+// primera en el móvil, pero en el PC va detrás de Clientes, así que ya
+// no se puede copiar el orden del menú del PC.
 const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'facturas', 'contabilidad'];
-const MOVIL_MAS = MENU.map(function (m) { return m.id; })
-  .filter(function (id) { return MOVIL_DIRECTOS.indexOf(id) === -1; });
+const MOVIL_MAS = ['plantillas', 'clientes', 'impuestos', 'configuracion'];
 
 // ============================================================
 // 1. PLACEHOLDER PARA SECCIONES TODAVÍA NO CONSTRUIDAS
