@@ -252,3 +252,77 @@
   color: var(--ambar-texto);
   font-weight: 500;
 }
+
+/* ============================================================
+   25/09/2026 — Plazo, pago del trimestre y facturas sin cobrar
+   ============================================================ */
+
+/* ---- Plazo del trimestre, arriba del todo ----
+   Colores de las pastillas de estado de la app: ámbar si queda poco o
+   se ha pasado, verde si está pagado. */
+.imp-plazo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+.imp-plazo i { font-size: 20px; flex: 0 0 auto; }
+.imp-plazo.pronto,
+.imp-plazo.vencido { background: var(--ambar-fondo); color: var(--ambar-texto); }
+.imp-plazo.pagado  { background: var(--verde-fondo); color: var(--verde-texto); }
+
+/* ---- Nota bajo el importe a pagar ---- */
+.imp-nota.imp-nota-pago { margin: -2px 0 12px; }
+
+/* ---- Facturas sin cobrar ---- */
+.imp-nota.imp-nota-arriba { margin: -4px 0 8px; }
+
+.imp-sincobrar-lista {
+  margin-top: 10px;
+  border-top: 1px solid #E2E2DC;
+}
+
+.imp-sincobrar-fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--fondo);
+  padding: 9px 0;
+  font: inherit;
+  color: var(--texto);
+  text-align: left;
+  cursor: pointer;
+}
+.imp-sincobrar-fila:last-child { border-bottom: none; }
+
+.imp-sincobrar-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.imp-sincobrar-nombre {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.imp-sincobrar-meta {
+  font-size: 11px;
+  color: var(--texto-secundario);
+}
+.imp-sincobrar-fila strong {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
