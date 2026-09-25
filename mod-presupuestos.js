@@ -228,6 +228,17 @@ function preClienteDe(p) {
   return estado.clientes.find(function (c) { return String(c.id) === String(p.id_cliente); }) || null;
 }
 
+// Nombre que se ENSEÑA en pantalla (25/09/2026): el nombre de contacto
+// actual del cliente, que es el que el propietario reconoce de un
+// vistazo. El nombre fiscal sigue congelado en p.cliente y es el que
+// va al PDF y a la ficha como dato de facturación. Si el contacto ya
+// no existe, se enseña el nombre congelado.
+function preNombreMostrado(p) {
+  const c = preClienteDe(p);
+  const nombre = c ? String(c.nombre_contacto || '').trim() : '';
+  return nombre || String(p.cliente || '');
+}
+
 // Contactos que pueden ser cliente de un presupuesto (mapa 8.3).
 function preClientesDisponibles() {
   return estado.clientes.filter(function (c) {
@@ -241,7 +252,7 @@ function preClientesDisponibles() {
 
 function preTextoBusqueda(p) {
   return normalizarBusqueda([
-    p.numero, p.cliente, p.nif, p.concepto, mostrarFecha(p.fecha), p.estado,
+    p.numero, preNombreMostrado(p), p.cliente, p.nif, p.concepto, mostrarFecha(p.fecha), p.estado,
     formatMoney(p.total), formatMoney(p.base)
   ].filter(Boolean).join(' '));
 }
@@ -534,7 +545,7 @@ function preRenderFilaMovil(p) {
   return '<div class="pre-fila" data-id="' + escaparHtml(p.id) + '">' +
     htmlIconoContacto((preClienteDe(p) || {}).icono, 42) +
     '<div class="pre-info">' +
-      '<p class="pre-nombre">' + escaparHtml(p.cliente || '—') + '</p>' +
+      '<p class="pre-nombre">' + escaparHtml(preNombreMostrado(p) || '—') + '</p>' +
       '<p class="pre-meta">' + escaparHtml(p.numero || '—') + ' · ' + escaparHtml(mostrarFecha(p.fecha)) + '</p>' +
       '<p class="pre-meta">' + escaparHtml(p.concepto || '—') + '</p>' +
     '</div>' +
@@ -556,7 +567,7 @@ function preRenderFilaTabla(p) {
     '<td class="pre-celda-icono">' + htmlIconoContacto((preClienteDe(p) || {}).icono, 32) + '</td>' +
     '<td>' + escaparHtml(mostrarFecha(p.fecha)) + '</td>' +
     '<td class="pre-celda-numero">' + escaparHtml(p.numero || '—') + '</td>' +
-    '<td>' + escaparHtml(p.cliente || '—') + '</td>' +
+    '<td>' + escaparHtml(preNombreMostrado(p) || '—') + '</td>' +
     '<td class="pre-celda-concepto">' +
       '<div class="pre-concepto-texto">' + escaparHtml(p.concepto || '—') + '</div>' +
       '<button type="button" data-estado-de="' + escaparHtml(p.id) + '" style="border:none;background:none;padding:4px 0 0;cursor:pointer">' +
@@ -691,7 +702,7 @@ async function preCambiarEstado(id) {
   if (String(p.estado) === 'aceptado') {
     const vuelta = await mostrarDialogoOpciones(
       'Presupuesto aceptado',
-      'Presupuesto ' + (p.numero || '') + ' — ' + (p.cliente || '') + '. Si vuelve a pendiente, se podrá editar y cambiar de estado otra vez.',
+      'Presupuesto ' + (p.numero || '') + ' — ' + preNombreMostrado(p) + '. Si vuelve a pendiente, se podrá editar y cambiar de estado otra vez.',
       [
         { id: 'pendiente', texto: 'Volver a pendiente', tipo: 'principal' },
         { id: 'cancelar', texto: 'Cancelar' }
@@ -705,7 +716,7 @@ async function preCambiarEstado(id) {
 
   const eleccion = await mostrarDialogoOpciones(
     'Estado del presupuesto',
-    'Presupuesto ' + (p.numero || '') + ' — ' + (p.cliente || '') + '. Estado actual: ' + (PRE_ESTADOS[p.estado] || PRE_ESTADOS.pendiente).etiqueta + '.',
+    'Presupuesto ' + (p.numero || '') + ' — ' + preNombreMostrado(p) + '. Estado actual: ' + (PRE_ESTADOS[p.estado] || PRE_ESTADOS.pendiente).etiqueta + '.',
     [
       { id: 'aceptado', texto: 'Marcar como aceptado', tipo: 'principal' },
       { id: 'pendiente', texto: 'Marcar como pendiente' },
@@ -790,7 +801,7 @@ function abrirFichaPresupuesto(id) {
         htmlIconoContacto((preClienteDe(p) || {}).icono, 44) +
         '<div class="pre-modal-texto">' +
           '<p class="pre-modal-titulo">' + escaparHtml(p.numero || 'Presupuesto') + '</p>' +
-          '<p class="pre-modal-subtitulo">' + escaparHtml(p.cliente || '—') + ' · ' + escaparHtml(mostrarFecha(p.fecha)) + '</p>' +
+          '<p class="pre-modal-subtitulo">' + escaparHtml(preNombreMostrado(p) || '—') + ' · ' + escaparHtml(mostrarFecha(p.fecha)) + '</p>' +
         '</div>' +
         prePastillaEstado(p.estado) +
         '<button type="button" class="pre-modal-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>' +

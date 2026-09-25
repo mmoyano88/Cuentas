@@ -101,6 +101,16 @@ function fvClienteDe(f) {
   return estado.clientes.find(function (c) { return String(c.id) === String(f.id_cliente); }) || null;
 }
 
+// Nombre que se ENSEÑA en pantalla (25/09/2026): el nombre de contacto
+// actual del cliente. El nombre fiscal sigue congelado en f.cliente y
+// es el que va al PDF, a los Informes y a la ficha como dato de
+// facturación. Si el contacto ya no existe, se enseña el congelado.
+function fvNombreMostrado(f) {
+  const c = fvClienteDe(f);
+  const nombre = c ? String(c.nombre_contacto || '').trim() : '';
+  return nombre || String(f.cliente || '');
+}
+
 // Contactos que pueden ser cliente de una factura — mismo filtro que
 // Presupuestos (mapa 8.3 / 9.5).
 function fvClientesDisponibles() {
@@ -115,7 +125,7 @@ function fvClientesDisponibles() {
 
 function fvTextoBusqueda(f) {
   return normalizarBusqueda([
-    f.numero, f.cliente, f.nif, f.concepto, mostrarFecha(f.fecha), f.estado,
+    f.numero, fvNombreMostrado(f), f.cliente, f.nif, f.concepto, mostrarFecha(f.fecha), f.estado,
     formatMoney(f.total), formatMoney(f.base)
   ].filter(Boolean).join(' '));
 }
@@ -310,7 +320,7 @@ function fvRenderFilaMovil(f) {
   return '<div class="fv-fila' + (inactiva ? ' fv-fila-inactiva' : '') + '" data-id="' + escaparHtml(f.id) + '">' +
     htmlIconoContacto((fvClienteDe(f) || {}).icono, 42) +
     '<div class="fv-info">' +
-      '<p class="fv-nombre">' + escaparHtml(f.cliente || '—') + '</p>' +
+      '<p class="fv-nombre">' + escaparHtml(fvNombreMostrado(f) || '—') + '</p>' +
       '<p class="fv-meta">' + escaparHtml(f.numero || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + (inactiva ? ' · Inactiva' : '') + '</p>' +
       '<p class="fv-meta">' + escaparHtml(f.concepto || '—') + '</p>' +
     '</div>' +
@@ -333,7 +343,7 @@ function fvRenderFilaTabla(f) {
     '<td class="fv-celda-icono">' + htmlIconoContacto((fvClienteDe(f) || {}).icono, 32) + '</td>' +
     '<td>' + escaparHtml(mostrarFecha(f.fecha)) + '</td>' +
     '<td class="fv-celda-numero">' + escaparHtml(f.numero || '—') + (inactiva ? ' <span style="color:var(--texto-secundario);font-weight:400">(inactiva)</span>' : '') + '</td>' +
-    '<td>' + escaparHtml(f.cliente || '—') + '</td>' +
+    '<td>' + escaparHtml(fvNombreMostrado(f) || '—') + '</td>' +
     '<td class="fv-celda-concepto">' +
       '<div class="fv-concepto-texto">' + escaparHtml(f.concepto || '—') + '</div>' +
       '<button type="button" data-estado-de="' + escaparHtml(f.id) + '" style="border:none;background:none;padding:4px 0 0;cursor:pointer">' +
@@ -442,7 +452,7 @@ async function fvCambiarCobro(id) {
   const pasaAPagada = String(f.estado) !== 'pagada';
   const eleccion = await mostrarDialogoOpciones(
     'Estado de cobro',
-    'Factura ' + (f.numero || '') + ' — ' + (f.cliente || '') + '. ' +
+    'Factura ' + (f.numero || '') + ' — ' + fvNombreMostrado(f) + '. ' +
       (pasaAPagada ? '¿Marcar como pagada hoy?' : '¿Marcar como pendiente? Se borrará el apunte de tesorería asociado.'),
     [
       { id: 'confirmar', texto: pasaAPagada ? 'Marcar como pagada' : 'Marcar como pendiente', tipo: 'principal' },
@@ -636,7 +646,7 @@ function abrirFichaFacturaVenta(id) {
         htmlIconoContacto((fvClienteDe(f) || {}).icono, 44) +
         '<div class="fv-modal-texto">' +
           '<p class="fv-modal-titulo">' + escaparHtml(f.numero || 'Factura') + (activa ? '' : ' · Inactiva') + '</p>' +
-          '<p class="fv-modal-subtitulo">' + escaparHtml(f.cliente || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + '</p>' +
+          '<p class="fv-modal-subtitulo">' + escaparHtml(fvNombreMostrado(f) || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + '</p>' +
         '</div>' +
         fvPastillaEstado(f.estado) +
         '<button type="button" class="fv-modal-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>' +

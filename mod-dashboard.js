@@ -297,9 +297,12 @@ function dashSerieMensual(movimientos) {
 // una sola porción. Todos miran los últimos 365 días hasta hoy
 // (23/09/2026; antes, los 12 meses completos sin el mes en curso).
 
+// Nombre de contacto primero (25/09/2026): los donuts son para que el
+// propietario reconozca de un vistazo a quién corresponde cada parte;
+// el nombre fiscal queda para lo oficial (PDF, Informes).
 function dashNombreContacto(id) {
   const c = estado.clientes.find(function (x) { return String(x.id) === String(id); });
-  return c ? (dashTexto(c.nombre_fiscal) || dashTexto(c.nombre_contacto) || 'Sin nombre') : '';
+  return c ? (dashTexto(c.nombre_contacto) || dashTexto(c.nombre_fiscal) || 'Sin nombre') : '';
 }
 
 // Top 5 por base + «Otros» agrupando el resto. Cuenta solo lo cobrado
@@ -661,6 +664,31 @@ function dashGraficoEvolucion() {
   });
 }
 
+// Si aun en su propia línea el nombre no cabe en el ancho del gráfico,
+// se recorta con «…» para que la caja del aviso nunca se salga del
+// borde (así se ve entero el principio del nombre). Si algo fallara al
+// medir, se devuelve el nombre tal cual: nunca rompe el gráfico.
+function dashRecortarTooltip(texto, tooltip, grafico) {
+  texto = String(texto || '');
+  let lienzo = null;
+  try {
+    const opciones = tooltip.options;
+    const relleno = Chart.helpers.toPadding(opciones.padding);
+    const hueco = grafico.width - relleno.left - relleno.right - 4;
+    lienzo = grafico.ctx;
+    lienzo.save();
+    lienzo.font = Chart.helpers.toFont(opciones.bodyFont).string;
+    if (hueco <= 0 || lienzo.measureText(texto).width <= hueco) return texto;
+    let corte = texto.length;
+    while (corte > 1 && lienzo.measureText(texto.slice(0, corte).trimEnd() + '…').width > hueco) corte--;
+    return texto.slice(0, corte).trimEnd() + '…';
+  } catch (e) {
+    return texto;
+  } finally {
+    if (lienzo) lienzo.restore();
+  }
+}
+
 function dashGraficoDonut(idCanvas, datos, textoVacio) {
   const lienzo = document.getElementById(idCanvas);
   if (!lienzo) return;
@@ -694,10 +722,16 @@ function dashGraficoDonut(idCanvas, datos, textoVacio) {
           displayColors: false,
           callbacks: {
             title: function () { return ''; },
+            // Dos líneas (25/09/2026): arriba el nombre, abajo el importe.
+            // En una sola línea, un nombre largo empujaba el importe fuera
+            // del gráfico y no se veía.
             label: function (ctx) {
               const total = ctx.dataset.data.reduce(function (s, v) { return s + v; }, 0);
               const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0;
-              return ctx.label + ': ' + dineroVisible(ctx.parsed) + ' (' + pct + '%)';
+              return [
+                dashRecortarTooltip(ctx.label, this, ctx.chart),
+                dineroVisible(ctx.parsed) + ' (' + pct + '%)'
+              ];
             }
           }
         }
