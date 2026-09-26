@@ -921,7 +921,11 @@ function abrirSelectorContacto(contactos, idActual, opciones) {
 // fallo puntual de Google. Ahora es un solo viaje, con muchos menos
 // datos dentro.
 
-const LS_MARCAS = 'cuentas_marcas_v1';
+// v2 desde el 26/09/2026: al cambiar el nombre, cada dispositivo
+// empieza sin marcas y hace UNA descarga completa, que repara cualquier
+// hoja que se hubiera quedado sin bajar por el fallo de abajo. La caja
+// antigua (v1) la borra sola limpiarClavesAntiguas().
+const LS_MARCAS = 'cuentas_marcas_v2';
 
 function leerMarcasLocales() {
   try {
@@ -932,9 +936,21 @@ function leerMarcasLocales() {
   }
 }
 
+// FALLO CORREGIDO (26/09/2026): antes se guardaban TODAS las marcas que
+// mandaba el servidor, también las de hojas que esta versión de la app
+// todavía no sabía leer. Pasó con Plantillas: un dispositivo con la app
+// antigua sincronizó cuando las pestañas ya existían, ignoró sus datos
+// pero apuntó sus marcas como "ya las tengo"; al actualizarse, el
+// servidor nunca volvió a mandárselas y Plantillas salía vacío. Ahora
+// solo se guardan las marcas de las hojas que la app conoce: una hoja
+// nueva se sigue pidiendo hasta que la app sepa leerla.
 function guardarMarcasLocales(marcas) {
+  const conocidas = {};
+  Object.keys(marcas || {}).forEach(function (hoja) {
+    if (hoja === 'configuracion' || ENTIDADES.indexOf(hoja) !== -1) conocidas[hoja] = marcas[hoja];
+  });
   try {
-    localStorage.setItem(LS_MARCAS, JSON.stringify(marcas));
+    localStorage.setItem(LS_MARCAS, JSON.stringify(conocidas));
   } catch (err) {
     console.error('No se pudieron guardar las marcas:', err);
   }

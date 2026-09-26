@@ -151,6 +151,9 @@ body {
   border: none;
 }
 .boton-principal:disabled { opacity: .6; cursor: default; }
+/* Un botón secundario desactivado se veía igual que uno activo (visto en
+   "Hacer copia ahora", 26/09/2026). Mismo atenuado que el principal. */
+.boton-secundario:disabled { opacity: .5; cursor: default; }
 
 .boton-secundario {
   background: var(--superficie);

@@ -507,6 +507,7 @@ function pintarDashboard() {
       '</div>' +
     '</div>' +
     '<div id="dash-tarjetas" class="dash-tarjetas"></div>' +
+    '<div id="dash-listas" class="dash-listas"></div>' +
     '<div class="dash-grafico-grande">' +
       '<div class="dash-grafico-cabecera">' +
         '<p class="dash-grafico-titulo">Evolución: 12 meses y el mes en curso</p>' +
@@ -560,8 +561,148 @@ function pintarDashboard() {
   });
 
   dashRepintarTarjetas();
+  dashRepintarListas();
   dashRepintarGraficos();
   dashCablearInfo();
+}
+
+// ============================================================
+// LISTAS: ÚLTIMOS APUNTES Y FACTURAS SIN COBRAR (26/09/2026)
+// ============================================================
+// Entre las tarjetas y el gráfico de líneas. Dos columnas en PC, una
+// encima de otra en el móvil, con la misma altura. Solo LEEN datos que
+// ya existen: no calculan nada nuevo ni guardan nada.
+// - Últimos apuntes: los 5 más recientes hasta hoy, filtrados por el
+//   selector Empresa/Personal/Total (decisión del propietario).
+// - Facturas sin cobrar: las 5 MÁS ANTIGUAS (las más urgentes de
+//   reclamar), activas y pendientes. Siempre son de empresa.
+// Tocar una fila abre su ficha encima del Dashboard, con las fichas
+// que ya existen en Contabilidad y en Facturas de venta.
+
+const DASH_LISTA_MAX = 5;
+
+// "Más facturas" abre Ventas con el filtro "Pendientes" SOLO esa vez: en
+// cuanto se sale de Facturas, el filtro vuelve a "Todos" (lo hace el
+// pintador de abajo, que el núcleo ejecuta después de cada cambio de
+// pantalla).
+let dashFiltroFacturasTemporal = false;
+
+pintadores.push(function () {
+  if (dashFiltroFacturasTemporal && vistaActiva !== 'facturas') {
+    if (typeof fvFiltroEstado !== 'undefined') fvFiltroEstado = 'todos';
+    dashFiltroFacturasTemporal = false;
+  }
+});
+
+function dashUltimosApuntes() {
+  const hoy = fechaHoyISO();
+  const lista = estado.apuntes.map(function (a, i) { return { a: a, i: i, fecha: normalizarFecha(a.fecha) }; })
+    .filter(function (x) {
+      if (!x.fecha || x.fecha > hoy) return false;
+      if (dashPerspectiva === 'total') return true;
+      const ambito = dashTexto(x.a.ambito) === 'personal' ? 'personal' : 'empresa';
+      return ambito === dashPerspectiva;
+    });
+  // Más reciente primero; con la misma fecha, el apuntado después.
+  lista.sort(function (x, y) {
+    if (x.fecha !== y.fecha) return x.fecha < y.fecha ? 1 : -1;
+    return y.i - x.i;
+  });
+  return lista.map(function (x) { return x.a; });
+}
+
+function dashFacturasSinCobrar() {
+  const lista = estado.ventas.filter(function (f) {
+    return fvEstaActiva(f) && dashTexto(f.estado).toLowerCase() === 'pendiente';
+  });
+  lista.sort(function (x, y) {
+    const fx = normalizarFecha(x.fecha), fy = normalizarFecha(y.fecha);
+    if (fx !== fy) return fx < fy ? -1 : 1;
+    return String(x.numero || '').localeCompare(String(y.numero || ''));
+  });
+  return lista;
+}
+
+function dashFilaApunte(a) {
+  const esIngreso = dashTexto(a.tipo) === 'ingreso';
+  const circulo = typeof ctCirculoTipo === 'function'
+    ? ctCirculoTipo(a, 32)
+    : '<div class="dash-lista-circulo"></div>';
+  const nombre = typeof ctNombreContacto === 'function' ? ctNombreContacto(a) : (dashNombreContacto(a.id_contacto) || '—');
+  const concepto = typeof ctConceptoMostrado === 'function' ? ctConceptoMostrado(a) : (a.concepto || '—');
+  return '<button type="button" class="dash-lista-fila" data-apunte="' + escaparHtml(a.id) + '">' +
+    circulo +
+    '<span class="dash-lista-info">' +
+      '<span class="dash-lista-nombre">' + escaparHtml(nombre) + '</span>' +
+      '<span class="dash-lista-meta">' + escaparHtml(concepto) + ' · ' + escaparHtml(mostrarFecha(a.fecha)) + '</span>' +
+    '</span>' +
+    '<span class="dash-lista-derecha">' +
+      '<span class="dash-lista-importe ' + (esIngreso ? 'ingreso' : 'gasto') + '">' +
+        (esIngreso ? '+' : '−') + escaparHtml(dineroVisible(parsearNumero(a.total))) + '</span>' +
+    '</span>' +
+  '</button>';
+}
+
+function dashFilaFactura(f) {
+  const cliente = estado.clientes.find(function (c) { return String(c.id) === String(f.id_cliente); }) || {};
+  const nombre = typeof fvNombreMostrado === 'function' ? fvNombreMostrado(f) : (f.cliente || '—');
+  return '<button type="button" class="dash-lista-fila" data-factura="' + escaparHtml(f.id) + '">' +
+    htmlIconoContacto(cliente.icono, 32) +
+    '<span class="dash-lista-info">' +
+      '<span class="dash-lista-nombre">' + escaparHtml(nombre || '—') + '</span>' +
+      '<span class="dash-lista-meta">' + escaparHtml(f.concepto || '—') + ' · ' + escaparHtml(f.numero || '—') + '</span>' +
+    '</span>' +
+    '<span class="dash-lista-derecha">' +
+      '<span class="dash-lista-importe">' + escaparHtml(dineroVisible(parsearNumero(f.total))) + '</span>' +
+      (typeof fvHtmlAntiguedad === 'function' ? fvHtmlAntiguedad(f) : '') +
+    '</span>' +
+  '</button>';
+}
+
+function dashRepintarListas() {
+  const caja = document.getElementById('dash-listas');
+  if (!caja) return;
+
+  const apuntes = dashUltimosApuntes();
+  const facturas = dashFacturasSinCobrar();
+  const tituloApuntes = 'Últimos apuntes' + (dashPerspectiva === 'total' ? '' : ' (' + dashEtiquetaPerspectiva() + ')');
+
+  caja.innerHTML =
+    '<section class="dash-lista">' +
+      '<p class="dash-grafico-titulo">' + escaparHtml(tituloApuntes) + '</p>' +
+      (apuntes.length
+        ? '<div class="dash-lista-filas">' + apuntes.slice(0, DASH_LISTA_MAX).map(dashFilaApunte).join('') + '</div>'
+        : '<p class="dash-lista-vacia">Todavía no hay apuntes' + (dashPerspectiva === 'total' ? '' : ' de este tipo') + '.</p>') +
+      '<button type="button" class="boton-menor dash-lista-mas" id="dash-mas-apuntes">Más apuntes <i class="ti ti-chevron-right" aria-hidden="true"></i></button>' +
+    '</section>' +
+    '<section class="dash-lista">' +
+      '<p class="dash-grafico-titulo">Facturas sin cobrar</p>' +
+      (facturas.length
+        ? '<div class="dash-lista-filas">' + facturas.slice(0, DASH_LISTA_MAX).map(dashFilaFactura).join('') + '</div>'
+        : '<p class="dash-lista-vacia">No tienes facturas pendientes de cobro.</p>') +
+      '<button type="button" class="boton-menor dash-lista-mas" id="dash-mas-facturas">Más facturas' +
+        (facturas.length ? ' (' + facturas.length + ')' : '') + ' <i class="ti ti-chevron-right" aria-hidden="true"></i></button>' +
+    '</section>';
+
+  caja.querySelectorAll('[data-apunte]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (typeof abrirFichaApunte === 'function') abrirFichaApunte(b.dataset.apunte);
+    });
+  });
+  caja.querySelectorAll('[data-factura]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (typeof abrirFichaFacturaVenta === 'function') abrirFichaFacturaVenta(b.dataset.factura);
+    });
+  });
+  document.getElementById('dash-mas-apuntes').addEventListener('click', function () {
+    cambiarVista('contabilidad');
+  });
+  document.getElementById('dash-mas-facturas').addEventListener('click', function () {
+    if (typeof fvArea !== 'undefined') fvArea = 'ventas';
+    if (typeof fvFiltroEstado !== 'undefined') fvFiltroEstado = 'pendiente';
+    dashFiltroFacturasTemporal = true;
+    cambiarVista('facturas');
+  });
 }
 
 function dashRepintarTarjetas() {
