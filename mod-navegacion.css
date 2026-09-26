@@ -73,6 +73,21 @@
   }
   .nav-pc .nav-item.nav-separador { margin-top: auto; }
 
+  /* Menú reorganizado (26/09/2026): línea fina entre grupos y zona
+     inferior (Mis datos, Configuración) más pequeña. */
+  .nav-pc .nav-linea {
+    height: 1px;
+    background: rgba(255, 255, 255, .1);
+    margin: 8px 22px;
+    flex: 0 0 auto;
+  }
+  .nav-pc .nav-item.nav-pequeno {
+    gap: 12px;
+    padding: 9px 22px;
+    font-size: 13px;
+  }
+  .nav-pc .nav-item.nav-pequeno i { font-size: 19px; width: 24px; }
+
   .nav-movil { display: none !important; }
 }
 
@@ -125,20 +140,55 @@
   display: flex;
   flex-direction: column;
 }
-.panel-mas-item {
+
+/* ---- Panel "Más" reorganizado (26/09/2026) ----
+   Arriba, baldosas grandes para Impuestos, Clientes y Plantillas.
+   Debajo, una línea pequeña para Mis datos y Configuración. */
+.panel-mas-rejilla {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 4px 4px 10px;
+}
+.panel-mas-baldosa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 4px 14px;
+  border: none;
+  border-radius: var(--radio-tarjeta);
+  background: var(--fondo);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--texto);
+  cursor: pointer;
+  min-width: 0;
+}
+.panel-mas-baldosa i { font-size: 28px; color: var(--texto); }
+.panel-mas-baldosa span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.panel-mas-baldosa.activa { background: var(--gris-neutro); }
+.panel-mas-pie {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  border-top: 1px solid var(--gris-neutro);
+  padding: 8px 4px 0;
+}
+.panel-mas-pequeno {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 48px;
+  gap: 6px;
+  height: 40px;
   padding: 0 12px;
   border: none;
   background: none;
-  font-family: inherit;
-  font-size: 14px;
-  color: var(--texto);
-  text-align: left;
   border-radius: var(--radio-control);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--texto-secundario);
   cursor: pointer;
 }
-.panel-mas-item:hover { background: var(--fondo); }
-.panel-mas-item i { font-size: 20px; color: var(--texto-secundario); width: 20px; }
+.panel-mas-pequeno i { font-size: 17px; }
+.panel-mas-pequeno.activa { background: var(--fondo); color: var(--texto); }
