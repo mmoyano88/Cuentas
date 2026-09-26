@@ -113,6 +113,19 @@
 .pl-precio.ingreso { color: var(--verde-texto); }
 .pl-precio.gasto { color: var(--rojo-texto); }
 
+/* Tarjetas de Contabilidad: menos contenido que Presupuestos/Facturas
+   (sin descripción), así que van más compactas para no dejar hueco
+   vacío entre el concepto y el importe. */
+#contenido .pl-tarjeta-apunte {
+  padding: 12px 16px;
+  gap: 2px;
+}
+#contenido .pl-tarjeta-apunte .pl-precio {
+  margin-top: 6px;
+  padding-top: 0;
+  font-size: 18px;
+}
+
 /* ---- Plantilla abierta ---- */
 .pl-ficha-etiqueta {
   font-size: 12px;

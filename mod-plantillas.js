@@ -348,7 +348,7 @@ function plTarjetaHtml(tipo, pl) {
   const esGasto = tipo === 'apunte' && pl.tipo !== 'ingreso';
   const clasePrecio = tipo === 'apunte' ? (esGasto ? ' gasto' : ' ingreso') : '';
 
-  return '<div class="pl-tarjeta" data-id="' + escaparHtml(pl.id) + '">' +
+  return '<div class="pl-tarjeta' + (tipo === 'apunte' ? ' pl-tarjeta-apunte' : '') + '" data-id="' + escaparHtml(pl.id) + '">' +
     '<div class="pl-tarjeta-cabecera">' +
       htmlIconoPlantilla(pl.icono, 52) +
       '<div class="pl-tarjeta-titulos">' +
