@@ -20,6 +20,9 @@ const MENU = [
   { id: 'facturas', titulo: 'Facturas', icono: 'ti-receipt-2' },
   { id: 'contabilidad', titulo: 'Contabilidad', icono: 'ti-report-money' },
   { id: 'impuestos', titulo: 'Impuestos', icono: 'ti-percentage' },
+  // Mis datos (26/09/2026): datos de facturación y de cobro para
+  // copiarlos o compartirlos. Justo encima de Configuración.
+  { id: 'misdatos', titulo: 'Mis datos', icono: 'ti-id' },
   { id: 'configuracion', titulo: 'Configuración', icono: 'ti-settings' }
 ];
 
@@ -28,7 +31,7 @@ const MENU = [
 // primera en el móvil, pero en el PC va detrás de Clientes, así que ya
 // no se puede copiar el orden del menú del PC.
 const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'facturas', 'contabilidad'];
-const MOVIL_MAS = ['plantillas', 'clientes', 'impuestos', 'configuracion'];
+const MOVIL_MAS = ['plantillas', 'clientes', 'impuestos', 'misdatos', 'configuracion'];
 
 // ============================================================
 // 1. PLACEHOLDER PARA SECCIONES TODAVÍA NO CONSTRUIDAS

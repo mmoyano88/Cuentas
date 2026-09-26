@@ -97,6 +97,31 @@ function fvPastillaEstado(valor) {
   return '<span class="pastilla ' + info.clase + '">' + info.etiqueta + '</span>';
 }
 
+// ANTIGÜEDAD DE UNA FACTURA SIN COBRAR (26/09/2026). Solo lista, no
+// toca ningún dato ni cálculo. Solo en facturas pendientes y activas:
+// días desde la fecha de la factura hasta hoy. Hasta 29 días en gris;
+// de 30 a 59, en ámbar; desde 60, en rojo. Fecha futura: nada.
+const FV_ANTIGUEDAD_AMBAR = 30;
+const FV_ANTIGUEDAD_ROJO = 60;
+
+function fvAntiguedad(f) {
+  if (String(f.estado || '').toLowerCase() !== 'pendiente' || !fvEstaActiva(f)) return null;
+  const p = normalizarFecha(f.fecha).split('-');
+  if (p.length !== 3) return null;
+  const h = fechaHoyISO().split('-');
+  const dias = Math.round((new Date(+h[0], h[1] - 1, +h[2]) - new Date(+p[0], p[1] - 1, +p[2])) / 86400000);
+  if (isNaN(dias) || dias < 0) return null;
+  return {
+    texto: dias === 0 ? 'hoy' : dias === 1 ? 'ayer' : 'hace ' + dias + ' días',
+    clase: dias >= FV_ANTIGUEDAD_ROJO ? ' fv-antiguedad-roja' : dias >= FV_ANTIGUEDAD_AMBAR ? ' fv-antiguedad-ambar' : ''
+  };
+}
+
+function fvHtmlAntiguedad(f) {
+  const a = fvAntiguedad(f);
+  return a ? '<span class="fv-antiguedad' + a.clase + '">' + escaparHtml(a.texto) + '</span>' : '';
+}
+
 function fvClienteDe(f) {
   return estado.clientes.find(function (c) { return String(c.id) === String(f.id_cliente); }) || null;
 }
@@ -323,6 +348,7 @@ function fvRenderFilaMovil(f) {
       '<p class="fv-nombre">' + escaparHtml(fvNombreMostrado(f) || '—') + '</p>' +
       '<p class="fv-meta">' + escaparHtml(f.numero || '—') + ' · ' + escaparHtml(mostrarFecha(f.fecha)) + (inactiva ? ' · Inactiva' : '') + '</p>' +
       '<p class="fv-meta">' + escaparHtml(f.concepto || '—') + '</p>' +
+      (fvAntiguedad(f) ? '<p class="fv-meta">' + fvHtmlAntiguedad(f) + '</p>' : '') +
     '</div>' +
     '<div class="fv-derecha">' +
       '<span class="fv-total-fila">' + escaparHtml(dineroVisible(f.total)) + '</span>' +
@@ -341,7 +367,8 @@ function fvRenderFilaTabla(f) {
   const inactiva = !fvEstaActiva(f);
   return '<tr class="fv-fila-tabla' + (inactiva ? ' fv-fila-inactiva' : '') + '" data-id="' + escaparHtml(f.id) + '">' +
     '<td class="fv-celda-icono">' + htmlIconoContacto((fvClienteDe(f) || {}).icono, 32) + '</td>' +
-    '<td>' + escaparHtml(mostrarFecha(f.fecha)) + '</td>' +
+    '<td class="fv-celda-fecha">' + escaparHtml(mostrarFecha(f.fecha)) +
+      (fvAntiguedad(f) ? '<div>' + fvHtmlAntiguedad(f) + '</div>' : '') + '</td>' +
     '<td class="fv-celda-numero">' + escaparHtml(f.numero || '—') + (inactiva ? ' <span style="color:var(--texto-secundario);font-weight:400">(inactiva)</span>' : '') + '</td>' +
     '<td>' + escaparHtml(fvNombreMostrado(f) || '—') + '</td>' +
     '<td class="fv-celda-concepto">' +

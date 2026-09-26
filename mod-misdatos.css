@@ -1,0 +1,76 @@
+/* ============================================================
+   MÓDULO MIS DATOS — estilos propios (26/09/2026)
+   Tarjetas blancas sobre el fondo general, como el resto de la app.
+   Anclado a #contenido para que no lo pisen reglas de otros módulos.
+   ============================================================ */
+
+#contenido .md-pantalla { padding-bottom: 24px; }
+
+#contenido .md-nota {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  margin: 4px 0 14px;
+  line-height: 1.45;
+}
+#contenido .md-nota-ojo { margin-top: 14px; }
+
+#contenido .md-tarjetas {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 900px) {
+  #contenido .md-tarjetas { grid-template-columns: 1fr 1fr; align-items: start; }
+}
+
+#contenido .md-tarjeta {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 14px 16px;
+  min-width: 0;
+}
+#contenido .md-todo { margin-top: 12px; }
+
+#contenido .md-tarjeta-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 10px;
+}
+#contenido .md-tarjeta-titulo i { font-size: 20px; color: var(--texto-secundario); }
+
+#contenido .md-datos { margin: 0 0 12px; }
+#contenido .md-dato {
+  display: grid;
+  grid-template-columns: 78px 1fr;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--fondo);
+  font-size: 13px;
+}
+#contenido .md-dato:first-child { border-top: none; }
+#contenido .md-dato dt { color: var(--texto-secundario); }
+#contenido .md-dato dd {
+  margin: 0;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#contenido .md-botones { display: flex; gap: 8px; }
+#contenido .md-boton {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+#contenido .md-boton i { font-size: 18px; }
+
+#contenido .md-vacio {
+  font-size: 13px;
+  color: var(--texto-secundario);
+  margin: 0 0 12px;
+}

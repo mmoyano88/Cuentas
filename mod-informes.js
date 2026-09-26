@@ -654,7 +654,7 @@ function pintarInformes() {
     infResumenPantallaHtml(resumen) +
 
     '<div class="inf-descarga">' +
-      '<p class="inf-descarga-titulo">Descargar un informe en PDF</p>' +
+      '<p class="inf-descarga-titulo">Descargar un informe</p>' +
       '<div class="inf-selector" id="inf-selector-tipo">' +
         '<button type="button" data-tipo="trimestral"' + (infPdfTipo === 'trimestral' ? ' class="activa"' : '') + '>Trimestral</button>' +
         '<button type="button" data-tipo="anual"' + (infPdfTipo === 'anual' ? ' class="activa"' : '') + '>Anual</button>' +
@@ -667,15 +667,26 @@ function pintarInformes() {
             }).join('') +
           '</div>'
         : '') +
-      '<button type="button" class="boton-principal inf-btn-pdf" id="inf-btn-pdf">' +
-        '<i class="ti ti-file-type-pdf"></i> Descargar PDF' +
-      '</button>' +
+      '<div class="inf-botones-descarga">' +
+        '<button type="button" class="boton-principal inf-btn-pdf" id="inf-btn-pdf">' +
+          '<i class="ti ti-file-type-pdf"></i> PDF' +
+        '</button>' +
+        '<button type="button" class="boton-secundario inf-btn-pdf" id="inf-btn-excel">' +
+          '<i class="ti ti-file-spreadsheet"></i> Excel' +
+        '</button>' +
+      '</div>' +
       '<p class="inf-descarga-nota">' +
         (infPdfTipo === 'trimestral'
-          ? 'Facturas, apuntes de empresa y el resumen de facturación del trimestre, para tu asesor.'
-          : 'Copia de seguridad completa del año: facturas, apuntes (empresa y personal) e impuestos.') +
+          ? 'Facturas, apuntes de empresa y el resumen de facturación del trimestre, para tu asesor. ' +
+            'El Excel lleva las mismas facturas y apuntes, cada cosa en su hoja.'
+          : 'Copia de seguridad completa del año: facturas, apuntes (empresa y personal) e impuestos. ' +
+            'El Excel lleva las facturas, los apuntes y el resumen del 347.') +
       '</p>' +
-    '</div>';
+    '</div>' +
+
+    // Resumen del 347 y revisión de datos (26/09/2026): solo leen.
+    inf347Html(infAnio) +
+    (typeof revHtml === 'function' ? revHtml(infAnio) : '');
 
   document.getElementById('inf-anio').addEventListener('change', function (ev) {
     infAnio = parseInt(ev.target.value, 10);
@@ -700,6 +711,7 @@ function pintarInformes() {
   }
 
   zona.querySelector('#inf-btn-pdf').addEventListener('click', infImprimir);
+  zona.querySelector('#inf-btn-excel').addEventListener('click', infDescargarExcel);
 }
 
 function infResumenPantallaHtml(resumen) {
@@ -868,4 +880,408 @@ function infImprimir() {
   setTimeout(function () {
     try { ventana.print(); } catch (err) { console.error('No se pudo imprimir:', err); }
   }, 400);
+}
+
+// ============================================================
+// 9. DESCARGA EN EXCEL PARA EL ASESOR (26/09/2026)
+// ============================================================
+// Mismo periodo que el PDF (el trimestre elegido, o el año entero) y
+// los mismos datos: facturas emitidas, facturas recibidas y apuntes
+// (de empresa en el trimestral; de empresa y personales en el anual).
+// En el anual va además una hoja con el resumen del 347.
+//
+// Solo LEE lo que ya hay en el dispositivo: no escribe en Sheets ni
+// cambia ningún cálculo. El archivo .xlsx se arma aquí mismo, sin
+// librerías nuevas: un .xlsx es una carpeta de textos XML metida en un
+// ZIP, y se empaqueta sin comprimir (es lo más simple y Excel lo abre
+// igual). Los importes van como números de verdad, para que el asesor
+// pueda sumar y filtrar; las fechas, como fechas.
+
+function xlsEsc(v) {
+  return String(v === null || v === undefined ? '' : v)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+}
+
+// Letra de columna de Excel: 0 → A, 25 → Z, 26 → AA.
+function xlsColumna(i) {
+  let s = '';
+  i += 1;
+  while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); }
+  return s;
+}
+
+// Número de serie de Excel para una fecha AAAA-MM-DD (días desde el
+// 30/12/1899). Si no hay fecha válida, se deja la celda vacía.
+function xlsFechaSerie(iso) {
+  const f = normalizarFecha(iso);
+  if (!f) return null;
+  const p = f.split('-');
+  return Math.round((Date.UTC(+p[0], p[1] - 1, +p[2]) - Date.UTC(1899, 11, 30)) / 86400000);
+}
+
+// Celdas: { t: 'texto' | 'numero' | 'dinero' | 'fecha', v: valor, negrita }
+// Estilos (ver xlsEstilos): 0 normal, 1 cabecera en negrita, 2 dinero,
+// 3 fecha, 4 dinero en negrita, 5 texto en negrita.
+function xlsCelda(ref, c) {
+  if (!c || c.v === null || c.v === undefined || c.v === '') return '';
+  if (c.t === 'fecha') {
+    const serie = xlsFechaSerie(c.v);
+    return serie === null ? '' : '<c r="' + ref + '" s="3"><v>' + serie + '</v></c>';
+  }
+  if (c.t === 'dinero' || c.t === 'numero') {
+    const n = Number(c.v);
+    if (!isFinite(n)) return '';
+    const estilo = c.t === 'dinero' ? (c.negrita ? 4 : 2) : 0;
+    return '<c r="' + ref + '"' + (estilo ? ' s="' + estilo + '"' : '') + '><v>' + n + '</v></c>';
+  }
+  const estiloTexto = c.cabecera ? 1 : c.negrita ? 5 : 0;
+  return '<c r="' + ref + '" t="inlineStr"' + (estiloTexto ? ' s="' + estiloTexto + '"' : '') +
+    '><is><t xml:space="preserve">' + xlsEsc(c.v) + '</t></is></c>';
+}
+
+// hoja: { nombre, anchos: [..], filas: [[celda, celda...], ...] }
+// La primera fila es la cabecera y queda fija al desplazarse.
+function xlsHojaXml(hoja) {
+  const filas = hoja.filas.map(function (fila, i) {
+    return '<row r="' + (i + 1) + '">' + fila.map(function (c, j) {
+      return xlsCelda(xlsColumna(j) + (i + 1), c);
+    }).join('') + '</row>';
+  }).join('');
+  const cols = (hoja.anchos || []).map(function (w, i) {
+    return '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>';
+  }).join('');
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+    (cols ? '<cols>' + cols + '</cols>' : '') +
+    '<sheetData>' + filas + '</sheetData></worksheet>';
+}
+
+function xlsEstilos() {
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    '<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.00\\ &quot;€&quot;"/><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/></numFmts>' +
+    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>' +
+    '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
+      '<fill><patternFill patternType="solid"><fgColor rgb="FFEAEAE6"/><bgColor indexed="64"/></patternFill></fill></fills>' +
+    '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+    '<cellXfs count="6">' +
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+      '<xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>' +
+      '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>' +
+      '<xf numFmtId="164" fontId="1" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1"/>' +
+      '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+    '</cellXfs>' +
+    '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+    '</styleSheet>';
+}
+
+// Libro completo como lista de archivos { nombre, texto }.
+function xlsArchivosLibro(hojas) {
+  const archivos = [];
+  archivos.push({ nombre: '[Content_Types].xml', texto:
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+    '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+    hojas.map(function (h, i) {
+      return '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    }).join('') +
+    '</Types>' });
+  archivos.push({ nombre: '_rels/.rels', texto:
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+    '</Relationships>' });
+  archivos.push({ nombre: 'xl/workbook.xml', texto:
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+    '<sheets>' + hojas.map(function (h, i) {
+      return '<sheet name="' + xlsEsc(h.nombre) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
+    }).join('') + '</sheets></workbook>' });
+  archivos.push({ nombre: 'xl/_rels/workbook.xml.rels', texto:
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    hojas.map(function (h, i) {
+      return '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>';
+    }).join('') +
+    '<Relationship Id="rId' + (hojas.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+    '</Relationships>' });
+  archivos.push({ nombre: 'xl/styles.xml', texto: xlsEstilos() });
+  hojas.forEach(function (h, i) {
+    archivos.push({ nombre: 'xl/worksheets/sheet' + (i + 1) + '.xml', texto: xlsHojaXml(h) });
+  });
+  return archivos;
+}
+
+// ---- ZIP sin compresión ----
+let XLS_TABLA_CRC = null;
+function xlsCrc32(bytes) {
+  if (!XLS_TABLA_CRC) {
+    XLS_TABLA_CRC = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      XLS_TABLA_CRC[n] = c >>> 0;
+    }
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = XLS_TABLA_CRC[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function xlsZip(archivos) {
+  const codificador = new TextEncoder();
+  const partes = [];
+  const central = [];
+  let desplazamiento = 0;
+
+  const u16 = function (v) { return [v & 0xFF, (v >>> 8) & 0xFF]; };
+  const u32 = function (v) { return [v & 0xFF, (v >>> 8) & 0xFF, (v >>> 16) & 0xFF, (v >>> 24) & 0xFF]; };
+
+  archivos.forEach(function (a) {
+    const nombre = codificador.encode(a.nombre);
+    const datos = codificador.encode(a.texto);
+    const crc = xlsCrc32(datos);
+    const cabecera = new Uint8Array([].concat(
+      u32(0x04034B50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21),
+      u32(crc), u32(datos.length), u32(datos.length), u16(nombre.length), u16(0)
+    ));
+    partes.push(cabecera, nombre, datos);
+    central.push(new Uint8Array([].concat(
+      u32(0x02014B50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21),
+      u32(crc), u32(datos.length), u32(datos.length), u16(nombre.length), u16(0), u16(0),
+      u16(0), u16(0), u32(0), u32(desplazamiento)
+    )), nombre);
+    desplazamiento += cabecera.length + nombre.length + datos.length;
+  });
+
+  const tamCentral = central.reduce(function (s, p) { return s + p.length; }, 0);
+  const fin = new Uint8Array([].concat(
+    u32(0x06054B50), u16(0), u16(0), u16(archivos.length), u16(archivos.length),
+    u32(tamCentral), u32(desplazamiento), u16(0)
+  ));
+  return new Blob(partes.concat(central, [fin]), { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+
+// ---- Contenido de cada hoja ----
+
+function xlsT(v) { return { t: 'texto', v: v }; }
+function xlsCab(v) { return { t: 'texto', v: v, cabecera: true }; }
+function xlsD(v) { return { t: 'dinero', v: roundMoney(parsearNumero(v)) }; }
+function xlsN(v) { return { t: 'numero', v: parsearNumero(v) }; }
+function xlsF(v) { return { t: 'fecha', v: v }; }
+
+function xlsFilaTotal(etiqueta, columnaEtiqueta, totales) {
+  // totales: { indiceColumna: valor }
+  const fila = [];
+  fila[columnaEtiqueta] = { t: 'texto', v: etiqueta, negrita: true };
+  Object.keys(totales).forEach(function (i) { fila[i] = { t: 'dinero', v: roundMoney(totales[i]), negrita: true }; });
+  return fila;
+}
+
+function xlsHojaFacturas(nombre, lista, esVenta) {
+  const filas = [[
+    xlsCab('Fecha'), xlsCab('Número'), xlsCab(esVenta ? 'Cliente' : 'Proveedor'), xlsCab('NIF'),
+    xlsCab('Concepto'), xlsCab('Base'), xlsCab('IVA %'), xlsCab('IVA'), xlsCab('IRPF %'),
+    xlsCab('Retención IRPF'), xlsCab('Total'), xlsCab('Estado'), xlsCab(esVenta ? 'Fecha de cobro' : 'Fecha de pago')
+  ]];
+  const suma = { 5: 0, 7: 0, 9: 0, 10: 0 };
+  lista.forEach(function (f) {
+    const r = esVenta ? infFilaVenta(f) : infFilaCompra(f);
+    const pagada = String(f.estado || '').toLowerCase() === 'pagada';
+    filas.push([
+      xlsF(f.fecha), xlsT(r.numero), xlsT(r.nombre), xlsT(r.nif), xlsT(r.concepto),
+      xlsD(r.base), xlsN(r.ivaPct), xlsD(r.iva), xlsN(r.irpfPct), xlsD(r.irpf), xlsD(r.total),
+      xlsT(pagada ? (esVenta ? 'Cobrada' : 'Pagada') : 'Pendiente'),
+      xlsF(esVenta ? f.fecha_cobro : f.fecha_pago)
+    ]);
+    suma[5] += r.base; suma[7] += r.iva; suma[9] += r.irpf; suma[10] += r.total;
+  });
+  if (lista.length) { filas.push([]); filas.push(xlsFilaTotal('TOTAL', 4, suma)); }
+  return { nombre: nombre, anchos: [11, 14, 32, 13, 38, 12, 7, 12, 7, 14, 12, 11, 14], filas: filas };
+}
+
+function xlsHojaApuntes(nombre, lista) {
+  const filas = [[
+    xlsCab('Fecha'), xlsCab('Tipo'), xlsCab('Ámbito'), xlsCab('Contacto'), xlsCab('NIF'),
+    xlsCab('Concepto'), xlsCab('Base'), xlsCab('IVA %'), xlsCab('IVA'), xlsCab('IRPF %'),
+    xlsCab('Retención IRPF'), xlsCab('Total')
+  ]];
+  const suma = { 6: 0, 8: 0, 10: 0, 11: 0 };
+  lista.forEach(function (a) {
+    const r = infFilaApunte(a);
+    const contacto = r.nombre !== '—' ? r.nombre : (infTexto(a.contacto_libre) || '—');
+    filas.push([
+      xlsF(a.fecha), xlsT(r.tipo), xlsT(r.ambito), xlsT(contacto), xlsT(r.nif), xlsT(r.concepto),
+      xlsD(r.base), xlsN(r.ivaPct), xlsD(r.iva), xlsN(r.irpfPct), xlsD(r.irpf), xlsD(r.total)
+    ]);
+    suma[6] += r.base; suma[8] += r.iva; suma[10] += r.irpf; suma[11] += r.total;
+  });
+  if (lista.length) { filas.push([]); filas.push(xlsFilaTotal('TOTAL (gastos en negativo)', 5, suma)); }
+  return { nombre: nombre, anchos: [11, 9, 10, 30, 13, 38, 12, 7, 12, 7, 14, 12], filas: filas };
+}
+
+function xlsHoja347(anio) {
+  const r = inf347(anio);
+  const filas = [[
+    xlsCab('Tipo'), xlsCab('Nombre'), xlsCab('NIF'), xlsCab('Total año'),
+    xlsCab('1T'), xlsCab('2T'), xlsCab('3T'), xlsCab('4T'), xlsCab('De ello, con retención IRPF')
+  ]];
+  const añadir = function (tipo, lista) {
+    lista.forEach(function (c) {
+      filas.push([xlsT(tipo), xlsT(c.nombre), xlsT(c.nif || '—'), xlsD(c.total),
+        xlsD(c.trimestres[0]), xlsD(c.trimestres[1]), xlsD(c.trimestres[2]), xlsD(c.trimestres[3]),
+        c.conRetencion ? xlsD(c.conRetencion) : xlsT('')]);
+    });
+  };
+  añadir('Cliente', r.ventas);
+  añadir('Proveedor', r.compras);
+  filas.push([]);
+  filas.push([xlsT('Contactos con más de ' + formatMoney(INF_347_LIMITE) + ' en el año. Importes con IVA, sin restar la retención, por fecha de factura. Revísalo con tu asesor.')]);
+  return { nombre: '347', anchos: [11, 36, 13, 13, 12, 12, 12, 12, 16], filas: filas };
+}
+
+function infDescargarExcel() {
+  try {
+    let hojas, nombre;
+    if (infPdfTipo === 'anual') {
+      hojas = [
+        xlsHojaFacturas('Emitidas', infVentasDelAnio(infAnio), true),
+        xlsHojaFacturas('Recibidas', infComprasDelAnio(infAnio), false),
+        xlsHojaApuntes('Apuntes', infApuntesDelAnio(infAnio)),
+        xlsHoja347(infAnio)
+      ];
+      nombre = 'Cuentas ' + infAnio + ' anual.xlsx';
+    } else {
+      hojas = [
+        xlsHojaFacturas('Emitidas', infVentasDelTrimestre(infAnio, infTrimestre), true),
+        xlsHojaFacturas('Recibidas', infComprasDelTrimestre(infAnio, infTrimestre), false),
+        xlsHojaApuntes('Apuntes de empresa', infApuntesEmpresaDelTrimestre(infAnio, infTrimestre))
+      ];
+      nombre = 'Cuentas ' + infAnio + ' ' + infTrimestre + '.xlsx';
+    }
+    const blob = xlsZip(xlsArchivosLibro(hojas));
+    const url = URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = nombre;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  } catch (err) {
+    console.error('No se pudo preparar el Excel:', err);
+    alert('No se ha podido preparar el Excel. Vuelve a intentarlo.');
+  }
+}
+
+// ============================================================
+// 10. RESUMEN PARA EL 347 (26/09/2026)
+// ============================================================
+// Operaciones con terceros: contactos con los que, en el año, se pasa
+// de 3.005,06 €. Solo informativo, para cotejar con el asesor.
+// - Cuenta base + IVA, SIN restar la retención (así se declara en el
+//   347), por la fecha de la factura, trimestre a trimestre.
+// - Entran las facturas activas y los apuntes MANUALES de empresa con
+//   contacto (los automáticos de una factura ya van en la factura; los
+//   personales y los pagos de impuestos no son operaciones con
+//   terceros).
+// - Se separa lo que llevó retención de IRPF: esas operaciones suelen
+//   quedar fuera del 347, pero lo decide el asesor.
+
+const INF_347_LIMITE = 3005.06;
+
+function inf347(anio) {
+  const grupos = { ventas: {}, compras: {} };
+
+  const sumar = function (lado, idContacto, nombreDoc, nifDoc, fecha, base, iva, irpf) {
+    const c = infContactoPorId(idContacto);
+    const nif = infTexto(nifDoc) || infTexto(c && c.nif);
+    const nombre = infNombreDe(c) || infTexto(nombreDoc) || '—';
+    const clave = (idContacto || idContacto === 0) && c ? 'id:' + idContacto : 'nif:' + (nif || nombre).toUpperCase();
+    const g = grupos[lado][clave] || (grupos[lado][clave] = { nombre: nombre, nif: nif, total: 0, trimestres: [0, 0, 0, 0], conRetencion: 0 });
+    const importe = parsearNumero(base) + parsearNumero(iva);
+    const t = IMP_TRIMESTRES.indexOf(fvTrimestreDeFecha(normalizarFecha(fecha)));
+    g.total += importe;
+    if (t !== -1) g.trimestres[t] += importe;
+    if (parsearNumero(irpf) !== 0) g.conRetencion += importe;
+  };
+
+  infVentasDelAnio(anio).forEach(function (f) {
+    sumar('ventas', f.id_cliente, f.cliente, f.nif, f.fecha, f.base, f.iva, f.irpf);
+  });
+  infComprasDelAnio(anio).forEach(function (f) {
+    sumar('compras', f.id_proveedor, f.proveedor, f.nif, f.fecha, f.base, f.iva, f.irpf);
+  });
+  estado.apuntes.forEach(function (a) {
+    if (String(a.ambito || '') !== 'empresa') return;
+    if (a.id_factura_venta || a.id_factura_compra || a.id_impuesto) return;
+    if (!a.id_contacto && a.id_contacto !== 0) return;
+    if (infAnioDe(a.fecha) !== anio) return;
+    sumar(infTexto(a.tipo) === 'ingreso' ? 'ventas' : 'compras', a.id_contacto, '', '', a.fecha, a.base, a.iva, a.irpf);
+  });
+
+  const separar = function (lado) {
+    const todos = Object.keys(grupos[lado]).map(function (k) {
+      const g = grupos[lado][k];
+      g.total = roundMoney(g.total);
+      g.trimestres = g.trimestres.map(roundMoney);
+      g.conRetencion = roundMoney(g.conRetencion);
+      return g;
+    });
+    return {
+      encima: todos.filter(function (g) { return g.total > INF_347_LIMITE; })
+        .sort(function (a, b) { return b.total - a.total; }),
+      debajo: todos.filter(function (g) { return g.total <= INF_347_LIMITE; }).length
+    };
+  };
+
+  const v = separar('ventas');
+  const c = separar('compras');
+  return { ventas: v.encima, compras: c.encima, debajoVentas: v.debajo, debajoCompras: c.debajo };
+}
+
+function inf347Html(anio) {
+  const r = inf347(anio);
+
+  const lista = function (titulo, filas) {
+    if (!filas.length) {
+      return '<p class="inf-347-subtitulo">' + titulo + '</p><p class="inf-347-vacio">Ninguno pasa del límite.</p>';
+    }
+    return '<p class="inf-347-subtitulo">' + titulo + '</p>' +
+      filas.map(function (g) {
+        return '<div class="inf-347-fila">' +
+          '<div class="inf-347-cabeza">' +
+            '<span class="inf-347-nombre">' + escaparHtml(g.nombre) + '</span>' +
+            '<strong>' + escaparHtml(dineroVisible(g.total)) + '</strong>' +
+          '</div>' +
+          '<div class="inf-347-detalle">' +
+            '<span>' + escaparHtml(g.nif || 'Sin NIF') + '</span>' +
+            g.trimestres.map(function (t, i) {
+              return '<span>' + (i + 1) + 'T ' + escaparHtml(dineroVisible(t)) + '</span>';
+            }).join('') +
+          '</div>' +
+          (g.conRetencion
+            ? '<p class="inf-347-retencion">' +
+                (g.conRetencion >= g.total ? 'Todo con retención de IRPF' : 'Con retención de IRPF: ' + escaparHtml(dineroVisible(g.conRetencion))) +
+              '</p>'
+            : '') +
+        '</div>';
+      }).join('');
+  };
+
+  return '<div class="inf-bloque">' +
+    '<p class="inf-descarga-titulo">Operaciones con terceros (347) · ' + anio + '</p>' +
+    '<p class="inf-bloque-nota">Contactos con más de ' + escaparHtml(formatMoney(INF_347_LIMITE)) +
+      ' en el año, con IVA y sin restar la retención, por fecha de factura. Las operaciones con retención ' +
+      'de IRPF suelen quedar fuera del 347: confírmalo con tu asesor.</p>' +
+    lista('Clientes', r.ventas) +
+    lista('Proveedores', r.compras) +
+  '</div>';
 }

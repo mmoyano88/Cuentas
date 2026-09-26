@@ -15,7 +15,8 @@ const CONFIG_PESTANAS = [
   { id: 'impuestos-config', titulo: 'Impuestos y Retenciones' },
   { id: 'params-calculadora', titulo: 'Parámetros Calculadora' },
   { id: 'series', titulo: 'Numeración y Series' },
-  { id: 'textos', titulo: 'Textos Presupuestos/Facturas' }
+  { id: 'textos', titulo: 'Textos Presupuestos/Facturas' },
+  { id: 'copias', titulo: 'Copias de seguridad' }
 ];
 
 let configPestanaActiva = 'mis-datos';
@@ -94,10 +95,12 @@ function pintarPanelActivo() {
     'impuestos-config': renderImpuestosConfig,
     'params-calculadora': renderParamsCalculadora,
     'series': renderSeries,
-    'textos': renderTextos
+    'textos': renderTextos,
+    'copias': renderCopias
   };
   panel.innerHTML = renderes[configPestanaActiva]();
   cablearPanelActivo(panel);
+  if (configPestanaActiva === 'copias') cablearCopias(panel);
 }
 
 // ============================================================
@@ -124,6 +127,10 @@ function renderMisDatos() {
       campoTexto('fiscal_provincia', 'Provincia', cfgTexto('fiscal_provincia')) +
       campoTexto('perfil_telefono', 'Teléfono', cfgTexto('perfil_telefono')) +
       campoTexto('perfil_email', 'Email', cfgTexto('perfil_email'), 'email') +
+      // IBAN (26/09/2026): solo lo usa la pantalla "Mis datos" para
+      // copiarlo o compartirlo. En los PDF sigue saliendo desde el
+      // texto del pie de factura (decisión M3), no desde aquí.
+      campoTexto('fiscal_iban', 'IBAN (para cobros)', cfgTexto('fiscal_iban')) +
     '</div>' +
     '<div class="direccion-preview" id="direccion-preview">' + escaparHtml(construirDireccionPreview()) + '</div>' +
     piePanelGuardar()
@@ -245,6 +252,109 @@ function renderTextos() {
     '</div>' +
     piePanelGuardar()
   );
+}
+
+
+// ============================================================
+// 7.1 PESTAÑA: COPIAS DE SEGURIDAD (26/09/2026)
+// ============================================================
+// Solo consulta y lanza la copia que ya existía en Código.gs (cada 14
+// días, se conservan 4). Nada de esta pestaña toca los datos de la
+// hoja. Las copias hechas desde aquí cuentan dentro de las 4 que se
+// conservan (decisión del propietario, 26/09/2026).
+//
+// "Hacer copia ahora" va con UN solo intento, sin el reintento
+// automático de llamarBackend(): si la respuesta tardara, repetirla
+// haría dos copias y mandaría a la papelera una copia buena de más.
+
+function renderCopias() {
+  return (
+    '<h2>Copias de seguridad</h2>' +
+    '<div class="config-cartel config-cartel-izquierda">' +
+      'Cada 14 días se hace sola una copia completa de tu hoja de cálculo en tu Google Drive, ' +
+      'en la carpeta «Cuentas - Copias de seguridad». Se conservan las 4 más recientes, contando ' +
+      'también las que hagas desde aquí; las más antiguas van a la papelera de Drive, donde se ' +
+      'pueden recuperar durante 30 días.' +
+    '</div>' +
+    '<div class="copias-info" id="copias-info"><p class="copias-cargando">Consultando tu Drive...</p></div>' +
+    '<div class="config-guardar">' +
+      '<button type="button" class="boton-secundario" id="btn-copia-ahora" disabled>Hacer copia ahora</button>' +
+    '</div>'
+  );
+}
+
+function copiasFechaLegible(texto) {
+  // Llega como "AAAA-MM-DD HH:mm" (hora de España, la del script).
+  const m = String(texto || '').match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}))?/);
+  if (!m) return '—';
+  const h = fechaHoyISO().split('-');
+  const dias = Math.round((new Date(+h[0], h[1] - 1, +h[2]) - new Date(+m[1], m[2] - 1, +m[3])) / 86400000);
+  const cuando = dias <= 0 ? 'hoy' : dias === 1 ? 'ayer' : 'hace ' + dias + ' días';
+  return m[3] + '/' + m[2] + '/' + m[1] + (m[4] ? ' a las ' + m[4] + ':' + m[5] : '') + ' (' + cuando + ')';
+}
+
+function copiasPintarInfo(respuesta) {
+  const caja = document.getElementById('copias-info');
+  if (!caja) return;
+  const copias = (respuesta && respuesta.copias) || [];
+  if (copias.length === 0) {
+    caja.innerHTML = '<p class="copias-linea">Todavía no hay ninguna copia en la carpeta.</p>';
+    return;
+  }
+  caja.innerHTML =
+    '<div class="copias-linea"><span>Última copia</span><strong>' + escaparHtml(copiasFechaLegible(copias[0].fecha)) + '</strong></div>' +
+    '<div class="copias-linea"><span>Copias guardadas</span><strong>' + copias.length + '</strong></div>' +
+    '<ul class="copias-lista">' + copias.map(function (c) {
+      return '<li>' + escaparHtml(copiasFechaLegible(c.fecha)) + '</li>';
+    }).join('') + '</ul>';
+}
+
+function copiasPintarError(err) {
+  const caja = document.getElementById('copias-info');
+  if (!caja) return;
+  const texto = String((err && err.message) || err || '');
+  caja.innerHTML = '<p class="copias-error">' + (texto.indexOf('Acción desconocida') !== -1
+    ? 'Falta publicar la nueva versión de Código.gs en Apps Script (Implementar → Gestionar implementaciones → lápiz → Nueva versión).'
+    : 'No se ha podido consultar tu Drive. Comprueba la conexión y vuelve a entrar en esta pestaña.') + '</p>';
+}
+
+async function cablearCopias(panel) {
+  const boton = panel.querySelector('#btn-copia-ahora');
+  try {
+    const r = await llamarBackend({ action: 'info_copias' });
+    if (r.status !== 'success') throw new Error(r.message || 'Fallo al consultar');
+    copiasPintarInfo(r);
+    if (boton) boton.disabled = false;
+  } catch (err) {
+    console.error('No se pudo consultar las copias:', err);
+    copiasPintarError(err);
+    return;
+  }
+
+  boton.addEventListener('click', async function () {
+    const eleccion = await mostrarDialogoOpciones(
+      'Hacer copia ahora',
+      'Se hará una copia completa de tu hoja en Drive. Como se conservan las 4 más recientes, la más antigua irá a la papelera de Drive.',
+      [{ id: 'cancelar', texto: 'Cancelar' }, { id: 'copiar', texto: 'Hacer copia', tipo: 'principal' }]
+    );
+    if (eleccion !== 'copiar') return;
+
+    boton.disabled = true;
+    boton.textContent = 'Haciendo copia...';
+    try {
+      const r = await unIntentoBackend({ action: 'copia_ahora' });
+      if (r.code === 'clave') { cerrarSesion('La clave de acceso ya no es válida. Vuelve a introducirla.'); return; }
+      if (r.status !== 'success') throw new Error(r.message || 'Fallo al hacer la copia');
+      copiasPintarInfo(r);
+      boton.textContent = 'Copia hecha';
+      setTimeout(function () { boton.textContent = 'Hacer copia ahora'; boton.disabled = false; }, 2500);
+    } catch (err) {
+      console.error('No se pudo hacer la copia:', err);
+      alert('No se ha podido confirmar la copia. Puede que se haya hecho igualmente: vuelve a entrar en esta pestaña para comprobarlo antes de repetirla.');
+      boton.textContent = 'Hacer copia ahora';
+      boton.disabled = false;
+    }
+  });
 }
 
 // ============================================================

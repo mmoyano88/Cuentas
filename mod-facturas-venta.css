@@ -472,3 +472,17 @@
 .fv-punto.ok        { background: #3E9E4E; }
 .fv-punto.guardando { background: #E0A32E; }
 .fv-punto.error     { background: var(--rojo); }
+
+/* ---- Antigüedad de las facturas sin cobrar (26/09/2026) ----
+   Solo texto, sin fondo: gris hasta 29 días; ámbar de 30 a 59; rojo
+   desde 60. El ámbar es más oscuro que el de las pastillas para que se
+   lea bien sobre blanco. */
+.fv-antiguedad {
+  font-size: 12px;
+  color: var(--texto-secundario);
+  white-space: nowrap;
+}
+.fv-antiguedad.fv-antiguedad-ambar { color: #A35F00; font-weight: 600; }
+.fv-antiguedad.fv-antiguedad-roja  { color: var(--rojo); font-weight: 600; }
+.fv-tabla td.fv-celda-fecha { white-space: nowrap; }
+.fv-tabla td.fv-celda-fecha div { margin-top: 2px; }
