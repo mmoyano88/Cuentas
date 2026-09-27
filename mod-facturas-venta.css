@@ -334,6 +334,18 @@
 }
 .fv-modal-pie .boton-principal,
 .fv-modal-pie .boton-secundario { flex: 1; }
+/* Con 3 botones en el pie (Editar, Marcar pagada, Descargar PDF) el
+   texto se envuelve en móvil; se deja crecer en altura en vez de
+   recortarlo (27/09/2026, solo en este pie de 3 botones). */
+.fv-modal-pie:has(> :nth-child(3)) .boton-principal,
+.fv-modal-pie:has(> :nth-child(3)) .boton-secundario {
+  height: auto;
+  min-height: var(--alto-control);
+  padding: 8px 12px;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: center;
+}
 
 /* ---- Ficha de detalle ---- */
 .fv-ficha-dato {

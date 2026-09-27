@@ -700,7 +700,7 @@ function abrirFichaFacturaVenta(id) {
       '<div class="fv-modal-pie">' +
         (activa ? '<button type="button" class="boton-secundario" id="fv-ficha-editar">Editar</button>' : '') +
         (activa && f.estado !== 'pagada'
-          ? '<button type="button" class="boton-secundario" id="fv-ficha-pagada">Marcar como pagada</button>'
+          ? '<button type="button" class="boton-secundario" id="fv-ficha-pagada">Marcar pagada</button>'
           : '') +
         '<button type="button" class="boton-principal" id="fv-ficha-pdf">Descargar PDF</button>' +
       '</div>' +
