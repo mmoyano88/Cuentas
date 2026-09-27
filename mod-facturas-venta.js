@@ -699,6 +699,9 @@ function abrirFichaFacturaVenta(id) {
 
       '<div class="fv-modal-pie">' +
         (activa ? '<button type="button" class="boton-secundario" id="fv-ficha-editar">Editar</button>' : '') +
+        (activa && f.estado !== 'pagada'
+          ? '<button type="button" class="boton-secundario" id="fv-ficha-pagada">Marcar como pagada</button>'
+          : '') +
         '<button type="button" class="boton-principal" id="fv-ficha-pdf">Descargar PDF</button>' +
       '</div>' +
     '</div>';
@@ -717,6 +720,16 @@ function abrirFichaFacturaVenta(id) {
   fondo.querySelector('.fv-modal-cerrar').addEventListener('click', cerrar);
 
   fondo.querySelector('#fv-ficha-pdf').addEventListener('click', function () { pdfDocAbrirFactura(id); });
+  fondo.querySelector('#fv-ficha-pagada')?.addEventListener('click', async function () {
+    await fvCambiarCobro(id);
+    // fvCambiarCobro ya repinta el listado de Facturas si lo hay; si la
+    // ficha se abrió desde el Dashboard, se repinta también el suyo.
+    if (typeof dashRepintarListas === 'function' && typeof vistaActiva !== 'undefined' && vistaActiva === 'dashboard') {
+      dashRepintarListas();
+    }
+    const actualizada = estado.ventas.find(function (x) { return String(x.id) === String(id); });
+    if (actualizada && actualizada.estado === 'pagada') cerrar();
+  });
   fondo.querySelector('#fv-ficha-editar')?.addEventListener('click', function () {
     cerrar();
     abrirFormularioFacturaVenta(id);

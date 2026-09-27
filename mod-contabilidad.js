@@ -151,6 +151,36 @@ function ctConceptoMostrado(a) {
   return a.concepto || '—';
 }
 
+// Concepto limpio, sin el número de factura delante (26/09/2026):
+// para el listado y el Dashboard, donde el número ya no se muestra.
+// En la ficha del apunte el número va en su propio campo, ver
+// ctNumeroFacturaDe().
+function ctConceptoLimpio(a) {
+  if (a.id_factura_venta) {
+    const f = estado.ventas.find(function (x) { return String(x.id) === String(a.id_factura_venta); });
+    if (f) return f.concepto || '—';
+  }
+  if (a.id_factura_compra) {
+    const f = estado.compras.find(function (x) { return String(x.id) === String(a.id_factura_compra); });
+    if (f) return f.concepto || '—';
+  }
+  return a.concepto || '—';
+}
+
+// Número de la factura de la que viene el apunte, o '' si no viene de
+// ninguna. Solo lectura: no calcula nada, muestra el dato tal cual.
+function ctNumeroFacturaDe(a) {
+  if (a.id_factura_venta) {
+    const f = estado.ventas.find(function (x) { return String(x.id) === String(a.id_factura_venta); });
+    return (f && f.numero) || '';
+  }
+  if (a.id_factura_compra) {
+    const f = estado.compras.find(function (x) { return String(x.id) === String(a.id_factura_compra); });
+    return (f && f.numero) || '';
+  }
+  return '';
+}
+
 function ctNombreContacto(a) {
   const c = ctContactoDe(a);
   if (c) return c.nombre_contacto || '—';
@@ -344,7 +374,7 @@ function ctRenderFilaMovil(a) {
   return '<div class="ct-fila" data-id="' + escaparHtml(a.id) + '">' +
     ctCirculoTipo(a, 42) +
     '<div class="ct-info">' +
-      '<p class="ct-nombre">' + escaparHtml(ctConceptoMostrado(a)) + '</p>' +
+      '<p class="ct-nombre">' + escaparHtml(ctConceptoLimpio(a)) + '</p>' +
       '<p class="ct-meta">' + escaparHtml(ctNombreContacto(a)) + ' · ' + escaparHtml(mostrarFecha(a.fecha)) + '</p>' +
     '</div>' +
     '<div class="ct-derecha">' +
@@ -366,7 +396,7 @@ function ctRenderFilaTabla(a) {
     '<td>' + escaparHtml(mostrarFecha(a.fecha)) + '</td>' +
     '<td>' + escaparHtml(ctNombreContacto(a)) + '</td>' +
     '<td class="ct-celda-concepto">' +
-      '<div class="ct-concepto-texto">' + escaparHtml(ctConceptoMostrado(a)) + '</div>' +
+      '<div class="ct-concepto-texto">' + escaparHtml(ctConceptoLimpio(a)) + '</div>' +
       '<div class="ct-concepto-subtitulo">' + (esIngreso ? 'Ingreso' : 'Gasto') + ' · ' + (a.ambito === 'personal' ? 'Personal' : 'Empresa') + '</div>' +
     '</td>' +
     '<td class="ct-celda-derecha">' + escaparHtml(dineroVisible(a.base)) + '</td>' +
@@ -540,7 +570,10 @@ function abrirFichaApunte(id) {
           : ctVieneDeFactura(a)
             ? '<p class="ct-aviso">Este apunte viene de una factura y se actualiza solo. Para cambiarlo, edítalo desde la propia factura.</p>'
             : '') +
-        '<div class="ct-ficha-dato"><span>Concepto</span><span>' + escaparHtml(ctConceptoMostrado(a)) + '</span></div>' +
+        (ctNumeroFacturaDe(a)
+          ? '<div class="ct-ficha-dato"><span>Nº de factura</span><span>' + escaparHtml(ctNumeroFacturaDe(a)) + '</span></div>'
+          : '') +
+        '<div class="ct-ficha-dato"><span>Concepto</span><span>' + escaparHtml(ctConceptoLimpio(a)) + '</span></div>' +
         '<div class="ct-ficha-dato"><span>Contacto</span><span>' + escaparHtml(contacto ? contacto.nombre_contacto : '—') + '</span></div>' +
         '<div class="ct-ficha-dato"><span>Fecha</span><span>' + escaparHtml(mostrarFecha(a.fecha)) + '</span></div>' +
 
@@ -878,7 +911,16 @@ function ctProcesarGuardado(fondo, original, datosSelector) {
   fondo.remove();
 
   guardarRegistro('apuntes', registro, ctRepintarLista, null);
-  pintarContabilidad();
+
+  // Si se abrió desde Contabilidad, lleva ahí (comportamiento de
+  // siempre). Si se abrió desde otro sitio (el botón "+" del Dashboard,
+  // 27/09/2026), se queda donde estaba: solo repinta esa pantalla si
+  // sabe cómo, en vez de cambiar de vista.
+  if (vistaActiva === 'contabilidad' || typeof vistaActiva === 'undefined') {
+    pintarContabilidad();
+  } else if (vistaActiva === 'dashboard' && typeof dashRepintarListas === 'function') {
+    dashRepintarListas();
+  }
 }
 
 // ============================================================

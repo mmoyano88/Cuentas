@@ -629,7 +629,7 @@ function dashFilaApunte(a) {
     ? ctCirculoTipo(a, 32)
     : '<div class="dash-lista-circulo"></div>';
   const nombre = typeof ctNombreContacto === 'function' ? ctNombreContacto(a) : (dashNombreContacto(a.id_contacto) || '—');
-  const concepto = typeof ctConceptoMostrado === 'function' ? ctConceptoMostrado(a) : (a.concepto || '—');
+  const concepto = typeof ctConceptoLimpio === 'function' ? ctConceptoLimpio(a) : (a.concepto || '—');
   return '<button type="button" class="dash-lista-fila" data-apunte="' + escaparHtml(a.id) + '">' +
     circulo +
     '<span class="dash-lista-info">' +
@@ -669,7 +669,10 @@ function dashRepintarListas() {
 
   caja.innerHTML =
     '<section class="dash-lista">' +
-      '<p class="dash-grafico-titulo">' + escaparHtml(tituloApuntes) + '</p>' +
+      '<div class="dash-lista-cabecera">' +
+        '<p class="dash-grafico-titulo">' + escaparHtml(tituloApuntes) + '</p>' +
+        '<button type="button" class="dash-lista-anadir" id="dash-nuevo-apunte" aria-label="Añadir apunte"><i class="ti ti-plus" aria-hidden="true"></i></button>' +
+      '</div>' +
       (apuntes.length
         ? '<div class="dash-lista-filas">' + apuntes.slice(0, DASH_LISTA_MAX).map(dashFilaApunte).join('') + '</div>'
         : '<p class="dash-lista-vacia">Todavía no hay apuntes' + (dashPerspectiva === 'total' ? '' : ' de este tipo') + '.</p>') +
@@ -696,6 +699,10 @@ function dashRepintarListas() {
   });
   document.getElementById('dash-mas-apuntes').addEventListener('click', function () {
     cambiarVista('contabilidad');
+  });
+  document.getElementById('dash-nuevo-apunte').addEventListener('click', function (ev) {
+    ev.stopPropagation();
+    if (typeof abrirFormularioApunte === 'function') abrirFormularioApunte(null);
   });
   document.getElementById('dash-mas-facturas').addEventListener('click', function () {
     if (typeof fvArea !== 'undefined') fvArea = 'ventas';
