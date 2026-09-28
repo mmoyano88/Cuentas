@@ -723,7 +723,7 @@ function abrirFormularioFacturaCompra(id) {
 
       '<div class="fv-modal-pie">' +
         '<button type="button" class="boton-secundario" id="fc-form-cancelar">Cancelar</button>' +
-        '<button type="submit" form="fc-form" class="boton-principal">Guardar factura</button>' +
+        '<button type="submit" form="fc-form" class="boton-principal">Guardar</button>' +
       '</div>' +
     '</div>';
 

@@ -825,7 +825,7 @@ function abrirFichaPresupuesto(id) {
 
       '<div class="pre-modal-pie">' +
         (bloqueado ? '' : '<button type="button" class="boton-secundario" id="pre-ficha-editar">Editar</button>') +
-        '<button type="button" class="boton-principal" id="pre-ficha-pdf">Descargar PDF</button>' +
+        '<button type="button" class="boton-principal" id="pre-ficha-pdf">PDF</button>' +
       '</div>' +
     '</div>';
 
@@ -1077,7 +1077,7 @@ function abrirFormularioPresupuesto(id, prefill) {
 
       '<div class="pre-modal-pie">' +
         '<button type="button" class="boton-secundario" id="pre-form-cancelar">Cancelar</button>' +
-        '<button type="submit" form="pre-form" class="boton-principal" id="pre-form-guardar">Guardar presupuesto</button>' +
+        '<button type="submit" form="pre-form" class="boton-principal" id="pre-form-guardar">Guardar</button>' +
       '</div>' +
     '</div>';
 

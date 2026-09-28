@@ -26,6 +26,16 @@
      - Buscador en píldora con lupa; filtros redondos con puntito rojo.
      - Respuesta al pulsar; ventanas de confirmación y de PIN.
      - PC: cabecera de tabla fija, barras de desplazamiento y selección.
+
+   FASE 3 — botones (al final del archivo):
+     - Botón de cerrar: X blanca en un círculo rojo.
+     - Iconos delante de cada opción de los menús de tres puntos.
+     - Pie de las fichas: Editar como lápiz en un círculo; icono solo
+       donde explica algo (Ver, Pagada).
+     - Panel "Más" por encima de la barra de menú, sin taparla (junto a
+       un cambio pequeño en mod-navegacion.js).
+   Todo se hace con CSS apuntando a clases e identificadores que ya
+   existen: el código de los módulos no cambia.
    ============================================================ */
 
 /* ---------------- Fuente de títulos ---------------- */
@@ -401,5 +411,139 @@ button:active:not(:disabled) {
     position: sticky;
     top: 0;
     z-index: 2;
+  }
+}
+
+/* ============================================================
+   FASE 3 — BOTÓN DE CERRAR: X blanca en un círculo rojo
+   Siempre igual en todas las ventanas, para no confundirlo nunca con
+   borrar (que sigue solo en el menú de tres puntos y con PIN).
+   ============================================================ */
+
+.fv-modal-cerrar, .pre-modal-cerrar, .cli-modal-cerrar, .ct-modal-cerrar, .selector-icono-cerrar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--rojo);
+  color: #FFFFFF;
+  font-size: 18px;
+}
+.fv-modal-cerrar:hover, .pre-modal-cerrar:hover, .cli-modal-cerrar:hover,
+.ct-modal-cerrar:hover, .selector-icono-cerrar:hover {
+  background: #B72828;
+  color: #FFFFFF;
+}
+.fv-modal-cerrar i, .pre-modal-cerrar i, .cli-modal-cerrar i, .ct-modal-cerrar i, .selector-icono-cerrar i {
+  font-size: 18px;
+}
+
+/* ============================================================
+   ICONOS EN LOS MENÚS DE TRES PUNTOS
+   Cada opción lleva delante el mismo icono en todos los módulos. Se
+   elige por la acción de cada botón (data-accion), que ya existe.
+   ============================================================ */
+
+[class$="-menu-mas"] button[data-accion]::before {
+  display: inline-block;
+  width: 18px;
+  margin-right: 10px;
+  font-family: 'tabler-icons';
+  font-size: 17px;
+  line-height: 1;
+  text-align: center;
+  vertical-align: -3px;
+}
+[class$="-menu-mas"] button[data-accion="reintentar"]::before  { content: '\eb13'; } /* refresh */
+[class$="-menu-mas"] button[data-accion="editar"]::before      { content: '\eb04'; } /* lápiz */
+[class$="-menu-mas"] button[data-accion="cobro"]::before,
+[class$="-menu-mas"] button[data-accion="pago"]::before        { content: '\ea67'; } /* check */
+[class$="-menu-mas"] button[data-accion="pdf"]::before         { content: '\ea9d'; } /* descargar */
+[class$="-menu-mas"] button[data-accion="plantilla"]::before   { content: '\eef7'; } /* plantillas */
+[class$="-menu-mas"] button[data-accion="desactivar"]::before  { content: '\ee40'; } /* desactivar */
+[class$="-menu-mas"] button[data-accion="reactivar"]::before   { content: '\fafd'; } /* reactivar */
+[class$="-menu-mas"] button[data-accion="eliminar"]::before    { content: '\eb41'; } /* papelera */
+[class$="-menu-mas"] button[data-accion="duplicar"]::before    { content: '\ea7a'; } /* copiar */
+[class$="-menu-mas"] button[data-accion="estado"]::before      { content: '\f3b0'; } /* cambiar estado */
+[class$="-menu-mas"] button[data-accion="factura"]::before,
+[class$="-menu-mas"] button[data-accion="convertir"]::before   { content: '\eb67'; } /* a factura */
+[class$="-menu-mas"] button[data-accion="usar"]::before        { content: '\eaa0'; } /* crear desde plantilla */
+[class$="-menu-mas"] button[data-accion="verfactura"]::before  { content: '\fd68'; } /* ver factura */
+[class$="-menu-mas"] button[data-accion="verimpuesto"]::before { content: '\ebe2'; } /* ver impuesto */
+
+/* ============================================================
+   PIE DE LAS FICHAS
+   "Editar" pasa a ser un lápiz en un círculo (el texto se queda para
+   los lectores de pantalla). Cada botón cabe en UNA línea: textos de una
+   o dos palabras (28/09/2026). Cancelar y Guardar, sin icono.
+   ============================================================ */
+
+#fv-ficha-editar, #pre-ficha-editar, #cli-ficha-editar, #pl-usar-editar,
+#ct-ficha-editar.boton-secundario {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#fv-ficha-editar::before, #pre-ficha-editar::before, #cli-ficha-editar::before, #pl-usar-editar::before,
+#ct-ficha-editar.boton-secundario::before {
+  content: '\eb04';
+  font-family: 'tabler-icons';
+  font-size: 20px;
+  line-height: 1;
+}
+
+/* Iconos en el pie SOLO donde explican algo (28/09/2026): "Ver" lleva el
+   icono de la sección a la que lleva (el mismo del menú) y "Pagada" el
+   check. Donde el texto ya lo dice todo (PDF, Nuevo presupuesto,
+   Crear..., Convertir en factura) no se pone icono. */
+#ct-ficha-verimpuesto::before, #ct-ficha-verfactura::before, #fv-ficha-pagada::before {
+  font-family: 'tabler-icons';
+  font-size: 18px;
+  line-height: 1;
+  margin-right: 8px;
+  vertical-align: -3px;
+}
+#ct-ficha-verimpuesto::before { content: '\ebe2'; }   /* Impuestos */
+#ct-ficha-verfactura::before { content: '\fd68'; }    /* Facturas */
+#fv-ficha-pagada::before { content: '\ea67'; }        /* check */
+
+/* ============================================================
+   PANEL "MÁS" (móvil): se abre por ENCIMA de la barra de menú, que
+   queda siempre visible y a mano. Mientras está abierto, la marca roja
+   pasa a "Más". (El cierre al pulsar otra sección y el abrir/cerrar de
+   "Más" van en mod-navegacion.js.)
+   ============================================================ */
+
+@media (max-width: 899px) {
+  #nav-movil { z-index: 35; }            /* por encima del panel (30) */
+  #panel-mas .panel-mas-hoja {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+  #app:has(#panel-mas.abierto) #nav-movil .nav-item.activa { color: rgba(255, 255, 255, .7); }
+  #app:has(#panel-mas.abierto) #nav-movil .nav-item.activa::before { display: none; }
+  #app:has(#panel-mas.abierto) #nav-movil #btn-mas { color: #FFFFFF; }
+  #app:has(#panel-mas.abierto) #nav-movil #btn-mas::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    width: 28px;
+    height: 3px;
+    margin-left: -14px;
+    border-radius: 0 0 3px 3px;
+    background: var(--rojo);
+    display: block;
   }
 }

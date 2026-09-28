@@ -700,9 +700,9 @@ function abrirFichaFacturaVenta(id) {
       '<div class="fv-modal-pie">' +
         (activa ? '<button type="button" class="boton-secundario" id="fv-ficha-editar">Editar</button>' : '') +
         (activa && f.estado !== 'pagada'
-          ? '<button type="button" class="boton-secundario" id="fv-ficha-pagada">Marcar pagada</button>'
+          ? '<button type="button" class="boton-secundario" id="fv-ficha-pagada">Pagada</button>'
           : '') +
-        '<button type="button" class="boton-principal" id="fv-ficha-pdf">Descargar PDF</button>' +
+        '<button type="button" class="boton-principal" id="fv-ficha-pdf">PDF</button>' +
       '</div>' +
     '</div>';
 
@@ -960,7 +960,7 @@ function abrirFormularioFacturaVenta(id, prefill) {
 
       '<div class="fv-modal-pie">' +
         '<button type="button" class="boton-secundario" id="fv-form-cancelar">Cancelar</button>' +
-        '<button type="submit" form="fv-form" class="boton-principal" id="fv-form-guardar">Guardar factura</button>' +
+        '<button type="submit" form="fv-form" class="boton-principal" id="fv-form-guardar">Guardar</button>' +
       '</div>' +
     '</div>';
 

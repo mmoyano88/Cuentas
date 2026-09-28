@@ -593,9 +593,9 @@ function abrirFichaApunte(id) {
 
       '<div class="ct-modal-pie">' +
         (ctVieneDeImpuesto(a)
-          ? '<button type="button" class="boton-principal" id="ct-ficha-verimpuesto">Ver en Impuestos</button>'
+          ? '<button type="button" class="boton-principal" id="ct-ficha-verimpuesto">Ver</button>'
           : ctVieneDeFactura(a)
-            ? '<button type="button" class="boton-principal" id="ct-ficha-verfactura">Ver factura</button>'
+            ? '<button type="button" class="boton-principal" id="ct-ficha-verfactura">Ver</button>'
             : ctEsConvertible(a)
               ? '<button type="button" class="boton-secundario" id="ct-ficha-editar">Editar</button>' +
                 '<button type="button" class="boton-principal" id="ct-ficha-convertir">Convertir en factura</button>'
