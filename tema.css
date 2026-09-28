@@ -38,8 +38,8 @@
    existen: el código de los módulos no cambia.
 
    FASE 4 — pantallas clave (al final del archivo):
-     - Formularios: el resumen de totales y los botones forman una barra
-       oscura fija abajo; el total se ve siempre.
+     - Resumen económico (formularios y fichas) en tarjeta oscura, en su
+       sitio de siempre (no fija).
      - Impuestos: el plazo y el pago del trimestre se juntan en una
        tarjeta destacada arriba: negra, o roja si quedan 7 días o menos
        o se ha pasado el plazo.
@@ -573,85 +573,64 @@ button:active:not(:disabled) {
 }
 
 /* ============================================================
-   FASE 4 — BARRA OSCURA DEL TOTAL EN LOS FORMULARIOS
-   El resumen de totales (que ya se recalcula en vivo) se queda pegado
-   abajo mientras se rellena el formulario, y junto con los botones de
-   Cancelar/Guardar forma una sola barra oscura. El total va en blanco:
-   el rojo sobre negro se lee peor, y el rojo queda en el botón Guardar.
-   Formularios: factura de venta, de compra, presupuesto, apunte y
-   conversor de apunte a factura.
+   FASE 4 — RESUMEN ECONÓMICO EN TARJETA OSCURA
+   (Cambiado el 28/09/2026 a petición del propietario: la barra ya NO va
+   fija abajo; el resumen se queda en su sitio, al final, como siempre.)
+   Mismo aspecto en los formularios (factura de venta y de compra,
+   presupuesto, apunte y conversor) y en las fichas: tarjeta negra, texto
+   blanco y el total grande en blanco. El rojo del formulario queda en el
+   botón Guardar.
+   Se reconoce el bloque por llevar dentro la línea del TOTAL.
    ============================================================ */
 
-#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales {
-  position: sticky;
-  bottom: -16px;             /* hasta el borde, tapando el relleno del cuerpo */
-  z-index: 2;
-  margin: 14px -20px -16px;
-  padding: 14px 20px 12px;
-  border-radius: 18px 18px 0 0;
+.fv-bloque:has(> .fv-total-final),
+.pre-bloque:has(> .pre-total-final),
+.ct-bloque:has(> .ct-total-final) {
   background: var(--banda);
   color: #FFFFFF;
 }
 
-/* Con el teclado del móvil abierto la pantalla se queda baja: el
-   resumen deja de ir pegado para no quitar sitio a los campos (sigue
-   estando al final del formulario, con el mismo aspecto). */
-@media (max-height: 620px) {
-  #fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales { position: static; }
+.fv-bloque:has(> .fv-total-final) .fv-bloque-titulo,
+.pre-bloque:has(> .pre-total-final) .pre-bloque-titulo,
+.ct-bloque:has(> .ct-total-final) .ct-bloque-titulo {
+  color: rgba(255, 255, 255, .75);
 }
 
-#fv-totales .fv-bloque-titulo, #fc-totales .fv-bloque-titulo,
-#pre-totales .pre-bloque-titulo, #ct-totales .ct-bloque-titulo, #ct-conv-totales .ct-bloque-titulo {
-  display: none;
+.fv-bloque:has(> .fv-total-final) .fv-linea,
+.pre-bloque:has(> .pre-total-final) .pre-linea,
+.ct-bloque:has(> .ct-total-final) .ct-linea {
+  color: rgba(255, 255, 255, .65);
+}
+.fv-bloque:has(> .fv-total-final) .fv-linea strong,
+.pre-bloque:has(> .pre-total-final) .pre-linea strong,
+.ct-bloque:has(> .ct-total-final) .ct-linea strong {
+  color: #FFFFFF;
+}
+.fv-bloque:has(> .fv-total-final) .fv-linea.destacada,
+.pre-bloque:has(> .pre-total-final) .pre-linea.destacada {
+  color: #FFFFFF;
+  border-top-color: rgba(255, 255, 255, .14);
 }
 
-#fv-totales .fv-linea, #fc-totales .fv-linea, #pre-totales .pre-linea,
-#ct-totales .ct-linea, #ct-conv-totales .ct-linea {
-  font-size: 11px;
-  padding: 1px 0;
-  margin: 0;
-  border: none;
-  color: rgba(255, 255, 255, .6);
-}
-#fv-totales .fv-linea strong, #fc-totales .fv-linea strong, #pre-totales .pre-linea strong,
-#ct-totales .ct-linea strong, #ct-conv-totales .ct-linea strong {
-  color: rgba(255, 255, 255, .9);
-}
-
-#fv-totales .fv-total-final, #fc-totales .fv-total-final, #pre-totales .pre-total-final,
-#ct-totales .ct-total-final, #ct-conv-totales .ct-total-final {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, .14);
+.fv-bloque:has(> .fv-total-final) .fv-total-final,
+.pre-bloque:has(> .pre-total-final) .pre-total-final,
+.ct-bloque:has(> .ct-total-final) .ct-total-final {
+  border-top-color: rgba(255, 255, 255, .14);
   align-items: center;
 }
-#fv-totales .fv-total-final span, #fc-totales .fv-total-final span, #pre-totales .pre-total-final span,
-#ct-totales .ct-total-final span, #ct-conv-totales .ct-total-final span {
+.fv-bloque:has(> .fv-total-final) .fv-total-final span,
+.pre-bloque:has(> .pre-total-final) .pre-total-final span,
+.ct-bloque:has(> .ct-total-final) .ct-total-final span {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .09em;
-  color: rgba(255, 255, 255, .7);
+  color: rgba(255, 255, 255, .75);
 }
-#fv-totales .fv-total-final strong, #fc-totales .fv-total-final strong, #pre-totales .pre-total-final strong,
-#ct-totales .ct-total-final strong, #ct-conv-totales .ct-total-final strong {
+.fv-bloque:has(> .fv-total-final) .fv-total-final strong,
+.pre-bloque:has(> .pre-total-final) .pre-total-final strong,
+.ct-bloque:has(> .ct-total-final) .ct-total-final strong {
   font-size: 26px;
   color: #FFFFFF;
-}
-
-/* El pie de esos formularios, oscuro y sin línea, pegado al resumen. */
-[class*="-modal-cuerpo"]:has(#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales) + [class*="-modal-pie"] {
-  background: var(--banda);
-  border-top: none;
-}
-[class*="-modal-cuerpo"]:has(#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales) + [class*="-modal-pie"] .boton-secundario {
-  background: transparent;
-  color: #FFFFFF;
-  border-color: rgba(255, 255, 255, .3);
-}
-@media (hover: hover) {
-  [class*="-modal-cuerpo"]:has(#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales) + [class*="-modal-pie"] .boton-secundario:hover {
-    background: rgba(255, 255, 255, .1);
-  }
 }
 
 /* ============================================================

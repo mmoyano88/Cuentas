@@ -360,8 +360,8 @@ function ctRepintarLista() {
 
   // Separación por meses (rediseño, 28/09/2026): solo cuando la lista
   // va ordenada por fecha. Antes del primer apunte de cada mes se pinta
-  // su etiqueta ("Septiembre 2026") con lo que suman los ingresos y los
-  // gastos de ese mes QUE SE ESTÁN VIENDO (respeta búsqueda y filtros).
+  // su etiqueta ("Septiembre 2026") con el total del mes (ingresos menos
+  // gastos) de los apuntes QUE SE ESTÁN VIENDO (respeta búsqueda y filtros).
   // Es solo una ayuda de lectura: no cambia ningún dato ni cálculo.
   const porMeses = String(ctOrden).indexOf('fecha') === 0;
   const resumen = porMeses ? ctResumenMeses(lista) : {};
@@ -421,10 +421,13 @@ function ctHtmlMes(mes, suma, como) {
   const partes = String(mes || '').split('-');
   const n = parseInt(partes[1], 10);
   const nombre = (n >= 1 && n <= 12) ? CT_MESES[n - 1] + ' ' + partes[0] : 'Sin fecha';
+  // Una sola cifra: el total real del mes, ingresos menos gastos
+  // (decisión del propietario, 28/09/2026). Verde si queda en positivo,
+  // rojo si en negativo.
   const s = suma || { ingresos: 0, gastos: 0 };
-  const cifras =
-    (s.ingresos > 0 ? '<span class="ingreso">+' + escaparHtml(dineroVisible(s.ingresos)) + '</span>' : '') +
-    (s.gastos > 0 ? '<span class="gasto">−' + escaparHtml(dineroVisible(s.gastos)) + '</span>' : '');
+  const neto = roundMoney(s.ingresos - s.gastos);
+  const cifras = '<span class="' + (neto < 0 ? 'gasto' : 'ingreso') + '">' +
+    (neto < 0 ? '−' : '+') + escaparHtml(dineroVisible(Math.abs(neto))) + '</span>';
   const dentro = '<span class="ct-mes-nombre">' + escaparHtml(nombre) + '</span>' +
     '<span class="ct-mes-cifras">' + cifras + '</span>';
   return como === 'tr'
