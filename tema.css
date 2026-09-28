@@ -1049,11 +1049,31 @@ button:active:not(:disabled) {
   #contenido .inf-carrusel > .inf-resumen-trimestre.centrada { transform: none; opacity: 1; }
 }
 
-/* PC: sin carrusel. Arriba la tarjeta del año a todo el ancho, debajo
-   los cuatro trimestres en fila con aire entre ellos, y luego Descargar,
-   347 y Revisión en dos columnas. */
+/* PC: sin carrusel. Los cuatro trimestres en fila con aire entre ellos,
+   debajo la tarjeta del año a todo el ancho, y luego Descargar, 347 y
+   Revisión en dos columnas. */
 @media (min-width: 900px) {
-  #contenido .inf-anual-tarjeta { order: -1; padding: 18px 22px; margin-bottom: 14px; }
+  /* Tarjeta del año DEBAJO de los trimestres (igual que en el móvil) y
+     repartida a lo ancho: a la izquierda el año, los trimestres cerrados
+     y la barra; a la derecha lo pagado y lo estimado. Queda más baja. */
+  #contenido .inf-anual-tarjeta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 40px;
+    align-items: center;
+    padding: 18px 24px;
+  }
+  #contenido .inf-anual-cabecera { grid-column: 1; grid-row: 1; justify-content: flex-start; gap: 16px; }
+  #contenido .inf-tramos { grid-column: 1; grid-row: 2; margin: 12px 0 0; }
+  #contenido .inf-anual-cifras {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    gap: 40px;
+    align-items: flex-end;
+  }
+  #contenido .inf-anual-cifras .derecha { text-align: left; }
+  #contenido .inf-anual-cifras strong { font-size: 20px; }
   #contenido .inf-anual-cifras strong.grande { font-size: 30px; }
   #contenido .inf-carrusel {
     display: grid;

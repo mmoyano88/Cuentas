@@ -651,7 +651,7 @@ function pintarInformes() {
 
     '<p class="inf-nota-cabecera">Resumen de los impuestos de ' + infAnio + '. El detalle de cada trimestre está en la pestaña Impuestos.</p>' +
 
-    infResumenPantallaHtml(resumen) +
+    infResumenPantallaHtml(resumen, infAnio) +
 
     '<div class="inf-descarga">' +
       '<p class="inf-descarga-titulo">Descargar un informe</p>' +
@@ -688,6 +688,8 @@ function pintarInformes() {
     inf347Html(infAnio) +
     (typeof revHtml === 'function' ? revHtml(infAnio) : '');
 
+  infPrepararCarrusel(zona);
+
   document.getElementById('inf-anio').addEventListener('change', function (ev) {
     infAnio = parseInt(ev.target.value, 10);
     pintarInformes();
@@ -714,7 +716,7 @@ function pintarInformes() {
   zona.querySelector('#inf-btn-excel').addEventListener('click', infDescargarExcel);
 }
 
-function infResumenPantallaHtml(resumen) {
+function infResumenPantallaHtml(resumen, anio) {
   // Cada trimestre muestra el estimado Y el real, para poder
   // compararlos de un vistazo (petición del propietario, 05/09/2026).
   // Si aún no está pagado, el real se muestra como «—» en vez de un
@@ -742,24 +744,118 @@ function infResumenPantallaHtml(resumen) {
     '</div>';
   };
 
+  // Rediseño (28/09/2026): cada trimestre es una tarjeta, con su nombre
+  // en grande y una pastilla de estado. En el móvil las cuatro tarjetas
+  // van en un carrusel que se desliza de lado (la del trimestre que toca
+  // pagar sale en el centro, con borde negro); en PC van en una fila.
+  // Encima, una tarjeta oscura con el resumen del año. Ningún cálculo
+  // cambia: se enseñan las mismas cifras que antes.
+  const destacado = infTrimestreDestacado(anio);
+  const etiquetas = { pagado: 'Pagado', pendiente: 'Pendiente', curso: 'En curso', futuro: 'Más adelante' };
+  const clasesPastilla = { pagado: 'ind-verde', pendiente: 'ind-ambar', curso: 'ind-azul', futuro: 'inf-pastilla-gris' };
+
   const filaTrimestre = function (f) {
-    return '<div class="inf-resumen-trimestre">' +
-      '<p class="inf-resumen-trimestre-titulo">' + f.trimestre + '</p>' +
+    const est = infEstadoTrimestre(anio, f);
+    return '<div class="inf-resumen-trimestre' + (f.trimestre === destacado ? ' destacado' : '') + '" data-trimestre="' + f.trimestre + '">' +
+      '<div class="inf-trimestre-cabecera">' +
+        '<p class="inf-resumen-trimestre-titulo">' + f.trimestre + ' <small>' + anio + '</small></p>' +
+        '<span class="pastilla ' + clasesPastilla[est] + '">' + etiquetas[est] + '</span>' +
+      '</div>' +
       bloque('IVA', f.ivaEstimado, f.ivaReal, f.ivaPagado, f.ivaGuardado, f.ivaDesfasado) +
       bloque('IRPF', f.irpfEstimado, f.irpfReal, f.irpfPagado, f.irpfGuardado, f.irpfDesfasado) +
     '</div>';
   };
 
+  const cerrados = 4 - resumen.trimestresPendientes;
+  const tramos = resumen.filas.map(function (f) {
+    return '<span class="inf-tramo ' + infEstadoTrimestre(anio, f) + '"></span>';
+  }).join('');
+
   return '<div class="inf-resumen-anual">' +
-    '<div class="inf-resumen-trimestres">' + resumen.filas.map(filaTrimestre).join('') + '</div>' +
-    '<div class="inf-resumen-total">' +
-      '<div class="inf-resumen-total-linea"><span>Pagado en el año</span><strong>' + escaparHtml(dineroVisible(resumen.totalPagado)) + '</strong></div>' +
-      '<div class="inf-resumen-total-linea"><span>Estimado total del año</span><strong>' + escaparHtml(dineroVisible(resumen.totalEstimado)) + '</strong></div>' +
-      (resumen.trimestresPendientes > 0
-        ? '<p class="inf-resumen-pendiente">' + resumen.trimestresPendientes + ' de 4 trimestres pendientes de cerrar</p>'
-        : '<p class="inf-resumen-pendiente ok">Los 4 trimestres del año están cerrados</p>') +
+    '<div class="inf-carrusel" id="inf-carrusel">' + resumen.filas.map(filaTrimestre).join('') + '</div>' +
+    '<div class="inf-puntos" id="inf-puntos" aria-hidden="true">' +
+      resumen.filas.map(function () { return '<span></span>'; }).join('') +
+    '</div>' +
+    '<div class="inf-anual-tarjeta">' +
+      '<div class="inf-anual-cabecera">' +
+        '<span class="inf-anual-titulo">Año ' + anio + '</span>' +
+        '<span class="inf-anual-cerrados">' +
+          (cerrados === 4 ? 'Los 4 trimestres cerrados' : cerrados + ' de 4 trimestres cerrados') +
+        '</span>' +
+      '</div>' +
+      '<div class="inf-tramos">' + tramos + '</div>' +
+      '<div class="inf-anual-cifras">' +
+        '<div><small>Pagado en el año</small><strong class="grande">' + escaparHtml(dineroVisible(resumen.totalPagado)) + '</strong></div>' +
+        '<div class="derecha"><small>Estimado del año</small><strong>' + escaparHtml(dineroVisible(resumen.totalEstimado)) + '</strong></div>' +
+      '</div>' +
     '</div>' +
   '</div>';
+}
+
+// Estado de un trimestre para su pastilla y su tramo de la barra:
+//   pagado    → IVA e IRPF marcados como pagados
+//   pendiente → el trimestre ya terminó y falta algo por pagar
+//   curso     → es el trimestre en el que estamos
+//   futuro    → todavía no ha empezado
+function infEstadoTrimestre(anio, f) {
+  if (f.ivaPagado && f.irpfPagado) return 'pagado';
+  const hoy = fechaHoyISO();
+  const anioHoy = parseInt(String(hoy).slice(0, 4), 10);
+  const idxHoy = IMP_TRIMESTRES.indexOf(fvTrimestreDeFecha(hoy));
+  const idx = IMP_TRIMESTRES.indexOf(f.trimestre);
+  if (anio < anioHoy || (anio === anioHoy && idx < idxHoy)) return 'pendiente';
+  if (anio === anioHoy && idx === idxHoy) return 'curso';
+  return 'futuro';
+}
+
+// Trimestre que se pone en el centro del carrusel: el que toca pagar
+// (el mismo con el que se abre la pestaña Impuestos) si es de este año;
+// si no, el trimestre en curso; y en años pasados, el último.
+function infTrimestreDestacado(anio) {
+  if (typeof impProximoPago === 'function') {
+    const p = impProximoPago();
+    if (p && p.anio === anio) return p.trimestre;
+  }
+  const hoy = fechaHoyISO();
+  if (parseInt(String(hoy).slice(0, 4), 10) === anio) return fvTrimestreDeFecha(hoy);
+  return IMP_TRIMESTRES[IMP_TRIMESTRES.length - 1];
+}
+
+// Carrusel del móvil: al abrir, centra el trimestre destacado; al
+// deslizar, marca la tarjeta del centro y el punto que le corresponde.
+// En PC las tarjetas no se deslizan (van en fila) y esto no hace nada
+// visible.
+function infPrepararCarrusel(zona) {
+  const carrusel = zona.querySelector('#inf-carrusel');
+  const puntos = zona.querySelector('#inf-puntos');
+  if (!carrusel) return;
+  const tarjetas = Array.prototype.slice.call(carrusel.children);
+
+  function marcar() {
+    const centro = carrusel.scrollLeft + carrusel.clientWidth / 2;
+    let mejor = 0;
+    let distancia = Infinity;
+    tarjetas.forEach(function (t, i) {
+      const d = Math.abs(t.offsetLeft + t.offsetWidth / 2 - centro);
+      if (d < distancia) { distancia = d; mejor = i; }
+    });
+    tarjetas.forEach(function (t, i) { t.classList.toggle('centrada', i === mejor); });
+    if (puntos) {
+      Array.prototype.forEach.call(puntos.children, function (p, i) { p.classList.toggle('activo', i === mejor); });
+    }
+  }
+
+  const destacada = carrusel.querySelector('.destacado') || tarjetas[0];
+  if (destacada) {
+    carrusel.scrollLeft = destacada.offsetLeft - (carrusel.clientWidth - destacada.offsetWidth) / 2;
+  }
+  marcar();
+  let pendiente = false;
+  carrusel.addEventListener('scroll', function () {
+    if (pendiente) return;
+    pendiente = true;
+    requestAnimationFrame(function () { pendiente = false; marcar(); });
+  });
 }
 
 // ============================================================
