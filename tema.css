@@ -43,6 +43,12 @@
      - Impuestos: el plazo y el pago del trimestre se juntan en una
        tarjeta destacada arriba: negra, o roja si quedan 7 días o menos
        o se ha pasado el plazo.
+
+   FASE 5 — listas (al final del archivo):
+     - Contabilidad separada por meses (la etiqueta del mes se queda fija
+       arriba en el móvil; en PC es una fila separadora de la tabla).
+     - Tarjetas de Plantillas con la cabecera del color de su categoría.
+     - Pantallas vacías con el icono de la sección.
    ============================================================ */
 
 /* ---------------- Fuente de títulos ---------------- */
@@ -265,6 +271,17 @@
   #contenido > .pre-cabecera-lista,
   #contenido > .imp-cabecera-seccion {
     margin: -78px 24px 40px; /* 20 + 20 + 38; y a 24 de los lados, como el título */
+  }
+  /* Contabilidad no tiene selector, pero en PC su botón "+" va en una
+     fila propia: sube también a la banda, como en las demás pantallas.
+     (En el móvil ese botón flota abajo y la fila no ocupa sitio, así
+     que allí no se toca.) */
+  #contenido > .ct-cabecera-lista {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    justify-content: flex-end;
+    margin: -78px 24px 40px;
   }
 }
 
@@ -699,3 +716,122 @@ button:active:not(:disabled) {
   color: rgba(255, 255, 255, .8);
   background: none;
 }
+
+/* ============================================================
+   FASE 5 — CONTABILIDAD SEPARADA POR MESES
+   Las etiquetas las pinta mod-contabilidad.js (solo si la lista va
+   ordenada por fecha). Aquí, su aspecto.
+   ============================================================ */
+
+.ct-mes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+.ct-mes-nombre {
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #5A5A57;
+  white-space: nowrap;
+}
+.ct-mes-nombre::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 2px;
+  background: var(--rojo);
+  vertical-align: -1px;
+}
+.ct-mes-cifras {
+  display: flex;
+  gap: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ct-mes-cifras .ingreso { color: var(--verde-texto); }
+.ct-mes-cifras .gasto { color: var(--rojo-texto); }
+
+/* Móvil: la etiqueta del mes se queda fija arriba mientras se recorre
+   ese mes, hasta que la sustituye la del siguiente. */
+.ct-lista-movil > .ct-mes {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 6px -4px 0;
+  padding: 10px 4px 6px;
+  background: var(--fondo);
+}
+.ct-lista-movil > .ct-mes:first-child { margin-top: 0; }
+
+/* PC: fila separadora dentro de la tabla, sin repetir la cabecera. */
+.ct-tabla tr.ct-mes-fila td {
+  padding: 16px 14px 8px;
+  background: var(--fondo);
+  border-bottom: none;
+}
+.ct-tabla tr.ct-mes-fila:hover td { background: var(--fondo); }
+
+/* ============================================================
+   FASE 5 — PLANTILLAS: CABECERA DEL COLOR DE SU CATEGORÍA
+   mod-plantillas.js pone el color en la variable --cat de cada tarjeta.
+   ============================================================ */
+
+.pl-tarjeta[style*="--cat"] { overflow: hidden; }
+.pl-tarjeta[style*="--cat"] > .pl-tarjeta-cabecera {
+  margin: -14px -16px 2px;
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--cat) 13%, #FFFFFF);
+}
+#contenido .pl-tarjeta-apunte[style*="--cat"] > .pl-tarjeta-cabecera {
+  margin: -12px -16px 6px;
+}
+.pl-categoria {
+  margin: 0 0 1px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--cat, var(--texto-secundario));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl-titulo {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+}
+.pl-precio {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+}
+
+/* ============================================================
+   FASE 5 — PANTALLAS VACÍAS
+   Encima del mensaje de siempre, el icono de la sección en un círculo
+   gris. Mismo icono que en el menú.
+   ============================================================ */
+
+.fv-vacio::before, .pre-vacio::before, .cli-vacio::before, .ct-vacio::before {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: var(--gris-neutro);
+  color: #8A8A86;
+  font-family: 'tabler-icons';
+  font-size: 38px;
+  line-height: 1;
+}
+.fv-vacio::before { content: '\fd68'; }                     /* Facturas */
+.pre-vacio::before { content: '\eaa2'; }                    /* Presupuestos */
+#app:has(#pl-selector) .pre-vacio::before { content: '\eef7'; } /* Plantillas */
+.cli-vacio::before { content: '\ebf2'; }                    /* Clientes */
+.ct-vacio::before { content: '\f65d'; }                     /* Contabilidad */

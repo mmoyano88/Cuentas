@@ -348,10 +348,18 @@ function plTarjetaHtml(tipo, pl) {
   const esGasto = tipo === 'apunte' && pl.tipo !== 'ingreso';
   const clasePrecio = tipo === 'apunte' ? (esGasto ? ' gasto' : ' ingreso') : '';
 
-  return '<div class="pl-tarjeta' + (tipo === 'apunte' ? ' pl-tarjeta-apunte' : '') + '" data-id="' + escaparHtml(pl.id) + '">' +
+  // Cabecera de color (rediseño, 28/09/2026): la tarjeta lleva el color
+  // de la categoría de su icono (el mismo del círculo) y el nombre de la
+  // categoría en pequeño. El color de la cabecera lo pone tema.css.
+  const cat = typeof buscarIconoPlantilla === 'function' ? buscarIconoPlantilla(pl.icono) : null;
+  const colorCat = typeof colorIconoPlantilla === 'function' ? colorIconoPlantilla(pl.icono) : '';
+
+  return '<div class="pl-tarjeta' + (tipo === 'apunte' ? ' pl-tarjeta-apunte' : '') + '" data-id="' + escaparHtml(pl.id) + '"' +
+      (colorCat ? ' style="--cat:' + escaparHtml(colorCat) + '"' : '') + '>' +
     '<div class="pl-tarjeta-cabecera">' +
       htmlIconoPlantilla(pl.icono, 52) +
       '<div class="pl-tarjeta-titulos">' +
+        (cat ? '<p class="pl-categoria">' + escaparHtml(cat.categoria.nombre) + '</p>' : '') +
         '<p class="pl-titulo">' + escaparHtml(pl.nombre || 'Sin nombre') + '</p>' +
         (contacto ? '<p class="pl-contacto">' + escaparHtml(contacto) + '</p>' : '') +
       '</div>' +

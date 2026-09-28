@@ -358,15 +358,78 @@ function ctRepintarLista() {
     return;
   }
 
+  // Separación por meses (rediseño, 28/09/2026): solo cuando la lista
+  // va ordenada por fecha. Antes del primer apunte de cada mes se pinta
+  // su etiqueta ("Septiembre 2026") con lo que suman los ingresos y los
+  // gastos de ese mes QUE SE ESTÁN VIENDO (respeta búsqueda y filtros).
+  // Es solo una ayuda de lectura: no cambia ningún dato ni cálculo.
+  const porMeses = String(ctOrden).indexOf('fecha') === 0;
+  const resumen = porMeses ? ctResumenMeses(lista) : {};
+  let movil = '';
+  let filas = '';
+  let mesAnterior = null;
+  lista.forEach(function (a) {
+    if (porMeses) {
+      const mes = normalizarFecha(a.fecha).slice(0, 7);
+      if (mes !== mesAnterior) {
+        mesAnterior = mes;
+        movil += ctHtmlMes(mes, resumen[mes], 'div');
+        filas += ctHtmlMes(mes, resumen[mes], 'tr');
+      }
+    }
+    movil += ctRenderFilaMovil(a);
+    filas += ctRenderFilaTabla(a);
+  });
+
   contenedor.innerHTML =
-    '<div class="ct-lista-movil">' + lista.map(ctRenderFilaMovil).join('') + '</div>' +
+    '<div class="ct-lista-movil">' + movil + '</div>' +
     '<div class="ct-tabla-wrap"><table class="ct-tabla"><thead><tr>' +
       '<th></th><th>Fecha</th><th>Contacto</th><th>Concepto</th>' +
       '<th class="ct-celda-derecha">Base</th><th class="ct-celda-derecha">IVA</th>' +
       '<th class="ct-celda-derecha">IRPF</th><th class="ct-celda-derecha">Total</th><th></th>' +
-    '</tr></thead><tbody>' + lista.map(ctRenderFilaTabla).join('') + '</tbody></table></div>';
+    '</tr></thead><tbody>' + filas + '</tbody></table></div>';
 
   ctCablearFilas(contenedor);
+}
+
+// ---- Separación por meses (28/09/2026) ----
+
+const CT_MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+  'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+// Suma, por mes (AAAA-MM), el total de los ingresos y de los gastos de
+// la lista que se está viendo.
+function ctResumenMeses(lista) {
+  const r = {};
+  lista.forEach(function (a) {
+    const mes = normalizarFecha(a.fecha).slice(0, 7);
+    if (!r[mes]) r[mes] = { ingresos: 0, gastos: 0 };
+    if (a.tipo === 'ingreso') r[mes].ingresos += parsearNumero(a.total);
+    else r[mes].gastos += parsearNumero(a.total);
+  });
+  Object.keys(r).forEach(function (k) {
+    r[k].ingresos = roundMoney(r[k].ingresos);
+    r[k].gastos = roundMoney(r[k].gastos);
+  });
+  return r;
+}
+
+// Etiqueta de un mes: en móvil un bloque entre las tarjetas; en PC una
+// fila separadora dentro de la tabla (la cabecera de la tabla no se
+// repite).
+function ctHtmlMes(mes, suma, como) {
+  const partes = String(mes || '').split('-');
+  const n = parseInt(partes[1], 10);
+  const nombre = (n >= 1 && n <= 12) ? CT_MESES[n - 1] + ' ' + partes[0] : 'Sin fecha';
+  const s = suma || { ingresos: 0, gastos: 0 };
+  const cifras =
+    (s.ingresos > 0 ? '<span class="ingreso">+' + escaparHtml(dineroVisible(s.ingresos)) + '</span>' : '') +
+    (s.gastos > 0 ? '<span class="gasto">−' + escaparHtml(dineroVisible(s.gastos)) + '</span>' : '');
+  const dentro = '<span class="ct-mes-nombre">' + escaparHtml(nombre) + '</span>' +
+    '<span class="ct-mes-cifras">' + cifras + '</span>';
+  return como === 'tr'
+    ? '<tr class="ct-mes-fila"><td colspan="9"><div class="ct-mes">' + dentro + '</div></td></tr>'
+    : '<div class="ct-mes">' + dentro + '</div>';
 }
 
 function ctRenderFilaMovil(a) {
