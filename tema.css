@@ -17,6 +17,15 @@
      - Barra de menú (móvil) y barra lateral (PC) casi negras.
      - Marca roja en la sección activa del menú móvil.
      - En PC: banda flotante y nombre "Cuentas" arriba de la barra lateral.
+
+   FASE 2 — selectores y textos (al final del archivo):
+     - Selector de cada pantalla dentro de la banda negra.
+     - Títulos de bloque como etiqueta pequeña con barrita roja.
+     - Cifras grandes en Bricolage y sin partirse.
+     - Esquinas unificadas y botones en píldora.
+     - Buscador en píldora con lupa; filtros redondos con puntito rojo.
+     - Respuesta al pulsar; ventanas de confirmación y de PIN.
+     - PC: cabecera de tabla fija, barras de desplazamiento y selección.
    ============================================================ */
 
 /* ---------------- Fuente de títulos ---------------- */
@@ -185,4 +194,212 @@
     border-radius: 20px;
   }
   #titulo-pantalla { font-size: 30px; }
+}
+
+/* ============================================================
+   FASE 2 — SELECTORES DENTRO DE LA BANDA
+   Cada módulo pinta su selector (Empresa/Personal/Total, Ventas/Compras…)
+   como primera fila de #contenido. La banda deja siempre hueco abajo y,
+   si esa fila existe, sube a ocupar ese hueco. Así el selector queda
+   dentro de la banda sin mover nada de sitio en el código.
+   Se nombran las filas y los selectores UNO A UNO por su clase de fila y
+   su identificador: los selectores de dentro de los formularios
+   (Ingreso/Gasto, Empresa/Personal…) no se tocan.
+   ============================================================ */
+
+/* La banda tiene el MISMO alto en todas las pantallas, lleven selector o
+   no (Contabilidad, Mis datos, Configuración...), para que el estilo sea
+   igual en toda la app (decisión del propietario, 28/09/2026). */
+#app .cabecera {
+  padding-bottom: 66px;      /* 16 de siempre + 38 del selector + 12 de aire */
+}
+
+#contenido > .dash-cabecera,
+#contenido > .fv-cabecera-lista,
+#contenido > .cli-cabecera-lista,
+#contenido > .pre-cabecera-lista,
+#contenido > .imp-cabecera-seccion {
+  position: relative;
+  z-index: 1;
+  margin: -70px 0 32px;      /* sube: 16 de margen + 16 de relleno + 38 del selector */
+}
+
+#dash-selector, #fv-selector, #cli-selector, #pre-selector, #pl-selector, #imp-selector-area {
+  background: rgba(255, 255, 255, .1);
+}
+#dash-selector button, #fv-selector button, #cli-selector button,
+#pre-selector button, #pl-selector button, #imp-selector-area button {
+  height: 32px;
+  color: rgba(255, 255, 255, .72);
+}
+#dash-selector button.activa, #fv-selector button.activa, #cli-selector button.activa,
+#pre-selector button.activa, #pl-selector button.activa, #imp-selector-area button.activa {
+  background: #FFFFFF;
+  color: var(--texto);
+}
+
+@media (min-width: 900px) {
+  #app .cabecera {
+    padding-bottom: 72px;    /* 20 + 38 + 14 */
+  }
+  #contenido > .dash-cabecera,
+  #contenido > .fv-cabecera-lista,
+  #contenido > .cli-cabecera-lista,
+  #contenido > .pre-cabecera-lista,
+  #contenido > .imp-cabecera-seccion {
+    margin: -78px 24px 40px; /* 20 + 20 + 38; y a 24 de los lados, como el título */
+  }
+}
+
+/* ============================================================
+   TÍTULOS DE BLOQUE: etiqueta pequeña con barrita roja
+   ("ÚLTIMOS APUNTES", "RESUMEN ECONÓMICO"...). Se anclan a #app o a
+   body para ganar a las reglas de los módulos, también dentro de las
+   ventanas.
+   ============================================================ */
+
+#app #contenido .dash-grafico-titulo,
+body .fv-bloque-titulo,
+body .pre-bloque-titulo,
+body .ct-bloque-titulo,
+body .inf-descarga-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: #5A5A57;
+}
+#app #contenido .dash-grafico-titulo::before,
+body .fv-bloque-titulo::before,
+body .pre-bloque-titulo::before,
+body .ct-bloque-titulo::before,
+body .inf-descarga-titulo::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 2px;
+  background: var(--rojo);
+  vertical-align: -1px;
+}
+
+/* ============================================================
+   CIFRAS GRANDES: Bricolage, y la cifra con su € nunca se parte
+   ============================================================ */
+
+#app .dash-tarjeta-valor,
+body .fv-total-final strong,
+body .pre-total-final strong,
+body .ct-total-final strong,
+body .imp-tarjeta-total .imp-total-final strong {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   ESQUINAS Y BOTONES
+   ============================================================ */
+
+:root { --radio-tarjeta: 16px; }
+
+.boton-principal,
+.boton-secundario {
+  border-radius: 999px;
+}
+
+/* Respuesta al pulsar: el botón se "hunde" un poco. */
+button {
+  transition: transform .08s ease, background-color .15s ease;
+}
+button:active:not(:disabled) {
+  transform: scale(.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  button:active:not(:disabled) { transform: none; }
+}
+
+/* En PC, cambio de tono al pasar el ratón. */
+@media (hover: hover) {
+  .boton-principal:hover:not(:disabled) { background: #B72828; }
+  .boton-secundario:hover:not(:disabled) { background: #F2F2EF; }
+}
+
+/* ============================================================
+   BUSCADOR Y FILTROS
+   Buscador en píldora con lupa dentro. Botón de filtros redondo; con
+   filtros activos, además del borde rojo de siempre, un puntito rojo.
+   ============================================================ */
+
+.fv-buscador, .pre-buscador, .cli-buscador, .ct-buscador {
+  border-radius: 999px;
+  padding-left: 38px;
+  background: var(--superficie) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A8A86' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='10' cy='10' r='7'/%3E%3Cpath d='M21 21l-6-6'/%3E%3C/svg%3E") 14px center / 16px 16px no-repeat;
+}
+
+.fv-btn-filtro, .pre-btn-filtro, .cli-btn-filtro, .ct-btn-filtro {
+  position: relative;
+  border-radius: 50%;
+}
+.fv-btn-filtro.con-filtro::after, .pre-btn-filtro.con-filtro::after,
+.cli-btn-filtro.con-filtro::after, .ct-btn-filtro.con-filtro::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--rojo);
+  border: 2px solid var(--fondo);
+}
+
+/* ============================================================
+   VENTANAS DE CONFIRMACIÓN Y DE PIN (núcleo: .dialogo-caja)
+   Título en Bricolage y botones en píldora (arriba). La del PIN lleva
+   además un candado en un círculo negro.
+   ============================================================ */
+
+.dialogo-caja { border-radius: 20px; }
+.dialogo-titulo {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+  font-size: 19px;
+}
+.dialogo-caja:has(.campo-pin-dialogo)::before {
+  content: '\eae2';          /* candado de Tabler */
+  font-family: 'tabler-icons';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--banda);
+  color: #FFFFFF;
+  font-size: 26px;
+}
+
+/* ============================================================
+   DETALLES
+   ============================================================ */
+
+::selection { background: #F7C1C1; color: var(--texto); }
+
+@media (min-width: 900px) {
+  /* Barras de desplazamiento finas y oscuras */
+  html { scrollbar-width: thin; scrollbar-color: #8A8A86 transparent; }
+
+  /* Cabecera de tabla fija: al bajar, la fila de títulos se queda
+     arriba y solo se mueven los datos. Para que funcione, las tablas
+     recortan sus esquinas con "clip" en vez de "hidden" (con "hidden"
+     la cabecera no puede quedarse fija). */
+  .fv-tabla, .pre-tabla, .cli-tabla, .ct-tabla { overflow: clip; }
+  .fv-tabla th, .pre-tabla th, .cli-tabla th, .ct-tabla th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
 }
