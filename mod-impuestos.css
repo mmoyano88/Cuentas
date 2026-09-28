@@ -189,6 +189,12 @@
 .imp-pago .boton-principal,
 .imp-pago .boton-secundario { width: 100%; }
 
+/* Dos botones (28/09/2026): "Marcar como pagado" y "Sin pago". El de
+   pagar ocupa lo que sobra y el otro solo lo que necesita su texto. */
+.imp-pago-botones { display: flex; gap: 8px; }
+.imp-pago .imp-pago-botones .boton-principal { width: auto; flex: 1 1 auto; min-width: 0; }
+.imp-pago .imp-pago-botones .boton-secundario { width: auto; flex: 0 0 auto; }
+
 .imp-mensaje-error {
   font-size: 11px;
   color: var(--rojo-texto);
@@ -276,6 +282,7 @@
 .imp-plazo.pronto,
 .imp-plazo.vencido { background: var(--ambar-fondo); color: var(--ambar-texto); }
 .imp-plazo.pagado  { background: var(--verde-fondo); color: var(--verde-texto); }
+.imp-plazo.sinpago { background: var(--gris-neutro); color: var(--texto-secundario); }
 
 /* ---- Nota bajo el importe a pagar ---- */
 .imp-nota.imp-nota-pago { margin: -2px 0 12px; }

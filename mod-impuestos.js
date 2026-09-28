@@ -270,6 +270,20 @@ function impPagado(registro, tipo) {
   return !!registro && String(registro[tipo + '_estado'] || '').toLowerCase() === 'pagado';
 }
 
+// "Sin pago" (28/09/2026): un impuesto de un trimestre en el que no había
+// nada que presentar (por ejemplo, un trimestre sin actividad). Es un
+// tercer valor de la misma columna `iva_estado` / `irpf_estado`
+// (`sin_pago`), sin apunte en Contabilidad y sin importe. El trimestre
+// cuenta como cerrado, no como pendiente.
+function impSinPago(registro, tipo) {
+  return !!registro && String(registro[tipo + '_estado'] || '').toLowerCase() === 'sin_pago';
+}
+
+// Cerrado = pagado o sin pago: ya no queda nada por hacer con ese impuesto.
+function impCerrado(registro, tipo) {
+  return impPagado(registro, tipo) || impSinPago(registro, tipo);
+}
+
 function impAdelantar(anio, trimestre) {
   const c = impCalcular(anio, trimestre);
   const soloCobrado = impCalcular(anio, trimestre, { soloCobradas: true });
@@ -330,9 +344,10 @@ function impTextoFechaCorta(fecha) {
 // no, el trimestre en curso. Así, el 5 de octubre sigue siendo el Q3
 // hasta que se marque como pagado.
 
-function impTrimestrePagado(anio, trimestre) {
+// Trimestre cerrado: IVA e IRPF pagados o sin pago (28/09/2026).
+function impTrimestreCerrado(anio, trimestre) {
   const r = impRegistroDe(anio, trimestre);
-  return impPagado(r, 'iva') && impPagado(r, 'irpf');
+  return impCerrado(r, 'iva') && impCerrado(r, 'irpf');
 }
 
 function impProximoPago() {
@@ -343,7 +358,7 @@ function impProximoPago() {
     ? { anio: anio - 1, trimestre: 'Q4' }
     : { anio: anio, trimestre: IMP_TRIMESTRES[i - 1] };
 
-  if (!impTrimestrePagado(anterior.anio, anterior.trimestre)) {
+  if (!impTrimestreCerrado(anterior.anio, anterior.trimestre)) {
     const c = impCalcular(anterior.anio, anterior.trimestre);
     if (c.numVentas + c.numCompras + c.numManuales > 0) return anterior;
   }
@@ -355,17 +370,22 @@ function impProximoPago() {
 function impPendienteDePago(anio, trimestre) {
   const c = impCalcular(anio, trimestre);
   const r = impRegistroDe(anio, trimestre);
-  const iva = impPagado(r, 'iva') ? 0 : impLoQueSePaga(c.iva);
-  const irpf = impPagado(r, 'irpf') ? 0 : impLoQueSePaga(c.irpf);
+  const iva = impCerrado(r, 'iva') ? 0 : impLoQueSePaga(c.iva);
+  const irpf = impCerrado(r, 'irpf') ? 0 : impLoQueSePaga(c.irpf);
   return { iva: iva, irpf: irpf, total: roundMoney(iva + irpf) };
 }
 
 // Estado del plazo de un trimestre, en texto corto y largo.
-//   estado: 'pagado' | 'vencido' | 'pronto' (7 días o menos) | 'normal'
+//   estado: 'pagado' | 'sinpago' | 'vencido' | 'pronto' (7 días o menos) | 'normal'
 function impEstadoPlazo(anio, trimestre) {
   const limite = impFechaLimite(anio, trimestre);
   const dias = impDiasHasta(limite);
-  if (impTrimestrePagado(anio, trimestre)) {
+  if (impTrimestreCerrado(anio, trimestre)) {
+    // Cerrado sin haber pagado nada (28/09/2026): "sin pago".
+    const r = impRegistroDe(anio, trimestre);
+    if (!impPagado(r, 'iva') && !impPagado(r, 'irpf')) {
+      return { estado: 'sinpago', limite: limite, dias: dias, corto: 'Sin pago', largo: 'Sin pago · nada que presentar' };
+    }
     return { estado: 'pagado', limite: limite, dias: dias, corto: 'Pagado', largo: 'Pagado' };
   }
   if (dias < 0) {
@@ -426,6 +446,8 @@ function impFacturasSinCobrar() {
     ['iva', 'irpf'].forEach(function (tipo) {
       if (impPagado(r, tipo)) {
         yaAdelantado += Math.min(a[tipo], Math.max(0, parsearNumero(r[tipo + '_real'])));
+      } else if (impSinPago(r, tipo)) {
+        // Sin pago: no hay nada que adelantar en ese impuesto.
       } else if (clave <= claveProximo) {
         enProximo += a[tipo];
       } else {
@@ -502,9 +524,7 @@ function impPeriodoPorDefecto() {
       const t = IMP_TRIMESTRES[i];
       if (anio === anioActual && IMP_TRIMESTRES.indexOf(t) > IMP_TRIMESTRES.indexOf(trimestreActual)) continue;
       const r = impRegistroDe(anio, t);
-      const completo = r &&
-        String(r.iva_estado || '').toLowerCase() === 'pagado' &&
-        String(r.irpf_estado || '').toLowerCase() === 'pagado';
+      const completo = r && impCerrado(r, 'iva') && impCerrado(r, 'irpf');
       if (!completo) return { anio: anio, trimestre: t };
     }
   }
@@ -669,7 +689,7 @@ function impBloquePlazo(anio, trimestre) {
     p.estado = 'normal';
     p.largo = 'sin marcar como pagado · el plazo era hasta el ' + impTextoFecha(p.limite);
   }
-  const iconos = { pagado: 'ti-circle-check', vencido: 'ti-alert-triangle', pronto: 'ti-calendar-due', normal: 'ti-calendar-due' };
+  const iconos = { pagado: 'ti-circle-check', sinpago: 'ti-circle-minus', vencido: 'ti-alert-triangle', pronto: 'ti-calendar-due', normal: 'ti-calendar-due' };
 
   // Título del trimestre, más visible (28/09/2026): "Q3 2026" grande y
   // sus meses en pequeño; debajo, el plazo. El color lo pone tema.css
@@ -678,7 +698,7 @@ function impBloquePlazo(anio, trimestre) {
   // blanco: todavía no hay nada pendiente.
   const indice = IMP_TRIMESTRES.indexOf(trimestre);
   const futuro = p.estado === 'normal' && new Date(anio, indice * 3, 1) > new Date();
-  const detalle = p.estado === 'pagado' ? 'Pagado' : String(p.largo || '');
+  const detalle = p.estado === 'pagado' ? 'Pagado' : String(p.largo || '');   // "sinpago" trae su propio texto
   const texto = detalle.charAt(0).toUpperCase() + detalle.slice(1);
 
   return '<div class="imp-plazo ' + p.estado + (futuro ? ' futuro' : '') + '">' +
@@ -708,6 +728,14 @@ function impBloqueResultado(valor, etiquetaPagar, etiquetaFavor) {
   '</div>';
 }
 
+// Pastilla de estado de un impuesto: Pagado (verde), Sin pago (gris) o
+// Pendiente (ámbar).
+function impPastillaEstado(registro, tipo) {
+  if (impPagado(registro, tipo)) return '<span class="pastilla ind-verde">Pagado</span>';
+  if (impSinPago(registro, tipo)) return '<span class="pastilla inf-pastilla-gris">Sin pago</span>';
+  return '<span class="pastilla ind-ambar">Pendiente</span>';
+}
+
 function impTarjetaIva(c, registro) {
   const pagado = registro && String(registro.iva_estado || '').toLowerCase() === 'pagado';
 
@@ -715,9 +743,7 @@ function impTarjetaIva(c, registro) {
     '<div class="imp-tarjeta-cabecera">' +
       '<p class="imp-tarjeta-titulo">IVA · Modelo 303</p>' +
       '<span class="imp-cabecera-estado">' +
-        (pagado
-          ? '<span class="pastilla ind-verde">Pagado</span>'
-          : '<span class="pastilla ind-ambar">Pendiente</span>') +
+        impPastillaEstado(registro, 'iva') +
         (registro ? impPuntoEstado(registro) : '') +
       '</span>' +
     '</div>' +
@@ -791,9 +817,7 @@ function impTarjetaIrpf(c, acumulado, registro) {
     '<div class="imp-tarjeta-cabecera">' +
       '<p class="imp-tarjeta-titulo">IRPF · Modelo 130</p>' +
       '<span class="imp-cabecera-estado">' +
-        (pagado
-          ? '<span class="pastilla ind-verde">Pagado</span>'
-          : '<span class="pastilla ind-ambar">Pendiente</span>') +
+        impPastillaEstado(registro, 'irpf') +
         (registro ? impPuntoEstado(registro) : '') +
       '</span>' +
     '</div>' +
@@ -846,6 +870,24 @@ function impBloquePago(tipo, registro, pagado, estimado) {
   const real = registro ? parsearNumero(registro[tipo + '_real']) : 0;
   const fecha = registro ? normalizarFecha(registro[tipo + '_fecha_pago']) : '';
 
+  // Sin pago (28/09/2026): no hay importe ni fecha que poner. Solo se
+  // puede volver a pendiente. Si la estimación de hoy ya no sale a cero,
+  // se avisa, por si hubiera que revisarlo.
+  if (impSinPago(registro, tipo)) {
+    const hoy = roundMoney(parsearNumero(estimado));
+    const aviso = hoy > 0.005
+      ? '<p class="imp-nota aviso">Ahora la estimación de este impuesto sale ' + escaparHtml(dineroVisible(hoy)) +
+        '. Si ya no es «sin pago», vuelve a pendiente.</p>'
+      : '';
+    return '<div class="imp-pago">' +
+      '<p class="imp-nota imp-nota-pago">Marcado como «sin pago»: este trimestre no había nada que presentar. ' +
+        'No hay apunte en Contabilidad.</p>' +
+      aviso +
+      '<button type="button" class="boton-secundario" data-sinpago="' + tipo + '">Volver a pendiente</button>' +
+      '<p class="imp-mensaje-error" data-error-de="' + tipo + '" hidden></p>' +
+    '</div>';
+  }
+
   let valorCampo;
   if (pagado) valorCampo = cifrasOcultas ? '•••••' : (real ? impNumeroCampo(real) : '');
   else valorCampo = cifrasOcultas ? '' : impNumeroCampo(impImportePorDefecto(estimado));
@@ -866,10 +908,13 @@ function impBloquePago(tipo, registro, pagado, estimado) {
       '</div>' +
     '</div>' +
     (pagado ? '' : '<p class="imp-nota imp-nota-pago">Viene con la estimación: cámbialo si tu asesor te da otra cifra. ' +
-      'Si no hay nada que pagar, se guarda 0,01 €.</p>') +
-    '<button type="button" class="' + (pagado ? 'boton-secundario' : 'boton-principal') + '" data-pago="' + tipo + '">' +
-      (pagado ? 'Marcar como pendiente' : 'Marcar como pagado') +
-    '</button>' +
+      'Si este trimestre no había nada que presentar, pulsa «Sin pago».</p>') +
+    (pagado
+      ? '<button type="button" class="boton-secundario" data-pago="' + tipo + '">Marcar como pendiente</button>'
+      : '<div class="imp-pago-botones">' +
+          '<button type="button" class="boton-principal" data-pago="' + tipo + '">Marcar como pagado</button>' +
+          '<button type="button" class="boton-secundario" data-sinpago="' + tipo + '">Sin pago</button>' +
+        '</div>') +
     '<p class="imp-mensaje-error" data-error-de="' + tipo + '" hidden></p>' +
   '</div>';
 }
@@ -913,50 +958,60 @@ function impLeerImporte(texto) {
 function impTarjetaTotal(c, registro, adelantar) {
   const ivaPagado = impPagado(registro, 'iva');
   const irpfPagado = impPagado(registro, 'irpf');
+  // Cerrado = pagado o sin pago (28/09/2026): ya no cuenta como pendiente.
+  const ivaCerrado = impCerrado(registro, 'iva');
+  const irpfCerrado = impCerrado(registro, 'irpf');
 
-  function linea(etiqueta, pagado, tipo, estimado) {
-    if (pagado) {
+  function linea(etiqueta, tipo, estimado) {
+    if (impPagado(registro, tipo)) {
       return '<div class="imp-linea"><span>' + etiqueta + ' · pagado</span><strong>' +
         escaparHtml(dineroVisible(parsearNumero(registro[tipo + '_real']))) + '</strong></div>';
+    }
+    if (impSinPago(registro, tipo)) {
+      return '<div class="imp-linea"><span>' + etiqueta + ' · sin pago</span><strong>—</strong></div>';
     }
     return '<div class="imp-linea"><span>' + etiqueta + '</span><strong>' +
       escaparHtml(dineroVisible(impLoQueSePaga(estimado))) + '</strong></div>';
   }
 
-  const pendiente = roundMoney((ivaPagado ? 0 : impLoQueSePaga(c.iva)) + (irpfPagado ? 0 : impLoQueSePaga(c.irpf)));
-  const todoPagado = ivaPagado && irpfPagado;
-  const algoPagado = ivaPagado || irpfPagado;
+  const pendiente = roundMoney((ivaCerrado ? 0 : impLoQueSePaga(c.iva)) + (irpfCerrado ? 0 : impLoQueSePaga(c.irpf)));
+  const todoCerrado = ivaCerrado && irpfCerrado;
+  const algoCerrado = ivaCerrado || irpfCerrado;
 
   let final;
-  if (todoPagado) {
-    const pagadoReal = roundMoney(parsearNumero(registro.iva_real) + parsearNumero(registro.irpf_real));
+  if (todoCerrado && (ivaPagado || irpfPagado)) {
+    const pagadoReal = roundMoney((ivaPagado ? parsearNumero(registro.iva_real) : 0) + (irpfPagado ? parsearNumero(registro.irpf_real) : 0));
     final = '<div class="imp-total-final"><span>PAGADO</span><strong class="favor">' +
       escaparHtml(dineroVisible(pagadoReal)) + '</strong></div>';
+  } else if (todoCerrado) {
+    // Los dos impuestos sin pago: no se pagó nada porque no había nada
+    // que presentar.
+    final = '<div class="imp-total-final"><span>ESTE TRIMESTRE</span><strong class="neutro">Sin pago</strong></div>';
   } else {
-    final = '<div class="imp-total-final"><span>' + (algoPagado ? 'FALTA POR PAGAR' : 'TOTAL A PAGAR') + '</span><strong>' +
+    final = '<div class="imp-total-final"><span>' + (algoCerrado ? 'FALTA POR PAGAR' : 'TOTAL A PAGAR') + '</span><strong>' +
       escaparHtml(dineroVisible(pendiente)) + '</strong></div>';
   }
 
   // Lo que sale a tu favor no se paga: se explica en una línea.
   const aFavor = [];
-  if (!ivaPagado && c.iva < 0) aFavor.push('el IVA (' + dineroVisible(Math.abs(c.iva)) + ')');
-  if (!irpfPagado && c.irpf < 0) aFavor.push('el IRPF (' + dineroVisible(Math.abs(c.irpf)) + ')');
+  if (!ivaCerrado && c.iva < 0) aFavor.push('el IVA (' + dineroVisible(Math.abs(c.iva)) + ')');
+  if (!irpfCerrado && c.irpf < 0) aFavor.push('el IRPF (' + dineroVisible(Math.abs(c.irpf)) + ')');
   const notaFavor = aFavor.length
     ? '<p class="imp-nota">Sale a tu favor ' + escaparHtml(aFavor.join(' y ')) +
       ': esa parte no se paga. Tu asesor la tendrá en cuenta en las próximas declaraciones.</p>'
     : '';
 
   // De este pago, la parte que viene de facturas que aún no has cobrado.
-  const adelanto = roundMoney((ivaPagado ? 0 : adelantar.iva) + (irpfPagado ? 0 : adelantar.irpf));
-  const notaAdelanto = (!todoPagado && adelanto > 0)
+  const adelanto = roundMoney((ivaCerrado ? 0 : adelantar.iva) + (irpfCerrado ? 0 : adelantar.irpf));
+  const notaAdelanto = (!todoCerrado && adelanto > 0)
     ? '<p class="imp-nota aviso">De este pago, ' + escaparHtml(dineroVisible(adelanto)) +
       ' son de facturas que todavía no has cobrado: los adelantas tú.</p>'
     : '';
 
   return '<div class="imp-tarjeta imp-tarjeta-total">' +
     '<p class="imp-tarjeta-titulo">Pago del trimestre</p>' +
-    linea('IVA (modelo 303)', ivaPagado, 'iva', c.iva) +
-    linea('IRPF (modelo 130)', irpfPagado, 'irpf', c.irpf) +
+    linea('IVA (modelo 303)', 'iva', c.iva) +
+    linea('IRPF (modelo 130)', 'irpf', c.irpf) +
     final +
     notaFavor +
     notaAdelanto +
@@ -1008,6 +1063,9 @@ function impTarjetaSinCobrar(s) {
 function impCablearDetalle(zona) {
   zona.querySelectorAll('[data-pago]').forEach(function (b) {
     b.addEventListener('click', function () { impAlternarPago(b.dataset.pago); });
+  });
+  zona.querySelectorAll('[data-sinpago]').forEach(function (b) {
+    b.addEventListener('click', function () { impAlternarSinPago(b.dataset.sinpago); });
   });
   // Tocar una factura sin cobrar abre su ficha encima (igual que "Ver
   // factura" en Contabilidad).
@@ -1179,6 +1237,57 @@ async function impAlternarPago(tipo) {
     guardarRegistro('apuntes', apunte, null, null),
     guardarRegistro('impuestos', registro, impRepintarDetalle, null)
   ]);
+  impRepintarDetalle();
+}
+
+// ---- Sin pago (28/09/2026) ----
+// Marca un impuesto de un trimestre como "sin pago": no había nada que
+// presentar (por ejemplo, un trimestre sin actividad por cuenta propia).
+// No pide importe, no crea apunte en Contabilidad y no pide PIN (no
+// borra ningún dato). Vuelve a pendiente con el mismo botón. Solo cambia
+// el estado del registro fiscal; ninguna fórmula cambia.
+async function impAlternarSinPago(tipo) {
+  impLimpiarErrores();
+  if (!puedeEscribir()) return;
+
+  const anio = impAnio;
+  const trimestre = impTrimestre;
+  const registro = impRegistroBase(anio, trimestre);
+  const etiqueta = tipo === 'iva' ? 'IVA' : 'IRPF';
+  const nombre = etiqueta + ' de ' + trimestre + ' ' + anio;
+
+  if (impSinPago(registro, tipo)) {
+    const vuelta = await mostrarDialogoOpciones(
+      'Volver a pendiente',
+      'El ' + nombre + ' dejará de estar marcado como «sin pago» y volverá a aparecer como pendiente.',
+      [{ id: 'cancelar', texto: 'Cancelar' }, { id: 'seguir', texto: 'Volver a pendiente', tipo: 'principal' }]
+    );
+    if (vuelta !== 'seguir') return;
+    registro[tipo + '_estado'] = 'pendiente';
+  } else {
+    if (impPagado(registro, tipo)) return;   // primero hay que pasarlo a pendiente
+    const c = impCalcular(anio, trimestre);
+    const hoy = impLoQueSePaga(c[tipo]);
+    const eleccion = await mostrarDialogoOpciones(
+      'Sin pago',
+      'Vas a marcar el ' + nombre + ' como «sin pago»: ese trimestre no había nada que presentar. ' +
+        'No se apunta nada en Contabilidad.' +
+        (hoy > 0.005 ? ' Ojo: ahora la estimación de este impuesto sale ' + dineroVisible(hoy) + '.' : ''),
+      [{ id: 'cancelar', texto: 'Cancelar' }, { id: 'seguir', texto: 'Sin pago', tipo: 'principal' }]
+    );
+    if (eleccion !== 'seguir') return;
+    // Las estimaciones vigentes quedan guardadas en el registro, como al
+    // marcar un pago (mapa 12.7, punto 4).
+    registro.iva_estimado = c.iva;
+    registro.irpf_estimado = c.irpf;
+    registro[tipo + '_estado'] = 'sin_pago';
+  }
+
+  registro[tipo + '_real'] = 0;
+  registro[tipo + '_fecha_pago'] = '';
+  registro['id_apunte_' + tipo] = '';
+
+  await guardarRegistro('impuestos', registro, impRepintarDetalle, null);
   impRepintarDetalle();
 }
 

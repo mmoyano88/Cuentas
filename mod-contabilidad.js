@@ -1260,11 +1260,15 @@ function ctConvActualizar(fondo, esVenta) {
     const anio = parseInt(String(fecha).split('-')[0], 10);
     const trimestre = fvTrimestreDeFecha(fecha);
     const r = impRegistroDe(anio, trimestre);
-    liquidado = !!(r && (String(r.iva_estado || '').toLowerCase() === 'pagado' ||
-                         String(r.irpf_estado || '').toLowerCase() === 'pagado'));
+    const estadoDe = function (tipo) { return r ? String(r[tipo + '_estado'] || '').toLowerCase() : ''; };
+    const pagado = estadoDe('iva') === 'pagado' || estadoDe('irpf') === 'pagado';
+    // "Sin pago" (28/09/2026) también es un trimestre cerrado: la factura
+    // le cambiaría la estimación igual.
+    const sinPago = estadoDe('iva') === 'sin_pago' || estadoDe('irpf') === 'sin_pago';
+    liquidado = !!(r && (pagado || sinPago));
     if (liquidado) {
-      aviso.textContent = 'Ojo: ' + trimestre + ' ' + anio + ' ya está marcado como pagado en Impuestos. ' +
-        'Esta factura cambiará la estimación de ese trimestre.';
+      aviso.textContent = 'Ojo: ' + trimestre + ' ' + anio + ' ya está marcado como ' + (pagado ? 'pagado' : '«sin pago»') +
+        ' en Impuestos. Esta factura cambiará la estimación de ese trimestre.';
     }
   }
   aviso.hidden = !liquidado;

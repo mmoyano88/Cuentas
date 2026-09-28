@@ -217,6 +217,10 @@ function infResumenPantalla(anio) {
     // no es la cifra que hay que enseñar como estimación actual.
     const ivaPagado = r && infTexto(r.iva_estado).toLowerCase() === 'pagado';
     const irpfPagado = r && infTexto(r.irpf_estado).toLowerCase() === 'pagado';
+    // "Sin pago" (28/09/2026): trimestre en el que no había nada que
+    // presentar. Cuenta como cerrado, pero no como pagado.
+    const ivaSinPago = r && infTexto(r.iva_estado).toLowerCase() === 'sin_pago';
+    const irpfSinPago = r && infTexto(r.irpf_estado).toLowerCase() === 'sin_pago';
 
     const ivaGuardado = r ? parsearNumero(r.iva_estimado) : 0;
     const irpfGuardado = r ? parsearNumero(r.irpf_estimado) : 0;
@@ -235,12 +239,14 @@ function infResumenPantalla(anio) {
       ivaDesfasado: ivaDesfasado,
       ivaReal: r ? parsearNumero(r.iva_real) : 0,
       ivaPagado: ivaPagado,
+      ivaSinPago: ivaSinPago,
       irpfEstimado: c.irpf,
       irpfGuardado: irpfGuardado,
       irpfDesfasado: irpfDesfasado,
       irpfReal: r ? parsearNumero(r.irpf_real) : 0,
       irpfPagado: irpfPagado,
-      completo: ivaPagado && irpfPagado
+      irpfSinPago: irpfSinPago,
+      completo: (ivaPagado || ivaSinPago) && (irpfPagado || irpfSinPago)
     };
   });
 
@@ -464,6 +470,13 @@ function infTablaApuntes(titulo, filas, conConcepto, vacio) {
 // Impuestos y en la de Informes (corrección del 06/09/2026, que el PDF
 // no había recibido: seguía usando la cifra congelada al pagar, así que
 // el PDF y la pantalla podían decir cosas distintas). 23/09/2026.
+// Texto de estado de un impuesto en el PDF y el Excel: Pagado, Sin pago
+// (28/09/2026) o Pendiente.
+function infEstadoImpuestoTexto(r, tipo) {
+  const e = r ? infTexto(r[tipo + '_estado']).toLowerCase() : '';
+  return e === 'pagado' ? 'Pagado' : (e === 'sin_pago' ? 'Sin pago' : 'Pendiente');
+}
+
 function infTablaImpuestos(anio) {
   const filas = IMP_TRIMESTRES.map(function (t) {
     const r = impRegistroDe(anio, t);
@@ -472,11 +485,11 @@ function infTablaImpuestos(anio) {
       trimestre: t,
       ivaEstimado: c.iva,
       ivaReal: r ? parsearNumero(r.iva_real) : 0,
-      ivaEstado: r && infTexto(r.iva_estado).toLowerCase() === 'pagado' ? 'Pagado' : 'Pendiente',
+      ivaEstado: infEstadoImpuestoTexto(r, 'iva'),
       ivaFecha: r ? mostrarFecha(r.iva_fecha_pago) : '—',
       irpfEstimado: c.irpf,
       irpfReal: r ? parsearNumero(r.irpf_real) : 0,
-      irpfEstado: r && infTexto(r.irpf_estado).toLowerCase() === 'pagado' ? 'Pagado' : 'Pendiente',
+      irpfEstado: infEstadoImpuestoTexto(r, 'irpf'),
       irpfFecha: r ? mostrarFecha(r.irpf_fecha_pago) : '—'
     };
   });
@@ -723,13 +736,15 @@ function infResumenPantallaHtml(resumen, anio) {
   // compararlos de un vistazo (petición del propietario, 05/09/2026).
   // Si aún no está pagado, el real se muestra como «—» en vez de un
   // cero, que haría pensar que se pagó cero.
-  const bloque = function (etiqueta, estimado, real, pagado, guardado, desfasado) {
+  const bloque = function (etiqueta, estimado, real, pagado, guardado, desfasado, sinPago) {
     return '<div class="inf-resumen-bloque">' +
       '<div class="inf-resumen-bloque-cabecera">' +
         '<span>' + etiqueta + '</span>' +
         (pagado
           ? '<span class="pastilla ind-verde">Pagado</span>'
-          : '<span class="pastilla ind-ambar">Pendiente</span>') +
+          : (sinPago
+              ? '<span class="pastilla inf-pastilla-gris">Sin pago</span>'
+              : '<span class="pastilla ind-ambar">Pendiente</span>')) +
       '</div>' +
       '<div class="inf-resumen-par">' +
         '<span class="inf-resumen-dato"><small>Estimado</small>' + escaparHtml(dineroVisible(estimado)) + '</span>' +
@@ -753,8 +768,8 @@ function infResumenPantallaHtml(resumen, anio) {
   // Encima, una tarjeta oscura con el resumen del año. Ningún cálculo
   // cambia: se enseñan las mismas cifras que antes.
   const destacado = infTrimestreDestacado(anio);
-  const etiquetas = { pagado: 'Pagado', pendiente: 'Pendiente', curso: 'En curso', futuro: 'Más adelante' };
-  const clasesPastilla = { pagado: 'ind-verde', pendiente: 'ind-ambar', curso: 'ind-azul', futuro: 'inf-pastilla-gris' };
+  const etiquetas = { pagado: 'Pagado', sinpago: 'Sin pago', pendiente: 'Pendiente', curso: 'En curso', futuro: 'Más adelante' };
+  const clasesPastilla = { pagado: 'ind-verde', sinpago: 'inf-pastilla-gris', pendiente: 'ind-ambar', curso: 'ind-azul', futuro: 'inf-pastilla-gris' };
 
   const filaTrimestre = function (f) {
     const est = infEstadoTrimestre(anio, f);
@@ -763,8 +778,8 @@ function infResumenPantallaHtml(resumen, anio) {
         '<p class="inf-resumen-trimestre-titulo">' + f.trimestre + ' <small>' + anio + '</small></p>' +
         '<span class="pastilla ' + clasesPastilla[est] + '">' + etiquetas[est] + '</span>' +
       '</div>' +
-      bloque('IVA', f.ivaEstimado, f.ivaReal, f.ivaPagado, f.ivaGuardado, f.ivaDesfasado) +
-      bloque('IRPF', f.irpfEstimado, f.irpfReal, f.irpfPagado, f.irpfGuardado, f.irpfDesfasado) +
+      bloque('IVA', f.ivaEstimado, f.ivaReal, f.ivaPagado, f.ivaGuardado, f.ivaDesfasado, f.ivaSinPago) +
+      bloque('IRPF', f.irpfEstimado, f.irpfReal, f.irpfPagado, f.irpfGuardado, f.irpfDesfasado, f.irpfSinPago) +
     '</div>';
   };
 
@@ -795,12 +810,13 @@ function infResumenPantallaHtml(resumen, anio) {
 }
 
 // Estado de un trimestre para su pastilla y su tramo de la barra:
-//   pagado    → IVA e IRPF marcados como pagados
+//   pagado    → IVA e IRPF cerrados y al menos uno pagado
+//   sinpago   → IVA e IRPF cerrados sin haber pagado nada (28/09/2026)
 //   pendiente → el trimestre ya terminó y falta algo por pagar
 //   curso     → es el trimestre en el que estamos
 //   futuro    → todavía no ha empezado
 function infEstadoTrimestre(anio, f) {
-  if (f.ivaPagado && f.irpfPagado) return 'pagado';
+  if (f.completo) return (f.ivaPagado || f.irpfPagado) ? 'pagado' : 'sinpago';
   const hoy = fechaHoyISO();
   const anioHoy = parseInt(String(hoy).slice(0, 4), 10);
   const idxHoy = IMP_TRIMESTRES.indexOf(fvTrimestreDeFecha(hoy));
@@ -1426,11 +1442,10 @@ function xlsHojaImpuestos(anio) {
   IMP_TRIMESTRES.forEach(function (t) {
     const r = impRegistroDe(anio, t);
     const c = impCalcular(anio, t);
-    const pagado = function (tipo) { return r && infTexto(r[tipo + '_estado']).toLowerCase() === 'pagado'; };
     filas.push([
       xlsT(t),
-      xlsD(c.iva), xlsD(r ? r.iva_real : 0), xlsT(pagado('iva') ? 'Pagado' : 'Pendiente'), xlsF(r ? r.iva_fecha_pago : ''),
-      xlsD(c.irpf), xlsD(r ? r.irpf_real : 0), xlsT(pagado('irpf') ? 'Pagado' : 'Pendiente'), xlsF(r ? r.irpf_fecha_pago : '')
+      xlsD(c.iva), xlsD(r ? r.iva_real : 0), xlsT(infEstadoImpuestoTexto(r, 'iva')), xlsF(r ? r.iva_fecha_pago : ''),
+      xlsD(c.irpf), xlsD(r ? r.irpf_real : 0), xlsT(infEstadoImpuestoTexto(r, 'irpf')), xlsF(r ? r.irpf_fecha_pago : '')
     ]);
   });
   return { nombre: 'Impuestos', anchos: [11, 14, 14, 12, 15, 15, 14, 12, 15], filas: filas };

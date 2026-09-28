@@ -720,6 +720,11 @@ button:active:not(:disabled) {
 .imp-trim-tarjeta > .imp-plazo.pagado .imp-plazo-titulo { color: var(--sync-verde); }
 .imp-trim-tarjeta > .imp-plazo.normal:not(.futuro) > i,
 .imp-trim-tarjeta > .imp-plazo.normal:not(.futuro) .imp-plazo-titulo { color: var(--sync-ambar); }
+/* Sin pago (28/09/2026): el trimestre está cerrado sin haber pagado nada.
+   Gris claro: ni verde (no se pagó) ni ámbar (no está pendiente). */
+.imp-trim-tarjeta > .imp-plazo.sinpago > i,
+.imp-trim-tarjeta > .imp-plazo.sinpago .imp-plazo-titulo { color: rgba(255, 255, 255, .72); }
+.imp-trim-tarjeta .imp-total-final strong.neutro { color: rgba(255, 255, 255, .72); }
 .imp-trim-tarjeta:has(> .imp-plazo.normal:not(.futuro)) .imp-total-final strong { color: var(--sync-ambar); }
 
 .imp-trim-tarjeta > .imp-tarjeta-total {
@@ -1162,6 +1167,7 @@ button:active:not(:disabled) {
 #contenido .inf-tramo { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .18); }
 #contenido .inf-tramo.pagado { background: var(--sync-verde); }
 #contenido .inf-tramo.pendiente, #contenido .inf-tramo.curso { background: var(--sync-ambar); }
+#contenido .inf-tramo.sinpago { background: rgba(255, 255, 255, .55); }
 #contenido .inf-anual-cifras { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
 #contenido .inf-anual-cifras small { display: block; font-size: 11px; color: rgba(255, 255, 255, .7); }
 #contenido .inf-anual-cifras strong {
