@@ -4,9 +4,11 @@
  *
  * Estrategia (09/09/2026, bloque de Rendimiento — ver diario):
  *   - Código propio de la app (JS/CSS/iconos/manifest) y las dos
- *     librerías del CDN: CACHÉ PRIMERO. Se sirven al instante desde
- *     la copia guardada sin esperar a la red; en paralelo se pide la
- *     versión más reciente para tenerla lista la próxima vez. Es
+ *     librerías (iconos y gráficos, en el propio repositorio desde el
+ *     28/09/2026; antes venían de jsdelivr): CACHÉ PRIMERO. Se sirven
+ *     al instante desde la copia guardada sin esperar a la red; en
+ *     paralelo se pide la versión más reciente para tenerla lista la
+ *     próxima vez. Es
  *     seguro porque solo cambian cuando se sube un VERSION nuevo, y
  *     al hacerlo el caché entero se descarta (ver "activate" abajo).
  *   - Backend de Apps Script: SIEMPRE red, nunca caché — los datos
@@ -23,7 +25,7 @@
  * control, la app se recarga sola una vez (ver el final de app.js).
  */
 
-const VERSION = 'cuentas-v64';
+const VERSION = 'cuentas-v65';
 
 const ARCHIVOS = [
   './',
@@ -65,8 +67,11 @@ const ARCHIVOS = [
   './icon-192.png',
   './icon-512.png',
   './icon-512-maskable.png',
-  'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.46.0/dist/tabler-icons.min.css',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'
+  // Librerías en el propio repositorio (28/09/2026): Tabler Icons 3.46.0
+  // y Chart.js 4.4.1, las mismas versiones que antes venían de jsdelivr.
+  './tabler-icons.min.css',
+  './tabler-icons.woff2',
+  './chart.umd.js'
 ];
 
 self.addEventListener('install', function (evento) {
