@@ -329,6 +329,9 @@
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 6px;
+  /* Alto del botón "+" (28/09/2026): las dos listas llevan esta cabecera
+     y así su primera fila queda a la misma altura, lleve o no botón. */
+  min-height: 28px;
 }
 #contenido .dash-lista-anadir {
   width: 28px;

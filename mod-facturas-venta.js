@@ -466,9 +466,27 @@ function fvPosicionarMenu(menu, boton) {
   menu.style.left = Math.max(8, rect.right - menu.offsetWidth) + 'px';
 }
 
+// Repinta lo que se está viendo después de un cambio (28/09/2026). En
+// Facturas, solo la lista, como siempre. Si la factura se abrió desde
+// otra sección (Inicio, Impuestos, Contabilidad), esa sección entera y
+// sin mover la página, para que sus cifras se pongan al día sin cambiar
+// de pantalla. Antes se pintaba la lista de Facturas debajo del título
+// de la otra sección.
+function fvRepintarDondeEstes() {
+  if (typeof vistaActiva === 'undefined' || vistaActiva === 'facturas') {
+    fvRepintarLista();
+  } else if (typeof repintarSinSaltar === 'function') {
+    repintarSinSaltar();
+  }
+}
+
 // Marcar Pagada/Pendiente (mapa 9.7). Genera o borra el apunte de
 // tesorería correspondiente en la misma operación.
-async function fvCambiarCobro(id) {
+//
+// `alCambiar` es opcional (28/09/2026): se llama en cuanto el cambio ya
+// está hecho en el dispositivo, sin esperar a Google. La ficha lo usa
+// para cerrarse al momento, como cualquier otra ventana al guardar.
+async function fvCambiarCobro(id, alCambiar) {
   const f = estado.ventas.find(function (x) { return String(x.id) === String(id); });
   if (!f) return;
   if (!fvEstaActiva(f)) {
@@ -509,10 +527,16 @@ async function fvCambiarCobro(id) {
   // dos aparecen al instante en el dispositivo y se guardan en paralelo.
   // Si algo falla, lo que falte queda en rojo (la factura en su lista,
   // el apunte en Contabilidad) y se reenvía solo al sincronizar.
-  await Promise.all([
+  const guardados = Promise.all([
     guardarRegistro('ventas', registro, fvRepintarLista, null),
     pasaAPagada ? fvCrearApunteCobro(registro) : fvBorrarApunteCobro(registro.id)
   ]);
+  // Factura y apunte ya están cambiados en el dispositivo: se repinta al
+  // momento lo que se esté viendo (28/09/2026) y, al confirmar Google, la
+  // lista de Facturas pone su punto en verde, como siempre.
+  if (typeof alCambiar === 'function') alCambiar();
+  fvRepintarDondeEstes();
+  await guardados;
   fvRepintarLista();
 }
 
@@ -720,15 +744,11 @@ function abrirFichaFacturaVenta(id) {
   fondo.querySelector('.fv-modal-cerrar').addEventListener('click', cerrar);
 
   fondo.querySelector('#fv-ficha-pdf').addEventListener('click', function () { pdfDocAbrirFactura(id); });
-  fondo.querySelector('#fv-ficha-pagada')?.addEventListener('click', async function () {
-    await fvCambiarCobro(id);
-    // fvCambiarCobro ya repinta el listado de Facturas si lo hay; si la
-    // ficha se abrió desde el Dashboard, se repinta también el suyo.
-    if (typeof dashRepintarListas === 'function' && typeof vistaActiva !== 'undefined' && vistaActiva === 'dashboard') {
-      dashRepintarListas();
-    }
-    const actualizada = estado.ventas.find(function (x) { return String(x.id) === String(id); });
-    if (actualizada && actualizada.estado === 'pagada') cerrar();
+  // "Pagada": la ficha se cierra en cuanto se confirma el aviso, sin
+  // esperar a Google; la pantalla de detrás (Facturas, Inicio,
+  // Impuestos...) se pone al día sola (28/09/2026).
+  fondo.querySelector('#fv-ficha-pagada')?.addEventListener('click', function () {
+    fvCambiarCobro(id, cerrar);
   });
   fondo.querySelector('#fv-ficha-editar')?.addEventListener('click', function () {
     cerrar();
@@ -1244,7 +1264,23 @@ function fvProcesarGuardado(fondo, original, prefill) {
 
   fvGuardarEnSegundoPlano(registro);
 
-  pintarFacturas();
+  // Dónde se queda la pantalla al guardar (28/09/2026). Antes se pintaba
+  // siempre la lista de Facturas, aunque se estuviera en otra sección, y
+  // quedaba debajo del título y del menú de esa otra sección.
+  //   - En Facturas: se repinta Facturas, como siempre.
+  //   - Factura NUEVA desde otra sección (convertir un presupuesto): se
+  //     va a Facturas → Ventas, con su título y su menú, para verla.
+  //   - Factura EDITADA desde otra sección (su ficha abierta desde el
+  //     Inicio, Impuestos o Contabilidad): se queda donde estaba y esa
+  //     pantalla se pone al día, sin mover la página.
+  if (typeof vistaActiva === 'undefined' || vistaActiva === 'facturas') {
+    pintarFacturas();
+  } else if (!original) {
+    fvArea = 'ventas';
+    cambiarVista('facturas');
+  } else if (typeof repintarSinSaltar === 'function') {
+    repintarSinSaltar();
+  }
 }
 
 /**

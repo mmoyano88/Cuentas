@@ -947,6 +947,13 @@ function fcProcesarGuardado(fondo, original) {
 
   fcGuardarEnSegundoPlano(registro);
   fcRepintarLista();
+
+  // Si la ficha se abrió desde otra sección (el "Ver" de un apunte en el
+  // Inicio o en Contabilidad), esa pantalla se pone al día sin cambiar de
+  // sección ni mover la página (28/09/2026).
+  if (typeof vistaActiva !== 'undefined' && vistaActiva !== 'facturas' && typeof repintarSinSaltar === 'function') {
+    repintarSinSaltar();
+  }
 }
 
 /**

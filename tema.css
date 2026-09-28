@@ -264,17 +264,21 @@
   margin: -70px 0 32px;      /* sube: 16 de margen + 16 de relleno + 38 del selector */
 }
 
-#dash-selector, #fv-selector, #cli-selector, #pre-selector, #pl-selector, #imp-selector-area, #ct-selector-ambito {
+/* El de Contabilidad es #ct-selector-lista desde el 28/09/2026: antes se
+   llamaba #ct-selector-ambito, igual que el selector Empresa/Personal del
+   formulario de apunte, y estos colores de banda se aplicaban también
+   allí ("Personal" quedaba en blanco sobre blanco). */
+#dash-selector, #fv-selector, #cli-selector, #pre-selector, #pl-selector, #imp-selector-area, #ct-selector-lista {
   background: rgba(255, 255, 255, .1);
 }
 #dash-selector button, #fv-selector button, #cli-selector button,
-#pre-selector button, #pl-selector button, #imp-selector-area button, #ct-selector-ambito button {
+#pre-selector button, #pl-selector button, #imp-selector-area button, #ct-selector-lista button {
   height: 32px;
   color: rgba(255, 255, 255, .72);
 }
 #dash-selector button.activa, #fv-selector button.activa, #cli-selector button.activa,
 #pre-selector button.activa, #pl-selector button.activa, #imp-selector-area button.activa,
-#ct-selector-ambito button.activa {
+#ct-selector-lista button.activa {
   background: #FFFFFF;
   color: var(--texto);
 }

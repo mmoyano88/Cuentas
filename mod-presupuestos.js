@@ -1349,7 +1349,14 @@ function preProcesarGuardado(fondo, original, prefill) {
   preGuardarEnSegundoPlano(registro, detalleAGuardar);
 
   preSubvista = 'relacion';
-  pintarPresupuestos();
+  // Presupuesto nuevo desde la ficha de un cliente (28/09/2026): se va a
+  // Presupuestos con su título y su menú. Antes se pintaba la lista de
+  // Presupuestos debajo del título "Clientes".
+  if (typeof vistaActiva === 'undefined' || vistaActiva === 'presupuestos') {
+    pintarPresupuestos();
+  } else {
+    cambiarVista('presupuestos');
+  }
 }
 
 /**

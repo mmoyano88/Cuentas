@@ -244,8 +244,12 @@ function pintarContabilidad() {
     // estaba dentro del panel de filtros (ctFiltroAmbito): "Total" es
     // "todos". Por eso el bloque "Ámbito" ya no está en el panel, y el
     // puntito del botón de filtros solo avisa del Tipo.
+    // Se llama "ct-selector-lista" (28/09/2026): con el nombre anterior,
+    // "ct-selector-ambito", coincidía con el selector Empresa/Personal del
+    // formulario de apunte, y los colores de la banda negra se aplicaban
+    // también allí ("Personal" salía en blanco sobre blanco).
     '<div class="ct-cabecera-lista">' +
-      '<div class="dash-selector" id="ct-selector-ambito">' +
+      '<div class="dash-selector" id="ct-selector-lista">' +
         [['empresa', 'Empresa'], ['personal', 'Personal'], ['todos', 'Total']].map(function (op) {
           return '<button type="button" data-ambito="' + op[0] + '"' +
             (op[0] === ctFiltroAmbito ? ' class="activa"' : '') + '>' + op[1] + '</button>';
@@ -261,7 +265,7 @@ function pintarContabilidad() {
     '<div id="ct-lista-contenedor"></div>';
 
   document.getElementById('ct-btn-nuevo').addEventListener('click', function () { abrirFormularioApunte(null); });
-  document.getElementById('ct-selector-ambito').querySelectorAll('[data-ambito]').forEach(function (b) {
+  document.getElementById('ct-selector-lista').querySelectorAll('[data-ambito]').forEach(function (b) {
     b.addEventListener('click', function () { ctFiltroAmbito = b.dataset.ambito; pintarContabilidad(); });
   });
 
@@ -982,14 +986,20 @@ function ctProcesarGuardado(fondo, original, datosSelector) {
 
   guardarRegistro('apuntes', registro, ctRepintarLista, null);
 
-  // Si se abrió desde Contabilidad, lleva ahí (comportamiento de
-  // siempre). Si se abrió desde otro sitio (el botón "+" del Dashboard,
-  // 27/09/2026), se queda donde estaba: solo repinta esa pantalla si
-  // sabe cómo, en vez de cambiar de vista.
-  if (vistaActiva === 'contabilidad' || typeof vistaActiva === 'undefined') {
+  // Si se abrió desde Contabilidad, se repinta Contabilidad (lo de
+  // siempre). Si se abrió desde otro sitio (el botón "+" o una ficha del
+  // Inicio), se queda donde estaba y esa pantalla se repinta ENTERA, sin
+  // mover la página: así se ponen al día también sus tarjetas y gráficos,
+  // no solo las listas (28/09/2026).
+  ctRepintarDondeEstes();
+}
+
+// Repinta lo que se está viendo después de guardar (28/09/2026).
+function ctRepintarDondeEstes() {
+  if (typeof vistaActiva === 'undefined' || vistaActiva === 'contabilidad') {
     pintarContabilidad();
-  } else if (vistaActiva === 'dashboard' && typeof dashRepintarListas === 'function') {
-    dashRepintarListas();
+  } else if (typeof repintarSinSaltar === 'function') {
+    repintarSinSaltar();
   }
 }
 
@@ -1379,7 +1389,9 @@ async function ctConvGuardar(fondo, apunte, esVenta) {
     ]);
   }
 
-  pintarContabilidad();
+  // Si el apunte se abrió desde el Inicio, se queda en el Inicio
+  // (28/09/2026). Antes pintaba Contabilidad debajo del título "Inicio".
+  ctRepintarDondeEstes();
 }
 
 // El apunte no se borra ni se duplica: pasa a ser el apunte automático

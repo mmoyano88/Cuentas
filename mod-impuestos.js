@@ -874,10 +874,17 @@ function impNumeroCampo(v) {
 
 // Lee lo escrito en el campo de importe. Admite "1.234,56", "1234,56" y
 // "1234.56". Devuelve null si está vacío y NaN si no es un número.
+//
+// Punto de miles sin coma (28/09/2026): "1.234" o "12.345.678" son
+// miles, no decimales (antes "1.234" se guardaba como 1,23 €). Solo
+// cuando TODOS los grupos tras el punto tienen justo 3 cifras y el
+// primero no empieza por 0: "12.5", "220.55" o "0.123" se leen como
+// siempre.
 function impLeerImporte(texto) {
   let t = String(texto || '').trim().replace(/\s/g, '').replace('€', '');
   if (t === '') return null;
   if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.');
+  else if (/^-?[1-9]\d{0,2}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, '');
   if (!/^-?\d+(\.\d+)?$/.test(t)) return NaN;
   return roundMoney(parseFloat(t));
 }

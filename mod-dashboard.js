@@ -556,14 +556,17 @@ function pintarDashboard() {
     prepararCarrusel(document.querySelector('#contenido .dash-donuts'), document.getElementById('dash-puntos-donuts'), { inicial: 0 });
   }
 
-  // Los dos selectores hacen lo mismo: cambian toda la pantalla.
+  // Los dos selectores hacen lo mismo: cambian toda la pantalla. Se
+  // repinta sin mover la página (28/09/2026): en ventanas grandes, el
+  // selector del gráfico mandaba la página arriba del todo.
   ['dash-selector', 'dash-selector-grafico'].forEach(function (id) {
     const el = document.getElementById(id);
     if (!el) return;
     el.querySelectorAll('[data-perspectiva]').forEach(function (b) {
       b.addEventListener('click', function () {
         dashPerspectiva = b.dataset.perspectiva;
-        pintarDashboard();
+        if (typeof repintarSinSaltar === 'function') repintarSinSaltar(pintarDashboard);
+        else pintarDashboard();
       });
     });
   });
@@ -687,7 +690,11 @@ function dashRepintarListas() {
       '<button type="button" class="boton-menor dash-lista-mas" id="dash-mas-apuntes">Más apuntes <i class="ti ti-chevron-right" aria-hidden="true"></i></button>' +
     '</section>' +
     '<section class="dash-lista">' +
-      '<p class="dash-grafico-titulo">Facturas sin cobrar</p>' +
+      // Misma cabecera que "Últimos apuntes" (28/09/2026): así las dos
+      // listas empiezan a la misma altura en PC, aunque esta no lleve "+".
+      '<div class="dash-lista-cabecera">' +
+        '<p class="dash-grafico-titulo">Facturas sin cobrar</p>' +
+      '</div>' +
       (facturas.length
         ? '<div class="dash-lista-filas">' + facturas.slice(0, DASH_LISTA_MAX).map(dashFilaFactura).join('') + '</div>'
         : '<p class="dash-lista-vacia">No tienes facturas pendientes de cobro.</p>') +
@@ -889,9 +896,13 @@ function dashGraficoEvolucion() {
     data: {
       labels: serie.etiquetas,
       datasets: [
-        { label: 'Ingresos',  data: serie.ingresos,  borderColor: '#3E9E4E', backgroundColor: '#3E9E4E', pointBackgroundColor: rellenoPuntos('#3E9E4E'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, borderWidth: 2, segment: tramoEnCurso },
-        { label: 'Gastos',    data: serie.gastos,    borderColor: '#D32F2F', backgroundColor: '#D32F2F', pointBackgroundColor: rellenoPuntos('#D32F2F'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, borderWidth: 2, segment: tramoEnCurso },
-        { label: 'Beneficio', data: serie.beneficio, borderColor: '#2F6FB5', backgroundColor: areaBeneficio, fill: 'origin', pointBackgroundColor: rellenoPuntos('#2F6FB5'), pointRadius: radioPuntos(3.5), pointHoverRadius: 5, tension: 0.4, borderWidth: 3.5, order: 0, segment: tramoEnCurso }
+        // Curva suave "monotone" (28/09/2026): no se pasa por encima ni
+        // por debajo de los puntos reales. Con la curva normal, la línea
+        // bajaba de 0 junto a un mes alto y parecía que hubo ingresos o
+        // gastos negativos. Los datos no cambian.
+        { label: 'Ingresos',  data: serie.ingresos,  borderColor: '#3E9E4E', backgroundColor: '#3E9E4E', pointBackgroundColor: rellenoPuntos('#3E9E4E'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, cubicInterpolationMode: 'monotone', borderWidth: 2, segment: tramoEnCurso },
+        { label: 'Gastos',    data: serie.gastos,    borderColor: '#D32F2F', backgroundColor: '#D32F2F', pointBackgroundColor: rellenoPuntos('#D32F2F'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, cubicInterpolationMode: 'monotone', borderWidth: 2, segment: tramoEnCurso },
+        { label: 'Beneficio', data: serie.beneficio, borderColor: '#2F6FB5', backgroundColor: areaBeneficio, fill: 'origin', pointBackgroundColor: rellenoPuntos('#2F6FB5'), pointRadius: radioPuntos(3.5), pointHoverRadius: 5, tension: 0.4, cubicInterpolationMode: 'monotone', borderWidth: 3.5, order: 0, segment: tramoEnCurso }
       ]
     },
     options: {

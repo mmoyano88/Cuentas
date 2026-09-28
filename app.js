@@ -190,6 +190,20 @@ function pintarVistaActiva() {
   }
 }
 
+// Repinta la pantalla que se está viendo SIN mover la página (28/09/2026).
+// Al rehacer una pantalla entera (el Inicio con sus gráficos, Impuestos
+// con sus carruseles...), durante un instante la página mide menos de lo
+// que medirá al terminar; en las ventanas grandes el navegador aprovechaba
+// ese instante para subir hasta arriba del todo. Aquí se apunta dónde
+// estaba la página y se vuelve ahí al terminar. `pintar` es opcional: sin
+// él se repinta la pantalla activa, igual que pintarVistaActiva().
+function repintarSinSaltar(pintar) {
+  const y = window.scrollY;
+  (typeof pintar === 'function' ? pintar : pintarVistaActiva)();
+  window.scrollTo(0, y);
+  requestAnimationFrame(function () { window.scrollTo(0, y); });
+}
+
 function cambiarVista(id) {
   if (!vistas[id]) return;
   vistaActiva = id;
@@ -1037,7 +1051,7 @@ async function sincronizarAhora() {
       estado.syncReady = true;
       await ejecutarReconciliadores();
       indicador('sincronizado');
-      pintarVistaActiva();
+      repintarSinSaltar();
       ejecutarPintadores();
       return;
     }
@@ -1081,7 +1095,9 @@ async function sincronizarAhora() {
     console.error('No se pudo sincronizar:', err);
     indicador('sinconexion');
   }
-  pintarVistaActiva();
+  // Sin mover la página (28/09/2026): en ventanas grandes, sincronizar
+  // con la página bajada la mandaba arriba del todo.
+  repintarSinSaltar();
   ejecutarPintadores();
 }
 
