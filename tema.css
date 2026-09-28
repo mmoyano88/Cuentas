@@ -1,0 +1,188 @@
+/* ============================================================
+   TEMA VISUAL — rediseño de 28/09/2026 (ver REDISENO_VISUAL_v1.md)
+
+   Este archivo se carga el ÚLTIMO en index.html. Solo cambia el
+   ASPECTO: no toca datos, cálculos ni guardados. Si algo no gusta,
+   basta con quitar su línea de index.html y la app vuelve a verse
+   exactamente como antes.
+
+   Las reglas se anclan a IDENTIFICADORES (#indicador-sync, #boton-ojo,
+   #nav-pc...) o a elementos únicos, para que ganen siempre a los CSS de
+   los módulos y no afecten a nada más (lección de CSS del proyecto).
+
+   FASE 1 — base:
+     - Fuente de títulos (Bricolage Grotesque, peso 800).
+     - Banda negra de cabecera con la imagen de marca.
+     - Ojo y sincronización como círculos gemelos.
+     - Barra de menú (móvil) y barra lateral (PC) casi negras.
+     - Marca roja en la sección activa del menú móvil.
+     - En PC: banda flotante y nombre "Cuentas" arriba de la barra lateral.
+   ============================================================ */
+
+/* ---------------- Fuente de títulos ---------------- */
+
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('bricolage-800.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --fuente-titulos: 'Bricolage Grotesque', system-ui, sans-serif;
+  --banda: #161615;
+  --nav-oscuro: #121211;
+  --sync-verde: #5EE08A;
+  --sync-azul: #6CB6FF;
+  --sync-ambar: #FFC24A;
+  --sync-rojo: #FF6B60;
+}
+
+/* ============================================================
+   BANDA NEGRA DE CABECERA
+   Es la cabecera común de todas las pantallas (index.html), así que
+   el cambio llega a todas a la vez sin tocar ningún módulo.
+   ============================================================ */
+
+#app .cabecera {
+  min-height: 72px;
+  padding: 14px var(--padding-pagina) 16px;
+  margin: 0 0 16px;
+  box-sizing: border-box;
+  /* Degradado negro sobre la imagen: tapa del todo la izquierda (donde
+     va el título) y deja asomar la foto por la derecha. */
+  background:
+    linear-gradient(90deg, rgba(22, 22, 21, .96) 40%, rgba(22, 22, 21, .55)),
+    url('cabecera-banda.webp') right center / cover no-repeat,
+    var(--banda);
+}
+
+#titulo-pantalla {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -.01em;
+  color: #FFFFFF;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------- Ojo: círculo translúcido ---------------- */
+
+#boton-ojo {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: rgba(255, 255, 255, .14);
+  color: #FFFFFF;
+}
+#boton-ojo i { font-size: 19px; }
+
+/* Cifras ocultas: el círculo se "enciende" en blanco para que se note
+   que está activo (antes era gris oscuro sobre fondo claro). */
+#boton-ojo.oculto {
+  background: #FFFFFF;
+  color: var(--texto);
+}
+
+/* ---------------- Sincronización: círculo con icono de color ----------------
+   Sin texto: cada estado tiene su icono y su color.
+     verde  = Sincronizado (nube con check)
+     azul   = Guardando    (flechas girando)
+     ámbar  = Pendiente    (reloj)
+     rojo   = Sin conexión (nube tachada)
+   La clase .pastilla se sigue usando en las pastillas de estado de los
+   listados, por eso TODO va anclado a #indicador-sync. */
+
+#indicador-sync {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  gap: 0;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .14);
+}
+#indicador-sync span { display: none; }
+#indicador-sync i { font-size: 19px; }
+
+#indicador-sync.ind-verde { color: var(--sync-verde); }
+#indicador-sync.ind-azul  { color: var(--sync-azul); }
+#indicador-sync.ind-ambar { color: var(--sync-ambar); }
+#indicador-sync.ind-rojo  { color: var(--sync-rojo); }
+
+/* Excepción: "X sin guardar" SÍ enseña el texto. El número de cambios
+   pendientes es un dato que importa y un icono solo no lo diría. Sale
+   como pastilla roja, que es justo un "ojo con esto". */
+#indicador-sync:has(.ti-cloud-x) {
+  width: auto;
+  padding: 0 12px;
+  gap: 6px;
+  border-radius: 18px;
+  background: var(--rojo);
+  color: #FFFFFF;
+}
+#indicador-sync:has(.ti-cloud-x) span {
+  display: inline;
+  font-size: 12px;
+  font-weight: 600;
+}
+#indicador-sync:has(.ti-cloud-x) i { font-size: 16px; }
+
+/* ============================================================
+   MENÚ
+   ============================================================ */
+
+/* Barra inferior (móvil): casi negra, y una marca roja corta encima de
+   la sección activa. */
+@media (max-width: 899px) {
+  #nav-movil { background: var(--nav-oscuro); }
+  #nav-movil .nav-item { position: relative; }
+  #nav-movil .nav-item.activa::before {
+    content: '';
+    position: absolute;
+    top: -10px;              /* el borde de arriba de la barra */
+    left: 50%;
+    width: 28px;
+    height: 3px;
+    margin-left: -14px;
+    border-radius: 0 0 3px 3px;
+    background: var(--rojo);
+  }
+}
+
+/* Barra lateral (PC) */
+@media (min-width: 900px) {
+  #nav-pc { background: var(--nav-oscuro); }
+
+  /* Icono de la app + "Cuentas" arriba de la barra lateral. Se dibuja
+     solo con CSS: no hace falta tocar mod-navegacion.js. */
+  #nav-pc::before {
+    content: 'Cuentas';
+    display: block;
+    flex: 0 0 auto;
+    padding: 2px 22px 18px 62px;
+    min-height: 30px;
+    line-height: 30px;
+    background: url('icon-192.png') 22px 2px / 30px 30px no-repeat;
+    font-family: var(--fuente-titulos);
+    font-weight: 800;
+    font-size: 21px;
+    color: #FFFFFF;
+  }
+
+  /* Banda flotante: en PC la banda no llega a los bordes. Se separa de
+     la barra lateral (igual de oscura) con el fondo claro de la app,
+     y sus bordes laterales quedan alineados con el contenido. */
+  #app .cabecera {
+    margin: 16px var(--padding-pagina) 20px;
+    padding: 20px 24px;
+    min-height: 84px;
+    border-radius: 20px;
+  }
+  #titulo-pantalla { font-size: 30px; }
+}

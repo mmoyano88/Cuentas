@@ -23,7 +23,7 @@
  * control, la app se recarga sola una vez (ver el final de app.js).
  */
 
-const VERSION = 'cuentas-v49';
+const VERSION = 'cuentas-v50';
 
 const ARCHIVOS = [
   './',
@@ -58,6 +58,9 @@ const ARCHIVOS = [
   './mod-plantillas.js',
   './mod-misdatos.css',
   './mod-misdatos.js',
+  './tema.css',
+  './bricolage-800.woff2',
+  './cabecera-banda.webp',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
