@@ -538,6 +538,8 @@ function pintarDashboard() {
         '<div class="dash-lienzo"><canvas id="dash-g-gastos-ambito"></canvas></div>' +
       '</div>' +
     '</div>' +
+    // Puntos del carrusel de donuts (solo se ven en el móvil).
+    '<div class="car-puntos" id="dash-puntos-donuts" aria-hidden="true"><span></span><span></span><span></span><span></span></div>' +
     '<div class="dash-info">' +
       '<button type="button" class="dash-info-cabecera" id="dash-info-cabecera">' +
         '<span>Info del Dashboard</span>' +
@@ -547,6 +549,12 @@ function pintarDashboard() {
         dashBloqueInfo() +
       '</div>' +
     '</div>';
+
+  // Donuts en carrusel en el móvil (rediseño, 28/09/2026): uno grande
+  // detrás de otro, deslizando de lado. En PC siguen en rejilla.
+  if (typeof prepararCarrusel === 'function') {
+    prepararCarrusel(document.querySelector('#contenido .dash-donuts'), document.getElementById('dash-puntos-donuts'), { inicial: 0 });
+  }
 
   // Los dos selectores hacen lo mismo: cambian toda la pantalla.
   ['dash-selector', 'dash-selector-grafico'].forEach(function (id) {

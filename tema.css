@@ -40,9 +40,10 @@
    FASE 4 — pantallas clave (al final del archivo):
      - Resumen económico (formularios y fichas) en tarjeta oscura, en su
        sitio de siempre (no fija).
-     - Impuestos: el plazo y el pago del trimestre se juntan en una
-       tarjeta destacada arriba: negra, o roja si quedan 7 días o menos
-       o se ha pasado el plazo.
+     - Impuestos: una tarjeta por trimestre (plazo y pago del trimestre)
+       en lugar de los botones Q1–Q4; negra, o roja si quedan 7 días o
+       menos o se ha pasado el plazo. En el móvil, carruseles de
+       trimestres y de IVA/IRPF; también los donuts del Dashboard.
 
    FASE 5 — listas (al final del archivo):
      - Contabilidad separada por meses (la etiqueta del mes se queda fija
@@ -638,66 +639,157 @@ button:active:not(:disabled) {
 }
 
 /* ============================================================
-   FASE 4 — IMPUESTOS: TARJETA DEL PAGO DEL TRIMESTRE
-   El aviso del plazo y la tarjeta "Pago del trimestre" (que ya existen)
-   se ponen arriba del todo y se unen en una sola tarjeta destacada.
-   Color según el plazo, con la regla que ya tiene la app:
+   FASE 4 (rehecha el 28/09/2026) — IMPUESTOS: TARJETAS DE TRIMESTRE
+   Cada trimestre es una tarjeta con su plazo y su "Pago del trimestre"
+   (lo pinta mod-impuestos.js con las funciones de siempre). Sustituyen
+   a los botones Q1–Q4. Color según el plazo, con la regla que ya tiene
+   la app:
      negra  → plazo normal o trimestre pagado
      roja   → quedan 7 días o menos, o se ha pasado el plazo
-   Ningún cálculo cambia: solo el orden en pantalla y el aspecto.
    ============================================================ */
 
-#imp-detalle { display: flex; flex-direction: column; }
-#imp-detalle > .imp-plazo { order: 1; }
-#imp-detalle > .imp-tarjeta-total { order: 2; }
-#imp-detalle > .imp-columnas { order: 3; margin-bottom: 12px; }
-#imp-detalle > * { order: 4; }
+.imp-trim-tarjeta {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radio-tarjeta);
+  background: var(--banda);
+  color: #FFFFFF;
+  overflow: hidden;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.imp-trim-tarjeta:has(.imp-plazo.pronto, .imp-plazo.vencido) { background: var(--rojo); }
 
-#imp-detalle > .imp-plazo {
+.imp-trim-tarjeta > .imp-plazo {
   margin: 0;
   padding: 14px 16px 4px;
-  border-radius: var(--radio-tarjeta) var(--radio-tarjeta) 0 0;
-  background: var(--banda);
-  color: rgba(255, 255, 255, .85);
+  border-radius: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, .88);
   font-size: 12px;
 }
-#imp-detalle > .imp-plazo.pagado i { color: var(--sync-verde); }
+.imp-trim-tarjeta > .imp-plazo.pagado i { color: var(--sync-verde); }
 
-#imp-detalle > .imp-tarjeta-total {
-  margin-top: 0;
+.imp-trim-tarjeta > .imp-tarjeta-total {
+  flex: 1;
+  margin: 0;
   padding-top: 8px;
-  border-radius: 0 0 var(--radio-tarjeta) var(--radio-tarjeta);
-  background: var(--banda);
+  border-radius: 0;
+  background: transparent;
   color: #FFFFFF;
 }
-
-/* Quedan 7 días o menos, o se ha pasado: la tarjeta entera en rojo. */
-#imp-detalle:has(> .imp-plazo.pronto, > .imp-plazo.vencido) > .imp-plazo,
-#imp-detalle:has(> .imp-plazo.pronto, > .imp-plazo.vencido) > .imp-tarjeta-total {
-  background: var(--rojo);
-  color: #FFFFFF;
-}
-
-#imp-detalle > .imp-tarjeta-total .imp-tarjeta-titulo {
+.imp-trim-tarjeta .imp-tarjeta-titulo {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .09em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, .75);
 }
-#imp-detalle > .imp-tarjeta-total .imp-linea { color: rgba(255, 255, 255, .7); }
-#imp-detalle > .imp-tarjeta-total .imp-linea strong { color: #FFFFFF; }
-#imp-detalle > .imp-tarjeta-total .imp-total-final { border-top-color: rgba(255, 255, 255, .16); }
-#imp-detalle > .imp-tarjeta-total .imp-total-final span { color: rgba(255, 255, 255, .75); }
-#imp-detalle > .imp-tarjeta-total .imp-total-final strong {
+.imp-trim-tarjeta .imp-linea { color: rgba(255, 255, 255, .7); }
+.imp-trim-tarjeta .imp-linea strong { color: #FFFFFF; }
+.imp-trim-tarjeta .imp-total-final { border-top-color: rgba(255, 255, 255, .16); }
+.imp-trim-tarjeta .imp-total-final span { color: rgba(255, 255, 255, .75); }
+/* Etiqueta ("TOTAL A PAGAR") encima y la cifra grande debajo: en una
+   tarjeta estrecha no caben en la misma línea sin partirse. */
+.imp-trim-tarjeta .imp-total-final {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.imp-trim-tarjeta .imp-total-final span { white-space: nowrap; font-size: 11px; letter-spacing: .06em; }
+.imp-trim-tarjeta .imp-total-final strong {
   font-size: 30px;
   color: #FFFFFF;
+  white-space: nowrap;
 }
-#imp-detalle > .imp-tarjeta-total .imp-total-final strong.favor { color: var(--sync-verde); }
-#imp-detalle > .imp-tarjeta-total .imp-nota,
-#imp-detalle > .imp-tarjeta-total .imp-nota.aviso {
+.imp-trim-tarjeta .imp-total-final strong.favor { color: var(--sync-verde); }
+.imp-trim-tarjeta .imp-nota,
+.imp-trim-tarjeta .imp-nota.aviso {
   color: rgba(255, 255, 255, .8);
   background: none;
+}
+
+/* PC: las cuatro tarjetas en fila; la elegida, con un marco blanco y
+   negro que la distingue, y las demás algo apagadas. */
+@media (min-width: 900px) {
+  #imp-carrusel-trimestres {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+    align-items: stretch;
+  }
+  #imp-carrusel-trimestres > .imp-trim-tarjeta { transition: transform .15s ease; }
+  #imp-carrusel-trimestres > .imp-trim-tarjeta:hover { transform: translateY(-2px); }
+  #imp-carrusel-trimestres > .imp-trim-tarjeta.elegida {
+    box-shadow: 0 0 0 3px var(--fondo), 0 0 0 5px var(--banda);
+  }
+  #imp-carrusel-trimestres .imp-total-final strong { font-size: 26px; }
+  #imp-puntos-trimestres, #imp-puntos-impuestos { display: none; }
+}
+
+/* ============================================================
+   CARRUSELES DESLIZABLES EN EL MÓVIL (28/09/2026)
+   Impuestos (trimestres arriba, IVA/IRPF abajo) y donuts del Dashboard.
+   La tarjeta del centro, entera; las de los lados, algo más pequeñas y
+   apagadas, y sin poder pulsar sus botones hasta que están en el
+   centro (tocarlas las trae al centro). Informes tiene el suyo propio.
+   ============================================================ */
+
+.car-puntos { display: flex; justify-content: center; gap: 6px; margin: 4px 0 14px; }
+.car-puntos span {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: #CFCFCB;
+  transition: width .2s ease, background-color .2s ease;
+}
+.car-puntos span.activo { width: 18px; background: var(--banda); }
+
+@media (max-width: 899px) {
+  #imp-carrusel-trimestres,
+  #contenido #imp-carrusel-impuestos,
+  #app #contenido .dash-donuts {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 4px 10% 8px;
+    margin: 0 calc(-1 * var(--padding-pagina));
+    scrollbar-width: none;
+    align-items: stretch;
+  }
+  #imp-carrusel-trimestres::-webkit-scrollbar,
+  #imp-carrusel-impuestos::-webkit-scrollbar,
+  #contenido .dash-donuts::-webkit-scrollbar { display: none; }
+
+  #imp-carrusel-trimestres > *,
+  #contenido #imp-carrusel-impuestos > *,
+  #app #contenido .dash-donuts > * {
+    flex: 0 0 80%;
+    min-width: 0;
+    scroll-snap-align: center;
+    transform: scale(.93);
+    opacity: .55;
+    transition: transform .25s ease, opacity .25s ease;
+  }
+  #imp-carrusel-trimestres > .centrada,
+  #contenido #imp-carrusel-impuestos > .centrada,
+  #app #contenido .dash-donuts > .centrada { transform: none; opacity: 1; }
+
+  /* Los botones y campos de una tarjeta de los lados no se pueden
+     pulsar sin querer: primero hay que traerla al centro. */
+  #contenido #imp-carrusel-impuestos > :not(.centrada) *,
+  #app #contenido .dash-donuts > :not(.centrada) * { pointer-events: none; }
+
+  /* IVA e IRPF no miden lo mismo: cada tarjeta, con su propio alto. */
+  #contenido #imp-carrusel-impuestos { align-items: flex-start; }
+
+  /* Donuts más grandes, ahora que van de uno en uno. */
+  #app #contenido .dash-donuts .dash-lienzo { height: 220px; }
+}
+@media (min-width: 900px) {
+  #dash-puntos-donuts { display: none; }
 }
 
 /* ============================================================
@@ -1127,3 +1219,7 @@ button:active:not(:disabled) {
   justify-content: center;
   font-size: 15px;
 }
+
+/* El resultado de IVA/IRPF ("A pagar este trimestre") nunca parte la
+   cifra de su €. */
+#contenido .imp-resultado strong { white-space: nowrap; }

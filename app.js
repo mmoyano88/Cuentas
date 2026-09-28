@@ -1255,6 +1255,94 @@ function compararRegistros(a, b, campoDireccion) {
   return 0;
 }
 
+// ============================================================
+// CARRUSEL DESLIZABLE (rediseño, 28/09/2026)
+// ============================================================
+// Tarjetas que se deslizan de lado en el móvil (Impuestos, donuts del
+// Dashboard). El aspecto va en tema.css; aquí solo:
+//   - al abrir, centra la tarjeta `opciones.inicial`;
+//   - al deslizar, marca la tarjeta del centro (clase "centrada") y su
+//     punto (clase "activo");
+//   - cuando el carrusel se para en una tarjeta, o se pulsa una tarjeta
+//     que ya está en el centro, llama a `opciones.alElegir(indice)`;
+//   - pulsar una tarjeta de los lados la trae al centro.
+// En PC las tarjetas no se deslizan (van en rejilla): pulsar una la
+// elige directamente. No guarda nada ni cambia datos.
+function prepararCarrusel(carrusel, puntos, opciones) {
+  if (!carrusel) return null;
+  opciones = opciones || {};
+  const tarjetas = Array.prototype.slice.call(carrusel.children);
+  if (!tarjetas.length) return null;
+  let elegida = typeof opciones.inicial === 'number' ? opciones.inicial : 0;
+
+  const seDesliza = function () { return carrusel.scrollWidth > carrusel.clientWidth + 2; };
+
+  function indiceCentrado() {
+    const centro = carrusel.scrollLeft + carrusel.clientWidth / 2;
+    let mejor = 0;
+    let distancia = Infinity;
+    tarjetas.forEach(function (t, i) {
+      const d = Math.abs(t.offsetLeft + t.offsetWidth / 2 - centro);
+      if (d < distancia) { distancia = d; mejor = i; }
+    });
+    return mejor;
+  }
+
+  function marcar(i) {
+    tarjetas.forEach(function (t, k) { t.classList.toggle('centrada', k === i); });
+    if (puntos) {
+      Array.prototype.forEach.call(puntos.children, function (p, k) { p.classList.toggle('activo', k === i); });
+    }
+  }
+
+  function irA(i, suave) {
+    const t = tarjetas[i];
+    if (!t) return;
+    const destino = t.offsetLeft - (carrusel.clientWidth - t.offsetWidth) / 2;
+    if (suave && carrusel.scrollTo) carrusel.scrollTo({ left: destino, behavior: 'smooth' });
+    else carrusel.scrollLeft = destino;
+  }
+
+  function elegir(i) {
+    if (i === elegida) return;
+    elegida = i;
+    if (typeof opciones.alElegir === 'function') opciones.alElegir(i);
+  }
+
+  irA(elegida, false);
+  marcar(seDesliza() ? indiceCentrado() : elegida);
+
+  let pendiente = false;
+  let temporizador = null;
+  carrusel.addEventListener('scroll', function () {
+    if (!pendiente) {
+      pendiente = true;
+      requestAnimationFrame(function () { pendiente = false; marcar(indiceCentrado()); });
+    }
+    clearTimeout(temporizador);
+    temporizador = setTimeout(function () { elegir(indiceCentrado()); }, 180);
+  });
+
+  tarjetas.forEach(function (t, i) {
+    t.addEventListener('click', function (ev) {
+      if (seDesliza()) {
+        if (i !== indiceCentrado()) {
+          // Tarjeta de un lado: se trae al centro (y al pararse se elige).
+          if (!ev.target.closest('input, select, textarea')) ev.preventDefault();
+          irA(i, true);
+        } else {
+          elegir(i);
+        }
+      } else {
+        marcar(i);
+        elegir(i);
+      }
+    });
+  });
+
+  return { irA: irA };
+}
+
 function escaparHtml(v) {
   return String(v == null ? '' : v)
     .replace(/&/g, '&amp;')

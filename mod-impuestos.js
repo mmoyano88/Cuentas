@@ -578,14 +578,23 @@ function pintarPantallaImpuestos() {
           return '<option value="' + a + '"' + (a === impAnio ? ' selected' : '') + '>' + a + '</option>';
         }).join('') +
       '</select>' +
-      '<div class="imp-selector imp-selector-periodo" id="imp-trimestres">' +
-        IMP_TRIMESTRES.map(function (t) {
-          return '<button type="button" data-trimestre="' + t + '"' +
-            (t === impTrimestre ? ' class="activa"' : '') + '>' + t + '</button>';
-        }).join('') +
-      '</div>' +
     '</div>' +
     '<p class="imp-nota-cabecera">Estimación orientativa para saber cuánto apartar. Los trimestres oficiales los presenta tu asesor.</p>' +
+    // Rediseño (28/09/2026, decisión del propietario): los botones
+    // Q1–Q4 se sustituyen por una tarjeta por trimestre (su plazo y su
+    // pago del trimestre). En el móvil se deslizan de lado y la que se
+    // queda en el centro es el trimestre elegido; en PC van en fila y se
+    // elige pulsando. Elegir un trimestre hace exactamente lo mismo que
+    // antes pulsar Q1–Q4: cambia impTrimestre y repinta el detalle.
+    '<div class="imp-carrusel imp-carrusel-trimestres" id="imp-carrusel-trimestres">' +
+      IMP_TRIMESTRES.map(function (t) {
+        return '<div class="imp-trim-tarjeta' + (t === impTrimestre ? ' elegida' : '') + '" data-trimestre="' + t + '">' +
+          impHtmlTarjetaTrimestre(impAnio, t) + '</div>';
+      }).join('') +
+    '</div>' +
+    '<div class="car-puntos" id="imp-puntos-trimestres" aria-hidden="true">' +
+      IMP_TRIMESTRES.map(function () { return '<span></span>'; }).join('') +
+    '</div>' +
     '<div id="imp-detalle"></div>';
 
   document.getElementById('imp-anio').addEventListener('change', function (ev) {
@@ -593,14 +602,30 @@ function pintarPantallaImpuestos() {
     pintarPantallaImpuestos();
   });
 
-  document.getElementById('imp-trimestres').querySelectorAll('[data-trimestre]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      impTrimestre = b.dataset.trimestre;
-      pintarPantallaImpuestos();
-    });
+  const carrusel = document.getElementById('imp-carrusel-trimestres');
+  prepararCarrusel(carrusel, document.getElementById('imp-puntos-trimestres'), {
+    inicial: IMP_TRIMESTRES.indexOf(impTrimestre),
+    alElegir: function (i) {
+      impTrimestre = IMP_TRIMESTRES[i];
+      carrusel.querySelectorAll('.imp-trim-tarjeta').forEach(function (el) {
+        el.classList.toggle('elegida', el.dataset.trimestre === impTrimestre);
+      });
+      impRepintarDetalle();
+    }
   });
 
   impRepintarDetalle();
+}
+
+// Contenido de la tarjeta de un trimestre (rediseño, 28/09/2026): el
+// aviso de su plazo y su "Pago del trimestre", hechos con las MISMAS
+// funciones de siempre (impBloquePlazo e impTarjetaTotal). No hay
+// ningún cálculo nuevo.
+function impHtmlTarjetaTrimestre(anio, trimestre) {
+  const c = impCalcular(anio, trimestre);
+  const registro = impRegistroDe(anio, trimestre);
+  const adelantar = impAdelantar(anio, trimestre);
+  return impBloquePlazo(anio, trimestre) + impTarjetaTotal(c, registro, adelantar);
 }
 
 function impRepintarDetalle() {
@@ -609,22 +634,27 @@ function impRepintarDetalle() {
 
   const c = impCalcular(impAnio, impTrimestre);
   const acumulado = impIrpfAcumulado(impAnio, impTrimestre);
-  const adelantar = impAdelantar(impAnio, impTrimestre);
   const registro = impRegistroDe(impAnio, impTrimestre);
 
-  // IVA e IRPF van uno al lado del otro en PC y uno debajo del otro
-  // en móvil (decisión 05/09/2026): en pantalla ancha ocupaban
-  // demasiado alto puestos en vertical.
+  // IVA e IRPF van uno al lado del otro en PC (decisión 05/09/2026). En
+  // el móvil, desde el rediseño (28/09/2026), en un carrusel de dos
+  // tarjetas que se desliza de lado. El plazo y el pago del trimestre
+  // ya no van aquí: están en la tarjeta del trimestre, arriba.
   zona.innerHTML =
-    impBloquePlazo(impAnio, impTrimestre) +
-    '<div class="imp-columnas">' +
+    '<div class="imp-columnas imp-carrusel" id="imp-carrusel-impuestos">' +
       impTarjetaIva(c, registro) +
       impTarjetaIrpf(c, acumulado, registro) +
     '</div>' +
-    impTarjetaTotal(c, registro, adelantar) +
+    '<div class="car-puntos" id="imp-puntos-impuestos" aria-hidden="true"><span></span><span></span></div>' +
     impTarjetaSinCobrar(impFacturasSinCobrar());
 
   impCablearDetalle(zona);
+  prepararCarrusel(document.getElementById('imp-carrusel-impuestos'), document.getElementById('imp-puntos-impuestos'), { inicial: 0 });
+
+  // La tarjeta de arriba del trimestre elegido se pone al día (por
+  // ejemplo, después de marcar un pago), sin mover el carrusel.
+  const tarjeta = document.querySelector('#imp-carrusel-trimestres .imp-trim-tarjeta[data-trimestre="' + impTrimestre + '"]');
+  if (tarjeta) tarjeta.innerHTML = impHtmlTarjetaTrimestre(impAnio, impTrimestre);
 }
 
 // Plazo del trimestre elegido, arriba del todo (25/09/2026).
