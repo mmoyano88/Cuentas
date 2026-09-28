@@ -109,10 +109,21 @@ function pintarNavMovil() {
     '<button type="button" class="nav-item' + (masActivo ? ' activa' : '') + '" id="btn-mas">' +
     '<i class="ti ti-dots" aria-hidden="true"></i><span>Más</span></button>';
 
+  // Desde el rediseño (28/09/2026) el panel "Más" se abre por encima de
+  // la barra sin taparla, así que la barra sigue a mano con el panel
+  // abierto: al ir a otra sección el panel se cierra, y "Más" funciona
+  // como interruptor (abre y cierra).
   nav.querySelectorAll('[data-vista]').forEach(function (boton) {
-    boton.addEventListener('click', function () { cambiarVista(boton.dataset.vista); });
+    boton.addEventListener('click', function () {
+      cerrarPanelMas();
+      cambiarVista(boton.dataset.vista);
+    });
   });
-  document.getElementById('btn-mas').addEventListener('click', abrirPanelMas);
+  document.getElementById('btn-mas').addEventListener('click', function () {
+    const panel = document.getElementById('panel-mas');
+    if (panel && panel.classList.contains('abierto')) cerrarPanelMas();
+    else abrirPanelMas();
+  });
 }
 
 // ============================================================

@@ -239,17 +239,31 @@ function pintarContabilidad() {
   if (!contenido) return;
 
   contenido.innerHTML =
+    // Selector Empresa / Personal / Total (rediseño, 28/09/2026), igual
+    // que el del Dashboard. Maneja el mismo filtro de ámbito que antes
+    // estaba dentro del panel de filtros (ctFiltroAmbito): "Total" es
+    // "todos". Por eso el bloque "Ámbito" ya no está en el panel, y el
+    // puntito del botón de filtros solo avisa del Tipo.
     '<div class="ct-cabecera-lista">' +
+      '<div class="dash-selector" id="ct-selector-ambito">' +
+        [['empresa', 'Empresa'], ['personal', 'Personal'], ['todos', 'Total']].map(function (op) {
+          return '<button type="button" data-ambito="' + op[0] + '"' +
+            (op[0] === ctFiltroAmbito ? ' class="activa"' : '') + '>' + op[1] + '</button>';
+        }).join('') +
+      '</div>' +
       '<button type="button" class="ct-flotante" id="ct-btn-nuevo" aria-label="Nuevo apunte"><i class="ti ti-plus"></i></button>' +
     '</div>' +
     '<div class="ct-barra" style="position:relative">' +
       '<input type="text" class="ct-buscador" id="ct-buscador" placeholder="Buscar..." value="' + escaparHtml(ctBusqueda) + '">' +
-      '<button type="button" class="ct-btn-filtro' + ((ctFiltroTipo !== 'todos' || ctFiltroAmbito !== 'todos') ? ' con-filtro' : '') + '" id="ct-btn-filtro"><i class="ti ti-filter"></i></button>' +
+      '<button type="button" class="ct-btn-filtro' + (ctFiltroTipo !== 'todos' ? ' con-filtro' : '') + '" id="ct-btn-filtro"><i class="ti ti-filter"></i></button>' +
       ctRenderFiltrosPanel() +
     '</div>' +
     '<div id="ct-lista-contenedor"></div>';
 
   document.getElementById('ct-btn-nuevo').addEventListener('click', function () { abrirFormularioApunte(null); });
+  document.getElementById('ct-selector-ambito').querySelectorAll('[data-ambito]').forEach(function (b) {
+    b.addEventListener('click', function () { ctFiltroAmbito = b.dataset.ambito; pintarContabilidad(); });
+  });
 
   ctCablearBarra();
   ctRepintarLista();
@@ -257,27 +271,20 @@ function pintarContabilidad() {
 
 function ctRenderFiltrosPanel() {
   const tipos = [['todos', 'Todos'], ['ingreso', 'Ingresos'], ['gasto', 'Gastos']];
-  const ambitos = [['todos', 'Todos'], ['empresa', 'Empresa'], ['personal', 'Personal']];
   const ordenes = [
     ['fecha-desc', 'Fecha (más nuevo primero)'],
     ['fecha-asc', 'Fecha (más antiguo primero)'],
     ['total-desc', 'Importe (mayor primero)']
   ];
 
-  // Tipo y Ámbito son dos filtros independientes que se combinan entre
-  // sí (no son pestañas excluyentes entre ellos): se puede marcar
-  // "Ingresos" y "Empresa" a la vez para ver solo los ingresos de
-  // empresa, por ejemplo.
+  // Tipo y Ámbito siguen siendo dos filtros independientes que se
+  // combinan entre sí (se puede ver "Ingresos" de "Empresa"). Desde el
+  // 28/09/2026 el Ámbito se elige en el selector de arriba, no aquí.
   return '<div class="ct-filtros-panel" id="ct-filtros-panel">' +
     '<p class="ct-filtros-titulo">Tipo</p>' +
     tipos.map(function (op) {
       return '<button type="button" data-tipo="' + op[0] + '"' +
         (op[0] === ctFiltroTipo ? ' class="activa"' : '') + '>' + escaparHtml(op[1]) + '</button>';
-    }).join('') +
-    '<p class="ct-filtros-titulo">Ámbito</p>' +
-    ambitos.map(function (op) {
-      return '<button type="button" data-ambito="' + op[0] + '"' +
-        (op[0] === ctFiltroAmbito ? ' class="activa"' : '') + '>' + escaparHtml(op[1]) + '</button>';
     }).join('') +
     '<p class="ct-filtros-titulo">Ordenar por</p>' +
     ordenes.map(function (op) {
@@ -319,9 +326,6 @@ function ctCablearBarra() {
 
   panel.querySelectorAll('[data-tipo]').forEach(function (b) {
     b.addEventListener('click', function () { ctFiltroTipo = b.dataset.tipo; pintarContabilidad(); });
-  });
-  panel.querySelectorAll('[data-ambito]').forEach(function (b) {
-    b.addEventListener('click', function () { ctFiltroAmbito = b.dataset.ambito; pintarContabilidad(); });
   });
   panel.querySelectorAll('[data-orden]').forEach(function (b) {
     b.addEventListener('click', function () { ctOrden = b.dataset.orden; pintarContabilidad(); });

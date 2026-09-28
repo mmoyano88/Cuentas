@@ -50,6 +50,12 @@
      - Tarjetas de Plantillas con la cabecera del color de su categoría.
      - Pantallas vacías con el icono de la sección.
 
+   AJUSTES DE LA REVISIÓN (28/09/2026, al final del archivo):
+     - Botón "+" de "Últimos apuntes" en negro.
+     - Selector Empresa/Personal/Total en Contabilidad.
+     - Informes: trimestres en carrusel (móvil) o en fila (PC), resumen
+       del año en tarjeta oscura, 347 y Revisión de datos más claros.
+
    FASES 6 A 8 (al final del archivo):
      - Accesos rápidos en la ficha de cliente (los pinta mod-clientes.js).
      - Gráficos del Dashboard (van en mod-dashboard.js, no aquí).
@@ -247,22 +253,24 @@
 #contenido > .fv-cabecera-lista,
 #contenido > .cli-cabecera-lista,
 #contenido > .pre-cabecera-lista,
-#contenido > .imp-cabecera-seccion {
+#contenido > .imp-cabecera-seccion,
+#contenido > .ct-cabecera-lista {
   position: relative;
   z-index: 1;
   margin: -70px 0 32px;      /* sube: 16 de margen + 16 de relleno + 38 del selector */
 }
 
-#dash-selector, #fv-selector, #cli-selector, #pre-selector, #pl-selector, #imp-selector-area {
+#dash-selector, #fv-selector, #cli-selector, #pre-selector, #pl-selector, #imp-selector-area, #ct-selector-ambito {
   background: rgba(255, 255, 255, .1);
 }
 #dash-selector button, #fv-selector button, #cli-selector button,
-#pre-selector button, #pl-selector button, #imp-selector-area button {
+#pre-selector button, #pl-selector button, #imp-selector-area button, #ct-selector-ambito button {
   height: 32px;
   color: rgba(255, 255, 255, .72);
 }
 #dash-selector button.activa, #fv-selector button.activa, #cli-selector button.activa,
-#pre-selector button.activa, #pl-selector button.activa, #imp-selector-area button.activa {
+#pre-selector button.activa, #pl-selector button.activa, #imp-selector-area button.activa,
+#ct-selector-ambito button.activa {
   background: #FFFFFF;
   color: var(--texto);
 }
@@ -275,19 +283,9 @@
   #contenido > .fv-cabecera-lista,
   #contenido > .cli-cabecera-lista,
   #contenido > .pre-cabecera-lista,
-  #contenido > .imp-cabecera-seccion {
-    margin: -78px 24px 40px; /* 20 + 20 + 38; y a 24 de los lados, como el título */
-  }
-  /* Contabilidad no tiene selector, pero en PC su botón "+" va en una
-     fila propia: sube también a la banda, como en las demás pantallas.
-     (En el móvil ese botón flota abajo y la fila no ocupa sitio, así
-     que allí no se toca.) */
+  #contenido > .imp-cabecera-seccion,
   #contenido > .ct-cabecera-lista {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    justify-content: flex-end;
-    margin: -78px 24px 40px;
+    margin: -78px 24px 40px; /* 20 + 20 + 38; y a 24 de los lados, como el título */
   }
 }
 
@@ -896,4 +894,216 @@ button:active:not(:disabled) {
   font-family: var(--fuente-titulos);
   font-weight: 800;
   font-size: 26px;
+}
+
+/* ============================================================
+   AJUSTES DE LA REVISIÓN — BOTÓN "+" DE ÚLTIMOS APUNTES EN NEGRO
+   Era el único botón pequeño de acción en gris.
+   ============================================================ */
+
+#contenido .dash-lista-anadir {
+  background: var(--banda);
+  color: #FFFFFF;
+}
+#contenido .dash-lista-anadir:hover { background: #2C2C2A; color: #FFFFFF; }
+
+/* ============================================================
+   AJUSTES DE LA REVISIÓN — CONTABILIDAD: SELECTOR EN LA BANDA
+   La fila de arriba lleva el selector a la izquierda y, en PC, el "+"
+   a la derecha (en el móvil el "+" flota abajo, como siempre).
+   ============================================================ */
+
+#contenido > .ct-cabecera-lista { justify-content: space-between; }
+
+/* ============================================================
+   AJUSTES DE LA REVISIÓN — INFORMES
+   ============================================================ */
+
+/* Año en píldora */
+#contenido .inf-select-anio { border-radius: 999px; padding: 0 14px; }
+
+/* El contenedor ya no es una tarjeta blanca: dentro van el carrusel de
+   trimestres y la tarjeta oscura del año. */
+#contenido .inf-resumen-anual {
+  display: flex;
+  flex-direction: column;
+  background: none;
+  padding: 0;
+}
+
+/* Tarjeta de cada trimestre */
+#contenido .inf-resumen-trimestre {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 14px;
+  box-sizing: border-box;
+}
+#contenido .inf-resumen-trimestre.destacado { box-shadow: inset 0 0 0 2px var(--banda); }
+#contenido .inf-trimestre-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+#contenido .inf-resumen-trimestre-titulo {
+  margin: 0;
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+  font-size: 24px;
+}
+#contenido .inf-resumen-trimestre-titulo small {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8A8A86;
+}
+#contenido .inf-trimestre-cabecera .pastilla { cursor: default; }
+#contenido .pastilla.inf-pastilla-gris { background: var(--gris-neutro); color: var(--texto-secundario); }
+#contenido .inf-resumen-bloque {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #EFEFEC;
+}
+#contenido .inf-resumen-dato { font-family: var(--fuente-titulos); font-weight: 800; font-size: 15px; white-space: nowrap; }
+#contenido .inf-resumen-dato small { font-family: system-ui, sans-serif; font-weight: 400; }
+
+/* Puntos del carrusel */
+#contenido .inf-puntos { display: flex; justify-content: center; gap: 6px; margin: 4px 0 14px; }
+#contenido .inf-puntos span {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: #CFCFCB;
+  transition: width .2s ease, background-color .2s ease;
+}
+#contenido .inf-puntos span.activo { width: 18px; background: var(--banda); }
+
+/* Tarjeta oscura del año */
+#contenido .inf-anual-tarjeta {
+  background: var(--banda);
+  color: #FFFFFF;
+  border-radius: var(--radio-tarjeta);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+#contenido .inf-anual-cabecera {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+#contenido .inf-anual-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .75);
+}
+#contenido .inf-anual-titulo::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 2px;
+  background: var(--rojo);
+  vertical-align: -1px;
+}
+#contenido .inf-anual-cerrados { font-size: 11px; color: rgba(255, 255, 255, .7); text-align: right; }
+#contenido .inf-tramos { display: flex; gap: 4px; margin: 10px 0 12px; }
+#contenido .inf-tramo { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .18); }
+#contenido .inf-tramo.pagado { background: var(--sync-verde); }
+#contenido .inf-tramo.pendiente, #contenido .inf-tramo.curso { background: var(--sync-ambar); }
+#contenido .inf-anual-cifras { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+#contenido .inf-anual-cifras small { display: block; font-size: 11px; color: rgba(255, 255, 255, .7); }
+#contenido .inf-anual-cifras strong {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+  font-size: 17px;
+  white-space: nowrap;
+}
+#contenido .inf-anual-cifras strong.grande { font-size: 26px; }
+#contenido .inf-anual-cifras .derecha { text-align: right; }
+
+/* Móvil: carrusel que se desliza de lado. La tarjeta del centro, entera;
+   las de los lados, algo más pequeñas y apagadas. */
+@media (max-width: 899px) {
+  #contenido .inf-carrusel {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 4px 10% 8px;
+    margin: 0 calc(-1 * var(--padding-pagina));
+    scrollbar-width: none;
+  }
+  #contenido .inf-carrusel::-webkit-scrollbar { display: none; }
+  #contenido .inf-carrusel > .inf-resumen-trimestre {
+    flex: 0 0 80%;
+    scroll-snap-align: center;
+    transform: scale(.93);
+    opacity: .55;
+    transition: transform .25s ease, opacity .25s ease;
+  }
+  #contenido .inf-carrusel > .inf-resumen-trimestre.centrada { transform: none; opacity: 1; }
+}
+
+/* PC: sin carrusel. Arriba la tarjeta del año a todo el ancho, debajo
+   los cuatro trimestres en fila con aire entre ellos, y luego Descargar,
+   347 y Revisión en dos columnas. */
+@media (min-width: 900px) {
+  #contenido .inf-anual-tarjeta { order: -1; padding: 18px 22px; margin-bottom: 14px; }
+  #contenido .inf-anual-cifras strong.grande { font-size: 30px; }
+  #contenido .inf-carrusel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  #contenido .inf-puntos { display: none; }
+
+  #imp-zona:has(.inf-resumen-anual) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 16px;
+    align-items: start;
+  }
+  #imp-zona:has(.inf-resumen-anual) > .inf-periodo,
+  #imp-zona:has(.inf-resumen-anual) > .inf-nota-cabecera,
+  #imp-zona:has(.inf-resumen-anual) > .inf-resumen-anual,
+  #imp-zona:has(.inf-resumen-anual) > .inf-bloque:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  #imp-zona:has(.inf-resumen-anual) > .inf-descarga,
+  #imp-zona:has(.inf-resumen-anual) > .inf-bloque { margin-top: 0; margin-bottom: 16px; }
+}
+
+/* 347 y Revisión de datos: subtítulos discretos, check verde cuando no
+   hay nada, y cada aviso con su icono ámbar en un círculo. */
+#contenido .inf-347-subtitulo {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: #8A8A86;
+  margin: 14px 0 6px;
+}
+#contenido .inf-347-vacio { display: flex; align-items: center; gap: 8px; color: var(--verde-texto); }
+#contenido .inf-347-vacio::before {
+  content: '\ea67';
+  font-family: 'tabler-icons';
+  font-size: 17px;
+}
+#contenido .rev-lista li { display: flex; align-items: flex-start; gap: 10px; }
+#contenido .rev-lista li > i {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ambar-fondo);
+  color: var(--ambar-texto);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
 }
