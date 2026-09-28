@@ -825,11 +825,55 @@ function dashGraficoEvolucion() {
   }
 
   // El último punto es el mes en curso: tramo final punteado y punto
-  // hueco (blanco), para que se vea que aún no está cerrado.
+  // hueco (blanco), para que se vea que aún no está cerrado. Desde el
+  // rediseño (28/09/2026) además lleva un fondo gris muy suave, y el
+  // resto de puntos no se dibujan (salen al pulsar).
   const ultimo = serie.etiquetas.length - 1;
   const tramoEnCurso = { borderDash: function (ctx) { return ctx.p1DataIndex === ultimo ? [2, 4] : undefined; } };
   const rellenoPuntos = function (color) {
     return serie.etiquetas.map(function (e, i) { return i === ultimo ? '#FFFFFF' : color; });
+  };
+  const radioPuntos = function (radio) {
+    return serie.etiquetas.map(function (e, i) { return i === ultimo ? radio : 0; });
+  };
+
+  // Mes completo con el año para la etiqueta al pulsar ("Enero 2026").
+  // Hace falta el año: en el gráfico hay dos meses con el mismo nombre.
+  const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+    'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const clavesMeses = dashUltimos12Meses().concat([dashMesActual()]);
+  const mesLargo = function (i) {
+    const p = String(clavesMeses[i] || '').split('-');
+    const n = parseInt(p[1], 10);
+    if (!(n >= 1 && n <= 12)) return serie.etiquetas[i];
+    return MESES_LARGOS[n - 1] + ' ' + p[0] + (i === ultimo ? ' (en curso)' : '');
+  };
+
+  // Relleno suave bajo la línea de Beneficio: azul arriba, transparente abajo.
+  const areaBeneficio = function (ctx) {
+    const area = ctx.chart.chartArea;
+    if (!area) return 'rgba(47, 111, 181, 0)';
+    const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
+    g.addColorStop(0, 'rgba(47, 111, 181, .26)');
+    g.addColorStop(1, 'rgba(47, 111, 181, 0)');
+    return g;
+  };
+
+  // Fondo gris muy suave detrás del mes en curso.
+  const fondoMesEnCurso = {
+    id: 'fondoMesEnCurso',
+    beforeDatasetsDraw: function (grafico) {
+      const x = grafico.scales.x;
+      const area = grafico.chartArea;
+      if (!x || !area || ultimo < 1) return;
+      const ancho = x.getPixelForValue(1) - x.getPixelForValue(0);
+      const centro = x.getPixelForValue(ultimo);
+      const c = grafico.ctx;
+      c.save();
+      c.fillStyle = 'rgba(0, 0, 0, .045)';
+      c.fillRect(centro - ancho / 2, area.top, ancho, area.bottom - area.top);
+      c.restore();
+    }
   };
 
   dashGraficos.evolucion = new Chart(lienzo, {
@@ -837,9 +881,9 @@ function dashGraficoEvolucion() {
     data: {
       labels: serie.etiquetas,
       datasets: [
-        { label: 'Ingresos',  data: serie.ingresos,  borderColor: '#3E9E4E', backgroundColor: '#3E9E4E', pointBackgroundColor: rellenoPuntos('#3E9E4E'), tension: 0.3, borderWidth: 1.5, pointRadius: 2, borderDash: [4, 3], segment: tramoEnCurso },
-        { label: 'Gastos',    data: serie.gastos,    borderColor: '#D32F2F', backgroundColor: '#D32F2F', pointBackgroundColor: rellenoPuntos('#D32F2F'), tension: 0.3, borderWidth: 1.5, pointRadius: 2, borderDash: [4, 3], segment: tramoEnCurso },
-        { label: 'Beneficio', data: serie.beneficio, borderColor: '#2F6FB5', backgroundColor: '#2F6FB5', pointBackgroundColor: rellenoPuntos('#2F6FB5'), tension: 0.3, borderWidth: 3.5, pointRadius: 3, order: 0, segment: tramoEnCurso }
+        { label: 'Ingresos',  data: serie.ingresos,  borderColor: '#3E9E4E', backgroundColor: '#3E9E4E', pointBackgroundColor: rellenoPuntos('#3E9E4E'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, borderWidth: 2, segment: tramoEnCurso },
+        { label: 'Gastos',    data: serie.gastos,    borderColor: '#D32F2F', backgroundColor: '#D32F2F', pointBackgroundColor: rellenoPuntos('#D32F2F'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, borderWidth: 2, segment: tramoEnCurso },
+        { label: 'Beneficio', data: serie.beneficio, borderColor: '#2F6FB5', backgroundColor: areaBeneficio, fill: 'origin', pointBackgroundColor: rellenoPuntos('#2F6FB5'), pointRadius: radioPuntos(3.5), pointHoverRadius: 5, tension: 0.4, borderWidth: 3.5, order: 0, segment: tramoEnCurso }
       ]
     },
     options: {
@@ -847,53 +891,119 @@ function dashGraficoEvolucion() {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        // Cuadraditos de color macizos en la leyenda y en el aviso
-        // (25/09/2026). Chart.js los dibuja con el mismo borde que su
-        // línea, así que los de Ingresos y Gastos salían discontinuos y
-        // finos ("rotos") y el de Beneficio macizo. Aquí se les quita la
-        // línea discontinua y se rellenan enteros con su color; las
-        // líneas del gráfico siguen igual.
+        // Leyenda con círculos macizos de cada color.
         legend: {
           position: 'bottom',
           labels: {
-            boxWidth: 12,
+            usePointStyle: true,
+            pointStyle: 'circle',
+            boxWidth: 7,
+            boxHeight: 7,
             font: { size: 11 },
             generateLabels: function (grafico) {
               return Chart.defaults.plugins.legend.labels.generateLabels(grafico).map(function (etiqueta) {
+                const color = grafico.data.datasets[etiqueta.datasetIndex].borderColor;
                 etiqueta.lineDash = [];
-                etiqueta.lineWidth = 1;
-                etiqueta.strokeStyle = etiqueta.fillStyle;
+                etiqueta.fillStyle = color;
+                etiqueta.strokeStyle = color;
                 return etiqueta;
               });
             }
           }
         },
-        tooltip: {
+        // Etiqueta al pulsar: negra, con el mes completo arriba.
+        tooltip: Object.assign(dashEstiloAviso(), {
           callbacks: {
-            label: function (ctx) { return ctx.dataset.label + ': ' + dineroVisible(ctx.parsed.y); },
+            title: function (items) { return items.length ? mesLargo(items[0].dataIndex) : ''; },
+            label: function (ctx) { return ' ' + ctx.dataset.label + ': ' + dineroVisible(ctx.parsed.y); },
             labelColor: function (ctx) {
               const color = ctx.dataset.borderColor;
-              return { borderColor: color, backgroundColor: color, borderWidth: 1, borderDash: [], borderDashOffset: 0, borderRadius: 0 };
+              return { borderColor: color, backgroundColor: color, borderWidth: 0, borderRadius: 4 };
             }
           }
-        }
+        })
       },
       scales: {
         y: {
+          border: { display: false },
           // Con las cifras ocultas (botón del ojo) no se pintan los
           // números del eje: la forma de las líneas se sigue viendo.
           ticks: {
             display: !cifrasOcultas,
             font: { size: 10 },
-            callback: function (v) { return formatMoney(v); }
+            color: '#6B6B68',
+            maxTicksLimit: 5,
+            callback: function (v) { return dashCifraCorta(v); }
           },
-          grid: { color: '#EAEAE6' }
+          grid: { color: '#F0F0EC' }
         },
-        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+        x: {
+          border: { display: false },
+          ticks: { font: { size: 10 }, color: '#6B6B68' },
+          grid: { display: false }
+        }
       }
-    }
+    },
+    plugins: [fondoMesEnCurso]
   });
 }
+
+// ---- Estilo común de las etiquetas al pulsar (rediseño, 28/09/2026) ----
+// Fondo negro, texto blanco y las cifras en la fuente de títulos.
+function dashEstiloAviso() {
+  return {
+    backgroundColor: '#161615',
+    titleColor: '#FFFFFF',
+    bodyColor: '#FFFFFF',
+    titleFont: { weight: '600', size: 11 },
+    bodyFont: { family: "'Bricolage Grotesque', system-ui, sans-serif", weight: '800', size: 12 },
+    padding: 10,
+    cornerRadius: 10,
+    usePointStyle: true,
+    boxPadding: 4
+  };
+}
+
+// Cifra abreviada para el eje: 1500 → "1,5k €". Solo es un rótulo del
+// eje; los importes de verdad salen enteros al pulsar.
+function dashCifraCorta(v) {
+  const n = Number(v) || 0;
+  if (Math.abs(n) >= 1000) {
+    return (n / 1000).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + 'k €';
+  }
+  return n.toLocaleString('es-ES', { maximumFractionDigits: 0 }) + ' €';
+}
+
+// Total en el centro de los donuts (rediseño, 28/09/2026): la suma de lo
+// que ya enseña el donut, con "365 DÍAS" debajo. Respeta el ojo (con las
+// cifras ocultas sale "••••• €") y se esconde mientras está abierta la
+// etiqueta al pulsar, para que no se pisen.
+const dashTotalCentro = {
+  id: 'dashTotalCentro',
+  afterDraw: function (grafico) {
+    if (grafico.tooltip && grafico.tooltip.getActiveElements && grafico.tooltip.getActiveElements().length) return;
+    const arco = grafico.getDatasetMeta(0).data[0];
+    if (!arco) return;
+    const total = grafico.data.datasets[0].data.reduce(function (s, v) { return s + (Number(v) || 0); }, 0);
+    const fuente = "'Bricolage Grotesque', system-ui, sans-serif";
+    // Si la fuente aún no ha llegado, se vuelve a dibujar en cuanto llegue.
+    if (document.fonts && !document.fonts.check('800 13px ' + fuente)) {
+      document.fonts.load('800 13px ' + fuente).then(function () { grafico.draw(); }).catch(function () {});
+    }
+    const c = grafico.ctx;
+    const tamano = Math.max(11, Math.min(15, Math.round(arco.innerRadius / 3.6)));
+    c.save();
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = '#1A1A1A';
+    c.font = '800 ' + tamano + 'px ' + fuente;
+    c.fillText(dineroVisible(total), arco.x, arco.y - 6);
+    c.fillStyle = '#6B6B68';
+    c.font = '600 9px system-ui, sans-serif';
+    c.fillText('365 DÍAS', arco.x, arco.y + 9);
+    c.restore();
+  }
+};
 
 // Si aun en su propia línea el nombre no cabe en el ancho del gráfico,
 // se recorta con «…» para que la caja del aviso nunca se salga del
@@ -936,38 +1046,51 @@ function dashGraficoDonut(idCanvas, datos, textoVacio) {
       datasets: [{
         data: datos.map(function (d) { return d.importe; }),
         backgroundColor: datos.map(function (d, i) { return dashColorDonut(d.nombre, i); }),
-        borderWidth: 0
+        // Rediseño (28/09/2026): anillo más fino, porciones redondeadas
+        // y separadas por una línea blanca.
+        // Con una sola porción no hay nada que separar: sin línea blanca,
+        // que si no dejaría un corte arriba del anillo.
+        borderWidth: datos.length > 1 ? 2 : 0,
+        borderColor: '#FFFFFF',
+        borderRadius: datos.length > 1 ? 5 : 0,
+        hoverOffset: 4
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '58%',
+      cutout: '72%',
       plugins: {
         // Sin leyenda (decisión del propietario, 06/09/2026): ocupaba
         // mucho, variaba de alto según cuántos nombres hubiera —lo que
         // descolocaba unos círculos respecto a otros— y la información
         // ya sale al pulsar cada sección del gráfico.
         legend: { display: false },
-        tooltip: {
-          displayColors: false,
+        // Etiqueta al pulsar (rediseño, 28/09/2026): negra, con el
+        // piquito que señala la porción. Arriba el nombre (recortado si
+        // no cabe) y debajo el punto de color con el importe y su
+        // porcentaje, sin repetir el nombre.
+        tooltip: Object.assign(dashEstiloAviso(), {
+          displayColors: true,
+          titleFont: { weight: '600', size: 11 },
           callbacks: {
-            title: function () { return ''; },
-            // Dos líneas (25/09/2026): arriba el nombre, abajo el importe.
-            // En una sola línea, un nombre largo empujaba el importe fuera
-            // del gráfico y no se veía.
+            title: function (items) {
+              return items.length ? dashRecortarTooltip(items[0].label, this, items[0].chart) : '';
+            },
             label: function (ctx) {
               const total = ctx.dataset.data.reduce(function (s, v) { return s + v; }, 0);
               const pct = total > 0 ? Math.round((ctx.parsed / total) * 100) : 0;
-              return [
-                dashRecortarTooltip(ctx.label, this, ctx.chart),
-                dineroVisible(ctx.parsed) + ' (' + pct + '%)'
-              ];
+              return ' ' + dineroVisible(ctx.parsed) + ' (' + pct + '%)';
+            },
+            labelColor: function (ctx) {
+              const color = ctx.dataset.backgroundColor[ctx.dataIndex];
+              return { borderColor: color, backgroundColor: color, borderWidth: 0, borderRadius: 4 };
             }
           }
-        }
+        })
       }
-    }
+    },
+    plugins: [dashTotalCentro]
   });
 }
 

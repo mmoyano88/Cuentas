@@ -82,6 +82,68 @@ function enlaceMail(v) {
   return '<a href="mailto:' + escaparHtml(texto) + '" onclick="event.stopPropagation()">' + escaparHtml(texto) + '</a>';
 }
 
+// ---- Accesos rápidos de la ficha (rediseño, 28/09/2026) ----
+// Llamar, WhatsApp, correo y copiar datos, con los datos que ya tiene
+// la ficha. Un acceso sin su dato no se pinta. No guarda ni cambia nada:
+// solo abre el teléfono, WhatsApp o el correo del dispositivo, o copia
+// el texto.
+
+// Número para WhatsApp: solo cifras y con el prefijo de España si es un
+// móvil español de 9 cifras (empieza por 6 o 7). Si no parece un móvil,
+// devuelve '' y el acceso de WhatsApp no se enseña.
+function cliNumeroWhatsapp(tel) {
+  let n = String(tel || '').replace(/\D/g, '');
+  if (n.indexOf('00') === 0) n = n.slice(2);
+  if (n.length === 9 && /^[67]/.test(n)) return '34' + n;
+  if (n.length === 11 && /^34[67]/.test(n)) return n;
+  return '';
+}
+
+function cliAccesosRapidos(c) {
+  const tel = String(c.telefono || '').trim();
+  const mail = String(c.mail || '').trim();
+  const wa = cliNumeroWhatsapp(tel);
+  const acceso = function (etiqueta, icono, destino, extra) {
+    return '<a class="cli-acceso" href="' + escaparHtml(destino) + '"' + (extra || '') + '>' +
+      '<i class="ti ' + icono + '" aria-hidden="true"></i><span>' + etiqueta + '</span></a>';
+  };
+  const html =
+    (tel ? acceso('Llamar', 'ti-phone', 'tel:' + tel.replace(/\s/g, '')) : '') +
+    (wa ? acceso('WhatsApp', 'ti-brand-whatsapp', 'https://wa.me/' + wa, ' target="_blank" rel="noopener"') : '') +
+    (mail ? acceso('Correo', 'ti-mail', 'mailto:' + mail) : '') +
+    '<button type="button" class="cli-acceso" id="cli-acceso-copiar">' +
+      '<i class="ti ti-copy" aria-hidden="true"></i><span>Copiar datos</span></button>';
+  return '<div class="cli-accesos">' + html + '</div>';
+}
+
+// Texto que se copia: los datos de facturación del contacto, uno por
+// línea y solo los que existen.
+function cliTextoDatos(c) {
+  const direccion = cliDireccionLinea(c);
+  return [
+    String(c.nombre_fiscal || c.nombre_contacto || '').trim(),
+    c.nif ? 'NIF: ' + String(c.nif).trim() : '',
+    direccion !== '—' ? direccion + (c.provincia ? ' (' + String(c.provincia).trim() + ')' : '') : '',
+    c.telefono ? 'Tel.: ' + String(c.telefono).trim() : '',
+    c.mail ? 'Email: ' + String(c.mail).trim() : ''
+  ].filter(Boolean).join('\n');
+}
+
+async function cliCopiarDatos(c, boton) {
+  const texto = cliTextoDatos(c);
+  // Se reutiliza el copiado de Mis datos (con su plan B y su aviso
+  // "Copiado"), que ya está probado.
+  if (typeof mdCopiar === 'function') {
+    await mdCopiar(texto, boton);
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(texto);
+  } catch (err) {
+    alert('No se ha podido copiar.');
+  }
+}
+
 function cliDireccionLinea(c) {
   const l1 = [c.calle, c.numero].filter(Boolean).join(' ');
   const l2 = [c.codigo_postal, c.poblacion].filter(Boolean).join(' ');
@@ -440,6 +502,7 @@ function abrirFichaContacto(id) {
         '</div>' +
         '<button type="button" class="cli-modal-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>' +
       '</div>' +
+      cliAccesosRapidos(c) +
       '<div class="cli-modal-cuerpo">' +
         '<div class="cli-ficha-dato"><span>Nombre fiscal</span><span>' + escaparHtml(c.nombre_fiscal || '—') + '</span></div>' +
         '<div class="cli-ficha-dato"><span>NIF</span><span>' + escaparHtml(c.nif || '—') + '</span></div>' +
@@ -459,6 +522,9 @@ function abrirFichaContacto(id) {
   document.body.appendChild(fondo);
   fondo.addEventListener('click', function (ev) { if (ev.target === fondo) fondo.remove(); });
   fondo.querySelector('.cli-modal-cerrar').addEventListener('click', function () { fondo.remove(); });
+  fondo.querySelector('#cli-acceso-copiar')?.addEventListener('click', function (ev) {
+    cliCopiarDatos(c, ev.currentTarget);
+  });
   fondo.querySelector('#cli-ficha-editar').addEventListener('click', function () {
     fondo.remove();
     abrirFormularioContacto(id);

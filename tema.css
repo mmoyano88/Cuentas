@@ -49,6 +49,12 @@
        arriba en el móvil; en PC es una fila separadora de la tabla).
      - Tarjetas de Plantillas con la cabecera del color de su categoría.
      - Pantallas vacías con el icono de la sección.
+
+   FASES 6 A 8 (al final del archivo):
+     - Accesos rápidos en la ficha de cliente (los pinta mod-clientes.js).
+     - Gráficos del Dashboard (van en mod-dashboard.js, no aquí).
+     - Icono nuevo de la app (archivos PNG) y pantalla de entrada con la
+       imagen de marca.
    ============================================================ */
 
 /* ---------------- Fuente de títulos ---------------- */
@@ -814,3 +820,80 @@ button:active:not(:disabled) {
 #app:has(#pl-selector) .pre-vacio::before { content: '\eef7'; } /* Plantillas */
 .cli-vacio::before { content: '\ebf2'; }                    /* Clientes */
 .ct-vacio::before { content: '\f65d'; }                     /* Contabilidad */
+
+/* ============================================================
+   FASE 6 — ACCESOS RÁPIDOS EN LA FICHA DE CLIENTE
+   Llamar, WhatsApp, Correo y Copiar datos, en círculos grises con su
+   nombre debajo. Solo salen los que tienen dato.
+   ============================================================ */
+
+.cli-accesos {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  padding: 14px 16px 6px;
+}
+.cli-acceso {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11px;
+  color: var(--texto-secundario);
+  text-decoration: none;
+  cursor: pointer;
+}
+.cli-acceso i {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #F2F2EF;
+  color: var(--texto);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+}
+.cli-acceso span { white-space: nowrap; }
+@media (hover: hover) {
+  .cli-acceso:hover i { background: var(--gris-neutro); }
+}
+
+/* ============================================================
+   FASE 8 — PANTALLA DE ENTRADA (solo la primera vez en cada dispositivo)
+   Arriba, la imagen de marca oscurecida; la tarjeta de acceso queda
+   encima, con "Cuentas" en la fuente de títulos.
+   ============================================================ */
+
+#pantalla-acceso {
+  position: relative;
+  background: var(--fondo);
+}
+#pantalla-acceso::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 46vh;
+  background:
+    linear-gradient(180deg, rgba(22, 22, 21, .55), rgba(22, 22, 21, .95)),
+    url('cabecera-banda.webp') 70% center / cover no-repeat,
+    var(--banda);
+}
+#pantalla-acceso .tarjeta-acceso {
+  position: relative;
+  z-index: 1;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .12);
+}
+#pantalla-acceso .titulo-acceso {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+  font-size: 26px;
+}
