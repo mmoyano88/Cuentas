@@ -1010,8 +1010,8 @@ function impTarjetaTotal(c, registro, adelantar) {
 
   return '<div class="imp-tarjeta imp-tarjeta-total">' +
     '<p class="imp-tarjeta-titulo">Pago del trimestre</p>' +
-    linea('IVA (modelo 303)', 'iva', c.iva) +
-    linea('IRPF (modelo 130)', 'irpf', c.irpf) +
+    linea('IVA (303)', 'iva', c.iva) +
+    linea('IRPF (130)', 'irpf', c.irpf) +
     final +
     notaFavor +
     notaAdelanto +

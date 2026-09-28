@@ -1324,3 +1324,96 @@ button:active:not(:disabled) {
 }
 .imp-ver-calculo[open] > summary::after { transform: rotate(180deg); }
 .imp-ver-calculo[open] > summary { margin-bottom: 4px; }
+
+/* ============================================================
+   TARJETAS DE TRIMESTRE ALINEADAS (28/09/2026)
+   Petición del propietario: en todas las tarjetas, lo que es igual
+   (título, meses, plazo, "Pago del trimestre", cifras, líneas
+   divisorias) va siempre a la misma altura, aunque un texto ocupe una
+   o dos líneas en una tarjeta y en otra no.
+   Cómo: las tarjetas comparten las MISMAS filas (cuadrícula con
+   subcuadrículas). Cada fila mide lo que necesite la tarjeta que más
+   ocupe, y todas las demás la respetan. Solo CSS; el móvil sigue siendo
+   un carrusel y en PC siguen las cuatro en fila.
+   ============================================================ */
+
+/* ---- Impuestos: 9 filas -------------------------------------------
+   1 título (Q3 2026) · 2 meses · 3 plazo
+   4 "Pago del trimestre" · 5 IVA · 6 IRPF · 7 total
+   8 y 9 notas                                                         */
+#imp-carrusel-trimestres {
+  display: grid;
+  grid-template-rows: repeat(9, auto);
+  row-gap: 0;
+}
+@media (max-width: 899px) {
+  #imp-carrusel-trimestres {
+    grid-auto-flow: column;
+    grid-auto-columns: 86%;
+    column-gap: 10px;
+  }
+}
+#imp-carrusel-trimestres > .imp-trim-tarjeta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  grid-row: 1 / span 9;
+}
+#imp-carrusel-trimestres > .imp-trim-tarjeta > .imp-plazo {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  grid-row: 1 / span 3;
+  column-gap: 8px;
+  align-items: start;
+}
+#imp-carrusel-trimestres .imp-plazo > i { grid-column: 1; grid-row: 1; align-self: center; margin-top: 0; }
+#imp-carrusel-trimestres .imp-plazo-cuerpo {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  display: grid;
+  grid-template-rows: subgrid;
+  justify-items: start;
+}
+#imp-carrusel-trimestres .imp-plazo-titulo { display: contents; }
+#imp-carrusel-trimestres .imp-plazo-trim { grid-row: 1; align-self: center; }
+#imp-carrusel-trimestres .imp-plazo-meses { grid-row: 2; white-space: normal; }
+#imp-carrusel-trimestres .imp-plazo-texto { grid-row: 3; margin-top: 3px; padding-left: 0; }
+#imp-carrusel-trimestres > .imp-trim-tarjeta > .imp-tarjeta-total {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  grid-row: 4 / span 6;
+}
+
+/* ---- Informes: 7 filas --------------------------------------------
+   1 título (Q3 2026 y estado)
+   2–4 IVA: cabecera, estimado/pagado, nota "Al pagar se estimó"
+   5–7 IRPF: lo mismo                                                  */
+#contenido .inf-carrusel {
+  display: grid;
+  grid-template-rows: repeat(7, auto);
+  row-gap: 0;
+}
+@media (max-width: 899px) {
+  #contenido .inf-carrusel {
+    grid-auto-flow: column;
+    grid-auto-columns: 86%;
+    column-gap: 10px;
+  }
+}
+#contenido .inf-carrusel > .inf-resumen-trimestre {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  grid-row: 1 / span 7;
+}
+#contenido .inf-carrusel > .inf-resumen-trimestre > .inf-trimestre-cabecera { grid-row: 1; }
+#contenido .inf-carrusel > .inf-resumen-trimestre > .inf-resumen-bloque {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  align-content: start;
+}
+#contenido .inf-carrusel > .inf-resumen-trimestre > .inf-trimestre-cabecera + .inf-resumen-bloque { grid-row: 2 / span 3; }
+#contenido .inf-carrusel > .inf-resumen-trimestre > .inf-resumen-bloque + .inf-resumen-bloque { grid-row: 5 / span 3; }
