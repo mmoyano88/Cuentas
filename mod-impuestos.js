@@ -670,14 +670,30 @@ function impBloquePlazo(anio, trimestre) {
     p.largo = 'sin marcar como pagado · el plazo era hasta el ' + impTextoFecha(p.limite);
   }
   const iconos = { pagado: 'ti-circle-check', vencido: 'ti-alert-triangle', pronto: 'ti-calendar-due', normal: 'ti-calendar-due' };
-  const texto = p.estado === 'pagado'
-    ? trimestre + ' ' + anio + ' · pagado'
-    : trimestre + ' ' + anio + ' · ' + p.largo;
-  return '<div class="imp-plazo ' + p.estado + '">' +
+
+  // Título del trimestre, más visible (28/09/2026): "Q3 2026" grande y
+  // sus meses en pequeño; debajo, el plazo. El color lo pone tema.css
+  // según el estado: verde pagado, ámbar pendiente, blanco en la tarjeta
+  // roja. Un trimestre que aún no ha empezado ("futuro") se queda en
+  // blanco: todavía no hay nada pendiente.
+  const indice = IMP_TRIMESTRES.indexOf(trimestre);
+  const futuro = p.estado === 'normal' && new Date(anio, indice * 3, 1) > new Date();
+  const detalle = p.estado === 'pagado' ? 'Pagado' : String(p.largo || '');
+  const texto = detalle.charAt(0).toUpperCase() + detalle.slice(1);
+
+  return '<div class="imp-plazo ' + p.estado + (futuro ? ' futuro' : '') + '">' +
     '<i class="ti ' + iconos[p.estado] + '"></i>' +
-    '<span>' + escaparHtml(texto) + '</span>' +
+    '<div class="imp-plazo-cuerpo">' +
+      '<div class="imp-plazo-titulo">' +
+        '<span class="imp-plazo-trim">' + escaparHtml(trimestre + ' ' + anio) + '</span>' +
+        '<span class="imp-plazo-meses">' + escaparHtml(IMP_MESES_TRIMESTRE[indice] || '') + '</span>' +
+      '</div>' +
+      '<span class="imp-plazo-texto">' + escaparHtml(texto) + '</span>' +
+    '</div>' +
   '</div>';
 }
+
+const IMP_MESES_TRIMESTRE = ['enero – marzo', 'abril – junio', 'julio – septiembre', 'octubre – diciembre'];
 
 // Resultado de un trimestre: positivo es a pagar, negativo es a tu
 // favor. Se muestra siempre el importe en positivo, con la etiqueta

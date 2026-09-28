@@ -669,13 +669,58 @@ button:active:not(:disabled) {
 
 .imp-trim-tarjeta > .imp-plazo {
   margin: 0;
-  padding: 14px 16px 4px;
+  padding: 16px 16px 4px;
   border-radius: 0;
   background: transparent;
   color: rgba(255, 255, 255, .88);
   font-size: 12px;
+  /* Icono a la izquierda; a su derecha, el título y debajo el plazo
+     (28/09/2026). */
+  align-items: flex-start;
+  gap: 8px;
 }
-.imp-trim-tarjeta > .imp-plazo.pagado i { color: var(--sync-verde); }
+.imp-trim-tarjeta > .imp-plazo > i {
+  font-size: 20px;
+  margin-top: 3px;           /* centrado con la primera línea del título */
+  color: #FFFFFF;
+}
+.imp-trim-tarjeta .imp-plazo-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* Título del trimestre: "Q3 2026" grande y los meses en pequeño, en el
+   color de su estado. Si no caben en una línea, los meses bajan. */
+.imp-trim-tarjeta .imp-plazo-titulo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 0;
+  color: #FFFFFF;
+}
+.imp-trim-tarjeta .imp-plazo-trim {
+  font-family: var(--fuente-titulos);
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.imp-trim-tarjeta .imp-plazo-meses {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+/* Colores del estado (en la tarjeta negra; la roja va toda en blanco):
+     verde → pagado · ámbar → pendiente · blanco → aún no ha empezado.
+   Icono, título e importe del pago van del mismo color. */
+.imp-trim-tarjeta > .imp-plazo.pagado > i,
+.imp-trim-tarjeta > .imp-plazo.pagado .imp-plazo-titulo { color: var(--sync-verde); }
+.imp-trim-tarjeta > .imp-plazo.normal:not(.futuro) > i,
+.imp-trim-tarjeta > .imp-plazo.normal:not(.futuro) .imp-plazo-titulo { color: var(--sync-ambar); }
+.imp-trim-tarjeta:has(> .imp-plazo.normal:not(.futuro)) .imp-total-final strong { color: var(--sync-ambar); }
 
 .imp-trim-tarjeta > .imp-tarjeta-total {
   flex: 1;
