@@ -36,6 +36,13 @@
        un cambio pequeño en mod-navegacion.js).
    Todo se hace con CSS apuntando a clases e identificadores que ya
    existen: el código de los módulos no cambia.
+
+   FASE 4 — pantallas clave (al final del archivo):
+     - Formularios: el resumen de totales y los botones forman una barra
+       oscura fija abajo; el total se ve siempre.
+     - Impuestos: el plazo y el pago del trimestre se juntan en una
+       tarjeta destacada arriba: negra, o roja si quedan 7 días o menos
+       o se ha pasado el plazo.
    ============================================================ */
 
 /* ---------------- Fuente de títulos ---------------- */
@@ -546,4 +553,149 @@ button:active:not(:disabled) {
     background: var(--rojo);
     display: block;
   }
+}
+
+/* ============================================================
+   FASE 4 — BARRA OSCURA DEL TOTAL EN LOS FORMULARIOS
+   El resumen de totales (que ya se recalcula en vivo) se queda pegado
+   abajo mientras se rellena el formulario, y junto con los botones de
+   Cancelar/Guardar forma una sola barra oscura. El total va en blanco:
+   el rojo sobre negro se lee peor, y el rojo queda en el botón Guardar.
+   Formularios: factura de venta, de compra, presupuesto, apunte y
+   conversor de apunte a factura.
+   ============================================================ */
+
+#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales {
+  position: sticky;
+  bottom: -16px;             /* hasta el borde, tapando el relleno del cuerpo */
+  z-index: 2;
+  margin: 14px -20px -16px;
+  padding: 14px 20px 12px;
+  border-radius: 18px 18px 0 0;
+  background: var(--banda);
+  color: #FFFFFF;
+}
+
+/* Con el teclado del móvil abierto la pantalla se queda baja: el
+   resumen deja de ir pegado para no quitar sitio a los campos (sigue
+   estando al final del formulario, con el mismo aspecto). */
+@media (max-height: 620px) {
+  #fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales { position: static; }
+}
+
+#fv-totales .fv-bloque-titulo, #fc-totales .fv-bloque-titulo,
+#pre-totales .pre-bloque-titulo, #ct-totales .ct-bloque-titulo, #ct-conv-totales .ct-bloque-titulo {
+  display: none;
+}
+
+#fv-totales .fv-linea, #fc-totales .fv-linea, #pre-totales .pre-linea,
+#ct-totales .ct-linea, #ct-conv-totales .ct-linea {
+  font-size: 11px;
+  padding: 1px 0;
+  margin: 0;
+  border: none;
+  color: rgba(255, 255, 255, .6);
+}
+#fv-totales .fv-linea strong, #fc-totales .fv-linea strong, #pre-totales .pre-linea strong,
+#ct-totales .ct-linea strong, #ct-conv-totales .ct-linea strong {
+  color: rgba(255, 255, 255, .9);
+}
+
+#fv-totales .fv-total-final, #fc-totales .fv-total-final, #pre-totales .pre-total-final,
+#ct-totales .ct-total-final, #ct-conv-totales .ct-total-final {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, .14);
+  align-items: center;
+}
+#fv-totales .fv-total-final span, #fc-totales .fv-total-final span, #pre-totales .pre-total-final span,
+#ct-totales .ct-total-final span, #ct-conv-totales .ct-total-final span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  color: rgba(255, 255, 255, .7);
+}
+#fv-totales .fv-total-final strong, #fc-totales .fv-total-final strong, #pre-totales .pre-total-final strong,
+#ct-totales .ct-total-final strong, #ct-conv-totales .ct-total-final strong {
+  font-size: 26px;
+  color: #FFFFFF;
+}
+
+/* El pie de esos formularios, oscuro y sin línea, pegado al resumen. */
+[class*="-modal-cuerpo"]:has(#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales) + [class*="-modal-pie"] {
+  background: var(--banda);
+  border-top: none;
+}
+[class*="-modal-cuerpo"]:has(#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales) + [class*="-modal-pie"] .boton-secundario {
+  background: transparent;
+  color: #FFFFFF;
+  border-color: rgba(255, 255, 255, .3);
+}
+@media (hover: hover) {
+  [class*="-modal-cuerpo"]:has(#fv-totales, #fc-totales, #pre-totales, #ct-totales, #ct-conv-totales) + [class*="-modal-pie"] .boton-secundario:hover {
+    background: rgba(255, 255, 255, .1);
+  }
+}
+
+/* ============================================================
+   FASE 4 — IMPUESTOS: TARJETA DEL PAGO DEL TRIMESTRE
+   El aviso del plazo y la tarjeta "Pago del trimestre" (que ya existen)
+   se ponen arriba del todo y se unen en una sola tarjeta destacada.
+   Color según el plazo, con la regla que ya tiene la app:
+     negra  → plazo normal o trimestre pagado
+     roja   → quedan 7 días o menos, o se ha pasado el plazo
+   Ningún cálculo cambia: solo el orden en pantalla y el aspecto.
+   ============================================================ */
+
+#imp-detalle { display: flex; flex-direction: column; }
+#imp-detalle > .imp-plazo { order: 1; }
+#imp-detalle > .imp-tarjeta-total { order: 2; }
+#imp-detalle > .imp-columnas { order: 3; margin-bottom: 12px; }
+#imp-detalle > * { order: 4; }
+
+#imp-detalle > .imp-plazo {
+  margin: 0;
+  padding: 14px 16px 4px;
+  border-radius: var(--radio-tarjeta) var(--radio-tarjeta) 0 0;
+  background: var(--banda);
+  color: rgba(255, 255, 255, .85);
+  font-size: 12px;
+}
+#imp-detalle > .imp-plazo.pagado i { color: var(--sync-verde); }
+
+#imp-detalle > .imp-tarjeta-total {
+  margin-top: 0;
+  padding-top: 8px;
+  border-radius: 0 0 var(--radio-tarjeta) var(--radio-tarjeta);
+  background: var(--banda);
+  color: #FFFFFF;
+}
+
+/* Quedan 7 días o menos, o se ha pasado: la tarjeta entera en rojo. */
+#imp-detalle:has(> .imp-plazo.pronto, > .imp-plazo.vencido) > .imp-plazo,
+#imp-detalle:has(> .imp-plazo.pronto, > .imp-plazo.vencido) > .imp-tarjeta-total {
+  background: var(--rojo);
+  color: #FFFFFF;
+}
+
+#imp-detalle > .imp-tarjeta-total .imp-tarjeta-titulo {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .75);
+}
+#imp-detalle > .imp-tarjeta-total .imp-linea { color: rgba(255, 255, 255, .7); }
+#imp-detalle > .imp-tarjeta-total .imp-linea strong { color: #FFFFFF; }
+#imp-detalle > .imp-tarjeta-total .imp-total-final { border-top-color: rgba(255, 255, 255, .16); }
+#imp-detalle > .imp-tarjeta-total .imp-total-final span { color: rgba(255, 255, 255, .75); }
+#imp-detalle > .imp-tarjeta-total .imp-total-final strong {
+  font-size: 30px;
+  color: #FFFFFF;
+}
+#imp-detalle > .imp-tarjeta-total .imp-total-final strong.favor { color: var(--sync-verde); }
+#imp-detalle > .imp-tarjeta-total .imp-nota,
+#imp-detalle > .imp-tarjeta-total .imp-nota.aviso {
+  color: rgba(255, 255, 255, .8);
+  background: none;
 }
