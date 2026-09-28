@@ -260,3 +260,33 @@
 }
 .rev-lista li:first-child { border-top: none; }
 .rev-lista i { color: #A35F00; font-size: 16px; flex: 0 0 auto; margin-top: 1px; }
+
+/* ---- Datos en este dispositivo (28/09/2026) ----
+   Mismo estilo de línea que la pestaña Copias de seguridad. El aviso usa
+   el verde de «Todo en orden», el ámbar de texto (#A35F00) si empieza a
+   llenarse y el rojo de marca si queda poco. */
+.inf-espacio-linea {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  padding: 7px 0;
+  border-top: 1px solid var(--fondo);
+}
+.inf-espacio-linea:first-of-type { border-top: none; }
+.inf-espacio-linea span { color: var(--texto-secundario); }
+.inf-espacio-linea strong { font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.inf-espacio .rev-ok,
+.inf-espacio-aviso { margin: 8px 0 10px; }
+.inf-espacio-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-weight: 500;
+  color: #A35F00;
+}
+.inf-espacio-aviso.rojo { color: var(--rojo); }
+.inf-espacio-aviso i { font-size: 18px; flex: 0 0 auto; }

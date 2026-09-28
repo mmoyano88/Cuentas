@@ -677,16 +677,18 @@ function pintarInformes() {
       '</div>' +
       '<p class="inf-descarga-nota">' +
         (infPdfTipo === 'trimestral'
-          ? 'Facturas, apuntes de empresa y el resumen de facturación del trimestre, para tu asesor. ' +
-            'El Excel lleva las mismas facturas y apuntes, cada cosa en su hoja.'
-          : 'Copia de seguridad completa del año: facturas, apuntes (empresa y personal) e impuestos. ' +
-            'El Excel lleva las facturas, los apuntes y el resumen del 347.') +
+          ? 'Facturas y apuntes de empresa del trimestre, para tu asesor. ' +
+            'El Excel lleva lo mismo que el PDF, cada cosa en su hoja.'
+          : 'Copia de seguridad completa del año: resumen, facturas, apuntes (empresa y personal) e impuestos. ' +
+            'El Excel lleva lo mismo que el PDF, cada cosa en su hoja, y además el resumen del 347.') +
       '</p>' +
     '</div>' +
 
     // Resumen del 347 y revisión de datos (26/09/2026): solo leen.
     inf347Html(infAnio) +
-    (typeof revHtml === 'function' ? revHtml(infAnio) : '');
+    (typeof revHtml === 'function' ? revHtml(infAnio) : '') +
+    // Espacio que ocupan tus datos en este dispositivo (28/09/2026).
+    infEspacioHtml();
 
   infPrepararCarrusel(zona);
 
@@ -856,6 +858,100 @@ function infPrepararCarrusel(zona) {
     pendiente = true;
     requestAnimationFrame(function () { pendiente = false; marcar(); });
   });
+}
+
+// ============================================================
+// 7.1 ESPACIO QUE OCUPAN TUS DATOS (28/09/2026)
+// ============================================================
+// Solo lee. La app guarda en el dispositivo una copia de todos tus
+// datos para abrir al instante y funcionar sin conexión, y el navegador
+// deja para eso unos 5 MB. Aquí se enseña cuánto ocupan, desde qué año
+// hay contabilidad y si ya conviene archivar años antiguos (Configuración
+// → Copias de seguridad). Cuenta caracteres guardados, que es lo que mide
+// el navegador; es una cifra aproximada, de sobra para decidir.
+
+const INF_ESPACIO_LIMITE = 5 * 1024 * 1024;
+
+function infEspacioUsado() {
+  let total = 0;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k.indexOf('cuentas_') !== 0) continue;
+      total += k.length + String(localStorage.getItem(k) || '').length;
+    }
+  } catch (err) {
+    console.error('No se pudo medir el espacio:', err);
+    return null;
+  }
+  return total;
+}
+
+// Años con contabilidad (facturas, compras, apuntes o impuestos).
+function infAniosConDatos() {
+  const anios = {};
+  const anotar = function (a) { if (a) anios[a] = true; };
+  estado.ventas.forEach(function (f) { anotar(infAnioDe(f.fecha)); });
+  estado.compras.forEach(function (f) { anotar(infAnioDe(f.fecha)); });
+  estado.apuntes.forEach(function (a) { anotar(infAnioDe(a.fecha)); });
+  estado.impuestos.forEach(function (r) {
+    const a = parseInt(String(r['año'] || ''), 10);
+    if (a > 1990) anotar(a);
+  });
+  return Object.keys(anios).map(Number).sort(function (a, b) { return a - b; });
+}
+
+function infTamanoLegible(caracteres) {
+  if (caracteres < 1024 * 1024) {
+    return Math.max(1, Math.round(caracteres / 1024)).toLocaleString('es-ES') + '\u00A0KB';
+  }
+  return (caracteres / (1024 * 1024)).toLocaleString('es-ES', { maximumFractionDigits: 1 }) + '\u00A0MB';
+}
+
+function infEspacioHtml() {
+  const usado = infEspacioUsado();
+  const anios = infAniosConDatos();
+  const hoy = new Date().getFullYear();
+
+  let lineaEspacio = 'No se ha podido medir.';
+  let aviso = '';
+  let claseAviso = 'rev-ok';
+  if (usado !== null) {
+    const pct = usado / INF_ESPACIO_LIMITE * 100;
+    const pctTexto = pct < 1 ? 'menos del 1\u00A0%' : Math.round(pct) + '\u00A0%';
+    lineaEspacio = infTamanoLegible(usado) + ' de unos 5\u00A0MB (' + pctTexto + ')';
+    if (pct >= 80) {
+      claseAviso = 'inf-espacio-aviso rojo';
+      aviso = 'Queda poco espacio. Conviene archivar años antiguos en Configuración → Copias de seguridad.';
+    } else if (pct >= 50) {
+      claseAviso = 'inf-espacio-aviso';
+      aviso = 'Empieza a llenarse. Cuando quieras, puedes archivar años antiguos en Configuración → Copias de seguridad.';
+    } else {
+      aviso = 'Hay espacio de sobra. No hace falta archivar nada.';
+    }
+  }
+
+  const lineaAnios = anios.length
+    ? (anios[0] === anios[anios.length - 1]
+        ? 'Solo ' + anios[0]
+        : 'Desde ' + anios[0] + ' (' + anios.length + ' años)')
+    : 'Todavía no hay';
+
+  return '<div class="inf-bloque inf-espacio">' +
+    '<p class="inf-descarga-titulo">Datos en este dispositivo</p>' +
+    '<div class="inf-espacio-linea"><span>Ocupan</span><strong>' + escaparHtml(lineaEspacio) + '</strong></div>' +
+    '<div class="inf-espacio-linea"><span>Contabilidad</span><strong>' + escaparHtml(lineaAnios) + '</strong></div>' +
+    '<div class="inf-espacio-linea"><span>Registros</span><strong>' +
+      escaparHtml(estado.ventas.length + ' facturas · ' + estado.compras.length + ' compras · ' + estado.apuntes.length + ' apuntes') +
+    '</strong></div>' +
+    (aviso
+      ? '<p class="' + claseAviso + '">' +
+          '<i class="ti ' + (claseAviso === 'rev-ok' ? 'ti-circle-check' : 'ti-alert-triangle') + '" aria-hidden="true"></i> ' +
+          escaparHtml(aviso) + '</p>'
+      : '') +
+    '<p class="inf-bloque-nota">Se conservan siempre el año en curso y los 5 anteriores (' + (hoy - 5) + '–' + hoy + '): ' +
+      'esos años no se pueden archivar.</p>' +
+  '</div>';
 }
 
 // ============================================================
@@ -1037,7 +1133,8 @@ function xlsCelda(ref, c) {
 }
 
 // hoja: { nombre, anchos: [..], filas: [[celda, celda...], ...] }
-// La primera fila es la cabecera y queda fija al desplazarse.
+// La primera fila es la cabecera y queda fija al desplazarse, salvo en
+// las hojas con `sinCabeceraFija` (la hoja «Resumen», 28/09/2026).
 function xlsHojaXml(hoja) {
   const filas = hoja.filas.map(function (fila, i) {
     return '<row r="' + (i + 1) + '">' + fila.map(function (c, j) {
@@ -1049,7 +1146,9 @@ function xlsHojaXml(hoja) {
   }).join('');
   return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-    '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
+    (hoja.sinCabeceraFija
+      ? '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
+      : '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>') +
     (cols ? '<cols>' + cols + '</cols>' : '') +
     '<sheetData>' + filas + '</sheetData></worksheet>';
 }
@@ -1181,46 +1280,48 @@ function xlsFilaTotal(etiqueta, columnaEtiqueta, totales) {
   return fila;
 }
 
+// Columna «Dirección» desde el 28/09/2026, como en el PDF.
 function xlsHojaFacturas(nombre, lista, esVenta) {
   const filas = [[
     xlsCab('Fecha'), xlsCab('Número'), xlsCab(esVenta ? 'Cliente' : 'Proveedor'), xlsCab('NIF'),
-    xlsCab('Concepto'), xlsCab('Base'), xlsCab('IVA %'), xlsCab('IVA'), xlsCab('IRPF %'),
+    xlsCab('Dirección'), xlsCab('Concepto'), xlsCab('Base'), xlsCab('IVA %'), xlsCab('IVA'), xlsCab('IRPF %'),
     xlsCab('Retención IRPF'), xlsCab('Total'), xlsCab('Estado'), xlsCab(esVenta ? 'Fecha de cobro' : 'Fecha de pago')
   ]];
-  const suma = { 5: 0, 7: 0, 9: 0, 10: 0 };
+  const suma = { 6: 0, 8: 0, 10: 0, 11: 0 };
   lista.forEach(function (f) {
     const r = esVenta ? infFilaVenta(f) : infFilaCompra(f);
     const pagada = String(f.estado || '').toLowerCase() === 'pagada';
     filas.push([
-      xlsF(f.fecha), xlsT(r.numero), xlsT(r.nombre), xlsT(r.nif), xlsT(r.concepto),
+      xlsF(f.fecha), xlsT(r.numero), xlsT(r.nombre), xlsT(r.nif), xlsT(r.direccion), xlsT(r.concepto),
       xlsD(r.base), xlsN(r.ivaPct), xlsD(r.iva), xlsN(r.irpfPct), xlsD(r.irpf), xlsD(r.total),
       xlsT(pagada ? (esVenta ? 'Cobrada' : 'Pagada') : 'Pendiente'),
       xlsF(esVenta ? f.fecha_cobro : f.fecha_pago)
     ]);
-    suma[5] += r.base; suma[7] += r.iva; suma[9] += r.irpf; suma[10] += r.total;
+    suma[6] += r.base; suma[8] += r.iva; suma[10] += r.irpf; suma[11] += r.total;
   });
-  if (lista.length) { filas.push([]); filas.push(xlsFilaTotal('TOTAL', 4, suma)); }
-  return { nombre: nombre, anchos: [11, 14, 32, 13, 38, 12, 7, 12, 7, 14, 12, 11, 14], filas: filas };
+  if (lista.length) { filas.push([]); filas.push(xlsFilaTotal('TOTAL', 5, suma)); }
+  return { nombre: nombre, anchos: [11, 14, 32, 13, 34, 38, 12, 7, 12, 7, 14, 12, 11, 14], filas: filas };
 }
 
+// Columna «Dirección» desde el 28/09/2026, como en el PDF.
 function xlsHojaApuntes(nombre, lista) {
   const filas = [[
     xlsCab('Fecha'), xlsCab('Tipo'), xlsCab('Ámbito'), xlsCab('Contacto'), xlsCab('NIF'),
-    xlsCab('Concepto'), xlsCab('Base'), xlsCab('IVA %'), xlsCab('IVA'), xlsCab('IRPF %'),
+    xlsCab('Dirección'), xlsCab('Concepto'), xlsCab('Base'), xlsCab('IVA %'), xlsCab('IVA'), xlsCab('IRPF %'),
     xlsCab('Retención IRPF'), xlsCab('Total')
   ]];
-  const suma = { 6: 0, 8: 0, 10: 0, 11: 0 };
+  const suma = { 7: 0, 9: 0, 11: 0, 12: 0 };
   lista.forEach(function (a) {
     const r = infFilaApunte(a);
     const contacto = r.nombre !== '—' ? r.nombre : (infTexto(a.contacto_libre) || '—');
     filas.push([
-      xlsF(a.fecha), xlsT(r.tipo), xlsT(r.ambito), xlsT(contacto), xlsT(r.nif), xlsT(r.concepto),
+      xlsF(a.fecha), xlsT(r.tipo), xlsT(r.ambito), xlsT(contacto), xlsT(r.nif), xlsT(r.direccion), xlsT(r.concepto),
       xlsD(r.base), xlsN(r.ivaPct), xlsD(r.iva), xlsN(r.irpfPct), xlsD(r.irpf), xlsD(r.total)
     ]);
-    suma[6] += r.base; suma[8] += r.iva; suma[10] += r.irpf; suma[11] += r.total;
+    suma[7] += r.base; suma[9] += r.iva; suma[11] += r.irpf; suma[12] += r.total;
   });
-  if (lista.length) { filas.push([]); filas.push(xlsFilaTotal('TOTAL (gastos en negativo)', 5, suma)); }
-  return { nombre: nombre, anchos: [11, 9, 10, 30, 13, 38, 12, 7, 12, 7, 14, 12], filas: filas };
+  if (lista.length) { filas.push([]); filas.push(xlsFilaTotal('TOTAL (gastos en negativo)', 6, suma)); }
+  return { nombre: nombre, anchos: [11, 9, 10, 30, 13, 34, 38, 12, 7, 12, 7, 14, 12], filas: filas };
 }
 
 function xlsHoja347(anio) {
@@ -1243,37 +1344,165 @@ function xlsHoja347(anio) {
   return { nombre: '347', anchos: [11, 36, 13, 13, 12, 12, 12, 12, 16], filas: filas };
 }
 
-function infDescargarExcel() {
+// ---- Hojas que lleva el PDF y antes no llevaba el Excel (28/09/2026) ----
+// Mismas cifras que el PDF, sacadas de las mismas funciones
+// (infDatosEmisor, infResumenAnual, impCalcular, impRegistroDe): aquí no
+// se calcula nada nuevo. El PDF no cambia.
+
+function xlsB(v) { return { t: 'texto', v: v, negrita: true }; }
+function xlsDB(v) { return { t: 'dinero', v: roundMoney(parsearNumero(v)), negrita: true }; }
+
+// Hoja «Resumen», la primera del libro: título, datos del emisor y, en el
+// anual, las cuatro tablas del resumen del PDF.
+function xlsHojaResumen(tipo, anio, trimestre) {
+  const e = infDatosEmisor();
+  const contacto = [e.telefono, e.email].filter(Boolean).join(' · ');
+  const filas = [
+    [xlsB(tipo === 'anual' ? 'Informe anual' : 'Informe trimestral')],
+    [xlsT(tipo === 'anual' ? 'Ejercicio ' + anio : trimestre + ' · ' + anio)],
+    [xlsT('Generado el ' + mostrarFecha(fechaHoyISO()))],
+    [],
+    [xlsB('Emisor')]
+  ];
+  if (e.nombre) filas.push([xlsT(e.nombre)]);
+  if (e.nif) filas.push([xlsT('NIF ' + e.nif)]);
+  if (e.direccion) filas.push([xlsT(e.direccion)]);
+  if (contacto) filas.push([xlsT(contacto)]);
+
+  if (tipo === 'anual') {
+    const r = infResumenAnual(anio);
+    const tres = function (etiqueta, valores, destacada) {
+      return [destacada ? xlsB(etiqueta) : xlsT(etiqueta)].concat(valores.map(function (v) {
+        if (v === null) return xlsT('—');
+        return destacada ? xlsDB(v) : xlsD(v);
+      }));
+    };
+    const cabecera = [xlsCab('Concepto'), xlsCab('Empresa'), xlsCab('Personal'), xlsCab('Conjunto')];
+
+    filas.push([], [xlsB('Ingresos')], cabecera,
+      tres('Facturación (base de ventas)', [r.facturacion, null, r.facturacion]),
+      tres('Otros ingresos (apuntes)', [r.otrosIngresosEmpresa, r.otrosIngresosPersonal, roundMoney(r.otrosIngresosEmpresa + r.otrosIngresosPersonal)]),
+      tres('TOTAL INGRESOS', [r.ingresosEmpresa, r.ingresosPersonal, r.ingresosConjunto], true));
+
+    filas.push([], [xlsB('Gastos')], cabecera,
+      tres('Compras (base de facturas)', [r.comprasBase, null, r.comprasBase]),
+      tres('Otros gastos (apuntes)', [r.otrosGastosEmpresa, r.otrosGastosPersonal, roundMoney(r.otrosGastosEmpresa + r.otrosGastosPersonal)]),
+      tres('TOTAL GASTOS', [r.gastosEmpresa, r.gastosPersonal, r.gastosConjunto], true));
+
+    filas.push([], [xlsB('Resultado')], cabecera,
+      tres('RESULTADO DEL AÑO', [r.resultadoEmpresa, r.resultadoPersonal, r.resultadoConjunto], true));
+
+    filas.push([], [xlsB('Impuestos y otros datos del año (empresa)')],
+      [xlsT('IVA repercutido (ventas)'), xlsD(r.ivaRepercutido)],
+      [xlsT('IVA soportado (compras)'), xlsD(r.ivaSoportado)],
+      [xlsT('IVA neto del año'), xlsD(r.ivaNeto)],
+      [xlsT('IRPF retenido en tus facturas'), xlsD(r.irpfSoportado)],
+      [xlsT('IRPF retenido por ti a terceros'), xlsD(r.irpfTerceros)],
+      [xlsT('Impuestos pagados en el año'), xlsD(r.impuestosPagados)],
+      [xlsT('Pendiente de cobro a fin de año'), xlsD(r.pendienteCobro)],
+      [xlsT('Nº de facturas emitidas'), xlsN(r.numVentas)],
+      [xlsT('Nº de facturas recibidas'), xlsN(r.numCompras)],
+      [xlsT('Nº de apuntes de empresa'), xlsN(r.numApuntesEmpresa)],
+      [xlsT('Nº de apuntes personales'), xlsN(r.numApuntesPersonal)],
+      [xlsT('Nº de facturas sin cobrar'), xlsN(r.numSinCobrar)]);
+
+    filas.push([], [xlsT('Copia de seguridad del ejercicio ' + anio + '. Los gastos figuran en negativo. ' +
+      'No incluye presupuestos. Las hojas siguientes llevan las facturas, los apuntes, los impuestos y el 347.')]);
+  } else {
+    filas.push([], [xlsT('Los gastos figuran en negativo. Documento pensado para revisar con tu asesor: ' +
+      'no incluye estimaciones internas de la aplicación, solo los datos con los que presentar el trimestre.')]);
+  }
+
+  return { nombre: 'Resumen', anchos: [46, 16, 16, 16], filas: filas, sinCabeceraFija: true };
+}
+
+// Hoja «Impuestos» del anual: los 4 trimestres, igual que la tabla
+// «Impuestos del año» del PDF (estimación en vivo, real, estado y fecha).
+function xlsHojaImpuestos(anio) {
+  const filas = [[
+    xlsCab('Trimestre'), xlsCab('IVA estimado'), xlsCab('IVA real'), xlsCab('Estado IVA'), xlsCab('Fecha pago IVA'),
+    xlsCab('IRPF estimado'), xlsCab('IRPF real'), xlsCab('Estado IRPF'), xlsCab('Fecha pago IRPF')
+  ]];
+  IMP_TRIMESTRES.forEach(function (t) {
+    const r = impRegistroDe(anio, t);
+    const c = impCalcular(anio, t);
+    const pagado = function (tipo) { return r && infTexto(r[tipo + '_estado']).toLowerCase() === 'pagado'; };
+    filas.push([
+      xlsT(t),
+      xlsD(c.iva), xlsD(r ? r.iva_real : 0), xlsT(pagado('iva') ? 'Pagado' : 'Pendiente'), xlsF(r ? r.iva_fecha_pago : ''),
+      xlsD(c.irpf), xlsD(r ? r.irpf_real : 0), xlsT(pagado('irpf') ? 'Pagado' : 'Pendiente'), xlsF(r ? r.irpf_fecha_pago : '')
+    ]);
+  });
+  return { nombre: 'Impuestos', anchos: [11, 14, 14, 12, 15, 15, 14, 12, 15], filas: filas };
+}
+
+// Libro completo de un periodo, sin descargarlo: { hojas, nombre }.
+// Lo usan el botón «Excel» de esta pantalla y el archivado de años
+// antiguos de Configuración (que descarga antes el anual de cada año).
+function infLibroExcel(tipo, anio, trimestre) {
+  if (tipo === 'anual') {
+    return {
+      hojas: [
+        xlsHojaResumen('anual', anio),
+        xlsHojaFacturas('Emitidas', infVentasDelAnio(anio), true),
+        xlsHojaFacturas('Recibidas', infComprasDelAnio(anio), false),
+        xlsHojaApuntes('Apuntes', infApuntesDelAnio(anio)),
+        xlsHojaImpuestos(anio),
+        xlsHoja347(anio)
+      ],
+      nombre: 'Cuentas ' + anio + ' anual.xlsx'
+    };
+  }
+  return {
+    hojas: [
+      xlsHojaResumen('trimestral', anio, trimestre),
+      xlsHojaFacturas('Emitidas', infVentasDelTrimestre(anio, trimestre), true),
+      xlsHojaFacturas('Recibidas', infComprasDelTrimestre(anio, trimestre), false),
+      xlsHojaApuntes('Apuntes de empresa', infApuntesEmpresaDelTrimestre(anio, trimestre))
+    ],
+    nombre: 'Cuentas ' + anio + ' ' + trimestre + '.xlsx'
+  };
+}
+
+// Descarga un libro. Devuelve true si se ha podido preparar y lanzar la
+// descarga, false si algo ha fallado (y ya se ha avisado).
+function infGuardarExcel(libro) {
   try {
-    let hojas, nombre;
-    if (infPdfTipo === 'anual') {
-      hojas = [
-        xlsHojaFacturas('Emitidas', infVentasDelAnio(infAnio), true),
-        xlsHojaFacturas('Recibidas', infComprasDelAnio(infAnio), false),
-        xlsHojaApuntes('Apuntes', infApuntesDelAnio(infAnio)),
-        xlsHoja347(infAnio)
-      ];
-      nombre = 'Cuentas ' + infAnio + ' anual.xlsx';
-    } else {
-      hojas = [
-        xlsHojaFacturas('Emitidas', infVentasDelTrimestre(infAnio, infTrimestre), true),
-        xlsHojaFacturas('Recibidas', infComprasDelTrimestre(infAnio, infTrimestre), false),
-        xlsHojaApuntes('Apuntes de empresa', infApuntesEmpresaDelTrimestre(infAnio, infTrimestre))
-      ];
-      nombre = 'Cuentas ' + infAnio + ' ' + infTrimestre + '.xlsx';
-    }
-    const blob = xlsZip(xlsArchivosLibro(hojas));
+    const blob = xlsZip(xlsArchivosLibro(libro.hojas));
     const url = URL.createObjectURL(blob);
     const enlace = document.createElement('a');
     enlace.href = url;
-    enlace.download = nombre;
+    enlace.download = libro.nombre;
     document.body.appendChild(enlace);
     enlace.click();
     enlace.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+    return true;
   } catch (err) {
     console.error('No se pudo preparar el Excel:', err);
     alert('No se ha podido preparar el Excel. Vuelve a intentarlo.');
+    return false;
+  }
+}
+
+function infDescargarExcel() {
+  try {
+    infGuardarExcel(infLibroExcel(infPdfTipo, infAnio, infTrimestre));
+  } catch (err) {
+    console.error('No se pudo preparar el Excel:', err);
+    alert('No se ha podido preparar el Excel. Vuelve a intentarlo.');
+  }
+}
+
+// Excel anual de un año concreto, para Configuración → Copias de
+// seguridad (archivar años antiguos). Devuelve true si se ha descargado.
+function infDescargarExcelAnual(anio) {
+  try {
+    return infGuardarExcel(infLibroExcel('anual', anio));
+  } catch (err) {
+    console.error('No se pudo preparar el Excel anual de ' + anio + ':', err);
+    alert('No se ha podido preparar el Excel de ' + anio + '.');
+    return false;
   }
 }
 

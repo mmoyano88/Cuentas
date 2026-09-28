@@ -135,8 +135,16 @@ function revFechasFuturas() {
 }
 
 // ---- 6. Presupuestos aceptados sin factura ----
+// Solo los del año en curso y los 5 anteriores (28/09/2026): son los
+// años que nunca se archivan. Un presupuesto más antiguo puede tener su
+// factura ya archivada (en Configuración → Copias de seguridad), y aquí
+// saldría por error como «sin factura».
 function revPresupuestosSinFacturar() {
+  const protegidos = typeof ARCHIVO_ANIOS_PROTEGIDOS !== 'undefined' ? ARCHIVO_ANIOS_PROTEGIDOS : 5;
+  const desde = new Date().getFullYear() - protegidos;
   return estado.presupuestos.filter(function (p) {
+    const anio = parseInt(String(normalizarFecha(p.fecha)).slice(0, 4), 10);
+    if (anio > 1990 && anio < desde) return false;
     return String(p.estado) === 'aceptado' && !preTieneFactura(p.id);
   }).map(function (p) {
     return 'El presupuesto ' + (revTexto(p.numero) || '—') + ' de ' + revNombreContacto(p.id_cliente, p.cliente) +

@@ -244,3 +244,9 @@
 .copias-lista li { padding: 2px 0; }
 .copias-cargando { font-size: 13px; color: var(--texto-secundario); margin: 0; }
 .copias-error { font-size: 13px; color: var(--rojo); margin: 0; line-height: 1.45; }
+
+/* ---- Archivar años antiguos (28/09/2026), en la pestaña Copias ---- */
+.config-panel h2.archivo-titulo { margin-top: 14px; }
+.archivo-elegir { align-items: center; padding-bottom: 8px; }
+.archivo-select { width: auto; min-width: 150px; height: 38px; }
+.archivo-nota { font-size: 12px; color: var(--texto-secundario); margin: 8px 0 0; line-height: 1.45; }

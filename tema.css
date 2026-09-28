@@ -1197,8 +1197,13 @@ button:active:not(:disabled) {
   }
   #imp-zona:has(.inf-resumen-anual) > .inf-periodo,
   #imp-zona:has(.inf-resumen-anual) > .inf-nota-cabecera,
+  /* El último bloque ocupa las dos columnas solo si se queda solo en su
+     fila. Los bloques de dos en dos empiezan en el 4.º hijo (antes van el
+     año, la nota y el resumen), así que se queda solo cuando es hijo par.
+     Desde el 28/09/2026 hay cuatro (descarga, 347, revisión y «Datos en
+     este dispositivo»): van de dos en dos, sin huecos. */
   #imp-zona:has(.inf-resumen-anual) > .inf-resumen-anual,
-  #imp-zona:has(.inf-resumen-anual) > .inf-bloque:last-child:nth-child(odd) {
+  #imp-zona:has(.inf-resumen-anual) > .inf-bloque:last-child:nth-child(even) {
     grid-column: 1 / -1;
   }
   #imp-zona:has(.inf-resumen-anual) > .inf-descarga,

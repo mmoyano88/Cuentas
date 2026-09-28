@@ -62,9 +62,11 @@ function sePuedeRepetir(cuerpo) {
   return true;
 }
 
-async function unIntentoBackend(cuerpo) {
+// `esperaMs` es opcional (28/09/2026): una acción larga (archivar años
+// antiguos) puede esperar más de lo normal. Sin él, lo de siempre.
+async function unIntentoBackend(cuerpo, esperaMs) {
   const control = new AbortController();
-  const temporizador = setTimeout(function () { control.abort(); }, ESPERA_MAXIMA_MS);
+  const temporizador = setTimeout(function () { control.abort(); }, esperaMs || ESPERA_MAXIMA_MS);
   try {
     const respuesta = await fetch(API_URL, {
       method: 'POST',

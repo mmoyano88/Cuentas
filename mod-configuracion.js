@@ -100,7 +100,10 @@ function pintarPanelActivo() {
   };
   panel.innerHTML = renderes[configPestanaActiva]();
   cablearPanelActivo(panel);
-  if (configPestanaActiva === 'copias') cablearCopias(panel);
+  if (configPestanaActiva === 'copias') {
+    cablearCopias(panel);
+    cablearArchivo(panel);   // 28/09/2026: no depende de que se pueda consultar Drive
+  }
 }
 
 // ============================================================
@@ -279,7 +282,8 @@ function renderCopias() {
     '<div class="copias-info" id="copias-info"><p class="copias-cargando">Consultando tu Drive...</p></div>' +
     '<div class="config-guardar">' +
       '<button type="button" class="boton-secundario" id="btn-copia-ahora" disabled>Hacer copia ahora</button>' +
-    '</div>'
+    '</div>' +
+    renderArchivo()
   );
 }
 
@@ -355,6 +359,331 @@ async function cablearCopias(panel) {
       boton.disabled = false;
     }
   });
+}
+
+// ============================================================
+// 7.2 ARCHIVAR AÑOS ANTIGUOS (28/09/2026)
+// ============================================================
+// Pasa a una hoja aparte de tu Drive (carpeta «Cuentas - Archivo») los
+// registros de los años que elijas y los quita de la app y de la hoja
+// principal, para que ocupen menos. Decisiones del propietario:
+//   · Solo se archiva lo que va en el Excel anual de esos años: facturas
+//     de venta y de compra activas, apuntes y trimestres de Impuestos.
+//     Los apuntes de cobro, de pago y de impuestos van con su factura o
+//     con su trimestre (sus datos están en el Excel: estado, fecha de
+//     cobro y pagos de impuestos). Nunca se archivan presupuestos,
+//     contactos, plantillas, configuración ni facturas desactivadas.
+//   · Nunca se archivan el año en curso ni los 5 anteriores. Google lo
+//     vuelve a comprobar en Código.gs, pida lo que pida la app.
+//   · Antes de archivar: el Excel anual de cada año se descarga solo,
+//     y Google hace una copia de seguridad completa en Drive.
+// Lo que va unido no se separa: si una factura de un año archivado se
+// cobró en un año que se conserva, se quedan las dos cosas en la app.
+
+const ARCHIVO_ANIOS_PROTEGIDOS = 5;
+const ARCHIVO_HOJAS = ['ventas', 'compras', 'apuntes', 'impuestos'];
+
+// Año más reciente que se puede archivar (en 2026, el 2020).
+function arcAnioMaximo() {
+  return new Date().getFullYear() - ARCHIVO_ANIOS_PROTEGIDOS - 1;
+}
+
+function arcAnioDe(iso) {
+  const f = normalizarFecha(iso);
+  if (!f) return 0;
+  const a = parseInt(String(f).slice(0, 4), 10);
+  return a > 1990 ? a : 0;
+}
+
+function arcAnioImpuesto(r) {
+  const a = parseInt(String(r['año'] || ''), 10);
+  return a > 1990 ? a : 0;
+}
+
+// Qué se archivaría eligiendo «hasta» ese año (incluido). Solo lee.
+// Devuelve { hasta, ids: { ventas: [...], ... }, cuenta, anios, retenidos }.
+function arcSeleccion(hasta) {
+  const dentro = function (a) { return a > 1990 && a <= hasta; };
+  const sel = { ventas: {}, compras: {}, apuntes: {}, impuestos: {} };
+
+  estado.ventas.forEach(function (f) {
+    if (fvEstaActiva(f) && dentro(arcAnioDe(f.fecha))) sel.ventas[String(f.id)] = true;
+  });
+  estado.compras.forEach(function (f) {
+    if (fcEstaActiva(f) && dentro(arcAnioDe(f.fecha))) sel.compras[String(f.id)] = true;
+  });
+  estado.impuestos.forEach(function (r) {
+    if (dentro(arcAnioImpuesto(r))) sel.impuestos[String(r.id)] = true;
+  });
+  // Apuntes hechos a mano (los que salen en la hoja «Apuntes» del Excel).
+  estado.apuntes.forEach(function (a) {
+    if (a.id_factura_venta || a.id_factura_compra || a.id_impuesto) return;
+    if (dentro(arcAnioDe(a.fecha))) sel.apuntes[String(a.id)] = true;
+  });
+
+  // Cada factura o trimestre se lleva sus apuntes, y solo se archiva si
+  // TODOS sus apuntes son también de años que se archivan.
+  let retenidos = 0;
+  [['ventas', 'id_factura_venta'], ['compras', 'id_factura_compra'], ['impuestos', 'id_impuesto']].forEach(function (par) {
+    Object.keys(sel[par[0]]).forEach(function (id) {
+      const suyos = estado.apuntes.filter(function (a) { return String(a[par[1]] || '') === id; });
+      if (suyos.every(function (a) { return dentro(arcAnioDe(a.fecha)); })) {
+        suyos.forEach(function (a) { sel.apuntes[String(a.id)] = true; });
+      } else {
+        delete sel[par[0]][id];
+        retenidos++;
+      }
+    });
+  });
+
+  const ids = {};
+  const cuenta = {};
+  let total = 0;
+  ARCHIVO_HOJAS.forEach(function (h) {
+    ids[h] = Object.keys(sel[h]);
+    cuenta[h] = ids[h].length;
+    total += ids[h].length;
+  });
+
+  // Años con algo que archivar: de cada uno se descarga su Excel anual.
+  const anios = {};
+  ARCHIVO_HOJAS.forEach(function (h) {
+    estado[h].forEach(function (r) {
+      if (!sel[h][String(r.id)]) return;
+      const a = h === 'impuestos' ? arcAnioImpuesto(r) : arcAnioDe(r.fecha);
+      if (a) anios[a] = true;
+    });
+  });
+
+  return {
+    hasta: hasta, ids: ids, cuenta: cuenta, total: total, retenidos: retenidos,
+    anios: Object.keys(anios).map(Number).sort(function (a, b) { return a - b; })
+  };
+}
+
+// Años con contabilidad que ya se podrían archivar (del más reciente al
+// más antiguo).
+function arcAniosArchivables() {
+  const todos = typeof infAniosConDatos === 'function' ? infAniosConDatos() : [];
+  const maximo = arcAnioMaximo();
+  return todos.filter(function (a) { return a <= maximo; }).sort(function (a, b) { return b - a; });
+}
+
+function renderArchivo() {
+  return (
+    '<h2 class="archivo-titulo">Archivar años antiguos</h2>' +
+    '<div class="config-cartel config-cartel-izquierda">' +
+      'Pasa a una hoja aparte de tu Drive, en la carpeta «Cuentas - Archivo», las facturas, compras, ' +
+      'apuntes e impuestos de los años que elijas, y los quita de la app para que ocupe menos. Antes ' +
+      'se descarga el Excel anual de cada uno de esos años y se hace una copia de seguridad. Nunca se ' +
+      'archivan el año en curso ni los ' + ARCHIVO_ANIOS_PROTEGIDOS + ' anteriores, ni los presupuestos, ' +
+      'contactos o plantillas.' +
+    '</div>' +
+    '<div class="copias-info" id="archivo-info"></div>' +
+    '<div class="config-guardar">' +
+      '<button type="button" class="boton-secundario" id="btn-archivar" disabled>Archivar...</button>' +
+    '</div>'
+  );
+}
+
+function arcPintarInfo(panel) {
+  const caja = panel.querySelector('#archivo-info');
+  const boton = panel.querySelector('#btn-archivar');
+  if (!caja || !boton) return null;
+
+  const archivables = arcAniosArchivables();
+  const maximo = arcAnioMaximo();
+  const hoy = new Date().getFullYear();
+  if (archivables.length === 0) {
+    const todos = typeof infAniosConDatos === 'function' ? infAniosConDatos() : [];
+    caja.innerHTML =
+      '<p class="copias-linea">Todavía no hay ningún año que se pueda archivar: se conservan siempre de ' +
+        (maximo + 1) + ' a ' + hoy + '.</p>' +
+      (todos.length ? '<p class="copias-linea"><span>Tu contabilidad empieza en</span><strong>' + todos[0] + '</strong></p>' : '');
+    boton.disabled = true;
+    return null;
+  }
+
+  const select = caja.querySelector('#arc-hasta');
+  const hasta = select ? parseInt(select.value, 10) : archivables[0];
+  const sel = arcSeleccion(hasta);
+
+  caja.innerHTML =
+    '<div class="copias-linea archivo-elegir"><span>Archivar hasta</span>' +
+      '<select class="campo archivo-select" id="arc-hasta">' +
+        archivables.map(function (a) {
+          return '<option value="' + a + '"' + (a === hasta ? ' selected' : '') + '>' + a + ' (incluido)</option>';
+        }).join('') +
+      '</select>' +
+    '</div>' +
+    '<div class="copias-linea"><span>Facturas de venta</span><strong>' + sel.cuenta.ventas + '</strong></div>' +
+    '<div class="copias-linea"><span>Facturas de compra</span><strong>' + sel.cuenta.compras + '</strong></div>' +
+    '<div class="copias-linea"><span>Apuntes (con cobros y pagos)</span><strong>' + sel.cuenta.apuntes + '</strong></div>' +
+    '<div class="copias-linea"><span>Trimestres de impuestos</span><strong>' + sel.cuenta.impuestos + '</strong></div>' +
+    (sel.retenidos > 0
+      ? '<p class="archivo-nota">Se quedan en la app ' + sel.retenidos + (sel.retenidos === 1 ? ' factura o trimestre' : ' facturas o trimestres') +
+        ' de esos años porque su cobro o su pago es de un año que se conserva.</p>'
+      : '');
+
+  caja.querySelector('#arc-hasta').addEventListener('change', function () { arcPintarInfo(panel); });
+  boton.disabled = sel.total === 0;
+  return sel;
+}
+
+function cablearArchivo(panel) {
+  const boton = panel.querySelector('#btn-archivar');
+  if (!boton) return;
+  arcPintarInfo(panel);
+  boton.addEventListener('click', function () { arcArchivar(panel, boton); });
+}
+
+function arcEsperar(ms) {
+  return new Promise(function (resolve) { setTimeout(resolve, ms); });
+}
+
+function arcHayPendientes() {
+  return contarSinGuardar() > 0 || hayEnviosEnCurso();
+}
+
+// Ventana de "trabajando", sin botones: no se puede cerrar a medias.
+function arcMostrarEspera(texto) {
+  const fondo = document.createElement('div');
+  fondo.className = 'dialogo-fondo';
+  fondo.innerHTML = '<div class="dialogo-caja"><p class="dialogo-mensaje">' + escaparHtml(texto) + '</p></div>';
+  document.body.appendChild(fondo);
+  return fondo;
+}
+
+async function arcArchivar(panel, boton) {
+  if (!puedeEscribir()) return;
+  const select = panel.querySelector('#arc-hasta');
+  if (!select) return;
+  const hasta = parseInt(select.value, 10);
+  if (!(hasta > 1990) || hasta > arcAnioMaximo()) return;
+
+  if (arcHayPendientes()) {
+    alert('Hay cambios sin guardar todavía. Sincroniza hasta que todo esté guardado y vuelve a intentarlo.');
+    return;
+  }
+
+  const previa = arcSeleccion(hasta);
+  if (previa.total === 0) return;
+
+  const eleccion = await mostrarDialogoOpciones(
+    'Archivar hasta ' + hasta,
+    'Se archivarán ' + previa.cuenta.ventas + ' facturas de venta, ' + previa.cuenta.compras + ' de compra, ' +
+      previa.cuenta.apuntes + ' apuntes y ' + previa.cuenta.impuestos + ' trimestres de impuestos. ' +
+      'Primero se descargará el Excel anual de ' + previa.anios.join(', ') + '. Después, Google hará una copia ' +
+      'de seguridad, pasará esos registros a una hoja en la carpeta «Cuentas - Archivo» de tu Drive y los ' +
+      'quitará de la app. Conviene hacerlo con los demás dispositivos ya sincronizados.',
+    [{ id: 'cancelar', texto: 'Cancelar' }, { id: 'seguir', texto: 'Seguir', tipo: 'principal' }]
+  );
+  if (eleccion !== 'seguir') return;
+
+  if (!await confirmarConPin('Vas a archivar los años hasta ' + hasta + ' (incluido).')) return;
+
+  // Datos al día antes de decidir qué se archiva.
+  await sincronizar();
+  if (!estado.syncReady) {
+    alert('No hay conexión con Google Sheets. No se ha archivado nada.');
+    return;
+  }
+  if (arcHayPendientes()) {
+    alert('Hay cambios sin guardar todavía. Sincroniza hasta que todo esté guardado y vuelve a intentarlo. No se ha archivado nada.');
+    return;
+  }
+  const sel = arcSeleccion(hasta);
+  if (sel.total === 0) {
+    alert('No queda nada que archivar hasta ' + hasta + '.');
+    arcPintarInfo(panel);
+    return;
+  }
+
+  // 1. Excel anual de cada año, descargado solo.
+  if (typeof infDescargarExcelAnual !== 'function') {
+    alert('No se ha podido preparar el Excel anual. No se ha archivado nada.');
+    return;
+  }
+  let descargar = true;
+  while (descargar) {
+    for (let i = 0; i < sel.anios.length; i++) {
+      if (!infDescargarExcelAnual(sel.anios[i])) {
+        alert('No se ha podido descargar el Excel de ' + sel.anios[i] + '. No se ha archivado nada.');
+        return;
+      }
+      await arcEsperar(700);   // un respiro entre descargas para que el navegador no las bloquee
+    }
+    const nombres = sel.anios.map(function (a) { return '«Cuentas ' + a + ' anual.xlsx»'; }).join(', ');
+    const respuesta = await mostrarDialogoOpciones(
+      'Comprueba tus Excel',
+      'Se ' + (sel.anios.length === 1 ? 'ha descargado ' : 'han descargado ') + nombres + '. ' +
+        'Comprueba que ' + (sel.anios.length === 1 ? 'está' : 'están') + ' en tu carpeta de Descargas antes de seguir. ' +
+        'Si el navegador pregunta si permites descargar varios archivos, di que sí y pulsa «Descargar otra vez».',
+      [
+        { id: 'cancelar', texto: 'Cancelar' },
+        { id: 'repetir', texto: 'Descargar otra vez' },
+        { id: 'archivar', texto: 'Archivar', tipo: 'principal' }
+      ]
+    );
+    if (respuesta === 'archivar') descargar = false;
+    else if (respuesta !== 'repetir') return;
+  }
+
+  // 2. Google: copia de seguridad, hoja de archivo y quitar los registros.
+  boton.disabled = true;
+  const espera = arcMostrarEspera('Archivando... Google está haciendo la copia de seguridad y la hoja de archivo. Puede tardar un minuto: no cierres la app.');
+  let r = null;
+  let sinRespuesta = false;
+  try {
+    r = await unIntentoBackend({ action: 'archivar', hasta: sel.hasta, ids: sel.ids }, 180000);
+  } catch (err) {
+    console.error('Archivar: sin respuesta de Google:', err);
+    sinRespuesta = true;
+  }
+  espera.remove();
+
+  if (r && r.code === 'clave') { cerrarSesion('La clave de acceso ya no es válida. Vuelve a introducirla.'); return; }
+
+  if (sinRespuesta) {
+    alert('No ha llegado la respuesta de Google. Puede que se haya archivado igualmente: la app va a sincronizar ahora. ' +
+      'Antes de repetirlo, vuelve a esta pestaña y mira si esos años siguen apareciendo. No se ha perdido nada: ' +
+      'está todo en tus Excel y en la copia de seguridad.');
+    await sincronizar();
+    pintarPanelActivo();
+    return;
+  }
+
+  if (!r || r.status !== 'success') {
+    const texto = String((r && r.message) || '');
+    alert(texto.indexOf('Acción desconocida') !== -1
+      ? 'Falta publicar la nueva versión de Código.gs en Apps Script (Implementar → Gestionar implementaciones → lápiz → Nueva versión). No se ha archivado nada.'
+      : 'No se ha podido archivar: ' + texto.replace(/^Error:\s*/, ''));
+    await sincronizar();
+    pintarPanelActivo();
+    return;
+  }
+
+  // 3. Fuera de la app, y sincronizar para quedar igual que la hoja.
+  ARCHIVO_HOJAS.forEach(function (h) {
+    const quitar = {};
+    (sel.ids[h] || []).forEach(function (id) { quitar[String(id)] = true; });
+    estado[h] = estado[h].filter(function (x) { return !quitar[String(x.id)]; });
+    guardarEntidadLocal(h);
+  });
+  await sincronizar();
+  pintarPanelActivo();
+
+  const a = r.archivados || {};
+  const final = await mostrarDialogoOpciones(
+    'Años archivados',
+    'Hecho: ' + (a.ventas || 0) + ' facturas de venta, ' + (a.compras || 0) + ' de compra, ' + (a.apuntes || 0) +
+      ' apuntes y ' + (a.impuestos || 0) + ' trimestres están ahora en «' + ((r.archivo && r.archivo.nombre) || 'Cuentas - Archivo') +
+      '», en la carpeta «Cuentas - Archivo» de tu Drive, y ya no ocupan sitio en la app.',
+    (r.archivo && r.archivo.url)
+      ? [{ id: 'abrir', texto: 'Abrir el archivo' }, { id: 'cerrar', texto: 'Cerrar', tipo: 'principal' }]
+      : [{ id: 'cerrar', texto: 'Cerrar', tipo: 'principal' }]
+  );
+  if (final === 'abrir' && r.archivo && r.archivo.url) window.open(r.archivo.url, '_blank', 'noopener');
 }
 
 // ============================================================
