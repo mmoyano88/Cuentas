@@ -705,6 +705,9 @@ function impTarjetaIva(c, registro) {
         (registro ? impPuntoEstado(registro) : '') +
       '</span>' +
     '</div>' +
+    // Subtítulo también en IVA (rediseño, 28/09/2026): las dos tarjetas
+    // tienen la misma forma y sus cifras quedan a la misma altura.
+    '<p class="imp-tarjeta-subtitulo">Lo que cobras de IVA menos lo que pagas</p>' +
 
     '<div class="imp-linea"><span>IVA repercutido (ventas)</span><strong>+' + escaparHtml(dineroVisible(c.ivaRepercutido)) + '</strong></div>' +
     '<div class="imp-linea"><span>IVA soportado (compras)</span><strong>−' + escaparHtml(dineroVisible(c.ivaSoportado)) + '</strong></div>' +
@@ -770,7 +773,7 @@ function impTarjetaIrpf(c, acumulado, registro) {
 
   return '<div class="imp-tarjeta">' +
     '<div class="imp-tarjeta-cabecera">' +
-      '<p class="imp-tarjeta-titulo">IRPF · dinero a apartar</p>' +
+      '<p class="imp-tarjeta-titulo">IRPF · Modelo 130</p>' +
       '<span class="imp-cabecera-estado">' +
         (pagado
           ? '<span class="pastilla ind-verde">Pagado</span>'
@@ -778,28 +781,36 @@ function impTarjetaIrpf(c, acumulado, registro) {
         (registro ? impPuntoEstado(registro) : '') +
       '</span>' +
     '</div>' +
-    '<p class="imp-tarjeta-subtitulo">Referencia: modelo 130</p>' +
+    '<p class="imp-tarjeta-subtitulo">Dinero a apartar · cifra de referencia</p>' +
 
-    '<div class="imp-linea"><span>Ingresos del trimestre (base)</span><strong>+' + escaparHtml(dineroVisible(c.ingresos)) + '</strong></div>' +
-    '<div class="imp-linea"><span>Gastos del trimestre (base)</span><strong>−' + escaparHtml(dineroVisible(c.gastos)) + '</strong></div>' +
-    '<div class="imp-linea destacada"><span>Rendimiento neto</span><strong>' + escaparHtml(dineroVisible(c.rendimiento)) + '</strong></div>' +
+    // Tarjeta resumida (rediseño, 28/09/2026, petición del propietario):
+    // a la vista, las dos líneas que dan el resultado, igual que en la
+    // tarjeta de IVA. El resto del cálculo (ingresos, gastos,
+    // rendimiento, aviso del 70% y acumulado del año) sigue entero en
+    // "Ver cálculo", plegado. Las cifras son las mismas de siempre.
     '<div class="imp-linea"><span>' + c.pct + '% sobre el rendimiento</span><strong>' + escaparHtml(dineroVisible(c.irpfTeorico)) + '</strong></div>' +
     '<div class="imp-linea"><span>Retenciones que ya te han hecho</span><strong>−' + escaparHtml(dineroVisible(c.retencionesSoportadas)) + '</strong></div>' +
 
     impBloqueResultado(c.irpf, 'A apartar este trimestre', 'A tu favor este trimestre') +
 
-    avisoRetencion +
-
-    '<p class="imp-nota">Acumulado del año hasta ' + escaparHtml(impTrimestre) + ': ' +
-      escaparHtml(dineroVisible(acumulado.irpf)) + ' sobre un rendimiento de ' +
-      escaparHtml(dineroVisible(acumulado.rendimiento)) + '. Es la forma en que se calcula el 130 oficial, ' +
-      'por si quieres comparar con tu asesor.</p>' +
-
+    // Este aviso sí se queda a la vista: es dinero que se debe aparte.
     (c.retencionesTerceros > 0
       ? '<p class="imp-nota aviso">Has retenido ' + escaparHtml(dineroVisible(c.retencionesTerceros)) +
         ' de IRPF a terceros este trimestre. Ese dinero se lo debes tú a Hacienda por otro modelo ' +
         '(111 o 115) y NO está incluido en la cifra de arriba. Consúltalo con tu asesor.</p>'
       : '') +
+
+    '<details class="imp-ver-calculo">' +
+      '<summary>Ver cálculo</summary>' +
+      '<div class="imp-linea"><span>Ingresos del trimestre (base)</span><strong>+' + escaparHtml(dineroVisible(c.ingresos)) + '</strong></div>' +
+      '<div class="imp-linea"><span>Gastos del trimestre (base)</span><strong>−' + escaparHtml(dineroVisible(c.gastos)) + '</strong></div>' +
+      '<div class="imp-linea destacada"><span>Rendimiento neto</span><strong>' + escaparHtml(dineroVisible(c.rendimiento)) + '</strong></div>' +
+      avisoRetencion +
+      '<p class="imp-nota">Acumulado del año hasta ' + escaparHtml(impTrimestre) + ': ' +
+        escaparHtml(dineroVisible(acumulado.irpf)) + ' sobre un rendimiento de ' +
+        escaparHtml(dineroVisible(acumulado.rendimiento)) + '. Es la forma en que se calcula el 130 oficial, ' +
+        'por si quieres comparar con tu asesor.</p>' +
+    '</details>' +
 
     impBloquePago('irpf', registro, pagado, c.irpf) +
   '</div>';

@@ -754,7 +754,7 @@ button:active:not(:disabled) {
     gap: 10px;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    padding: 4px 10% 8px;
+    padding: 6px 7% 12px;
     margin: 0 calc(-1 * var(--padding-pagina));
     scrollbar-width: none;
     align-items: stretch;
@@ -766,24 +766,27 @@ button:active:not(:disabled) {
   #imp-carrusel-trimestres > *,
   #contenido #imp-carrusel-impuestos > *,
   #app #contenido .dash-donuts > * {
-    flex: 0 0 80%;
+    flex: 0 0 86%;
     min-width: 0;
     scroll-snap-align: center;
-    transform: scale(.93);
-    opacity: .55;
-    transition: transform .25s ease, opacity .25s ease;
+    transform: scale(.9);
+    opacity: .4;
+    transition: transform .25s ease, opacity .25s ease, box-shadow .25s ease;
   }
+  /* La del centro, entera y con una sombra que la levanta del fondo. */
   #imp-carrusel-trimestres > .centrada,
   #contenido #imp-carrusel-impuestos > .centrada,
-  #app #contenido .dash-donuts > .centrada { transform: none; opacity: 1; }
+  #app #contenido .dash-donuts > .centrada {
+    transform: none;
+    opacity: 1;
+    box-shadow: 0 10px 24px -10px rgba(22, 22, 21, .45);
+  }
 
   /* Los botones y campos de una tarjeta de los lados no se pueden
      pulsar sin querer: primero hay que traerla al centro. */
   #contenido #imp-carrusel-impuestos > :not(.centrada) *,
   #app #contenido .dash-donuts > :not(.centrada) * { pointer-events: none; }
 
-  /* IVA e IRPF no miden lo mismo: cada tarjeta, con su propio alto. */
-  #contenido #imp-carrusel-impuestos { align-items: flex-start; }
 
   /* Donuts más grandes, ahora que van de uno en uno. */
   #app #contenido .dash-donuts .dash-lienzo { height: 220px; }
@@ -1126,19 +1129,23 @@ button:active:not(:disabled) {
     gap: 10px;
     overflow-x: auto;
     scroll-snap-type: x mandatory;
-    padding: 4px 10% 8px;
+    padding: 6px 7% 12px;
     margin: 0 calc(-1 * var(--padding-pagina));
     scrollbar-width: none;
   }
   #contenido .inf-carrusel::-webkit-scrollbar { display: none; }
   #contenido .inf-carrusel > .inf-resumen-trimestre {
-    flex: 0 0 80%;
+    flex: 0 0 86%;
     scroll-snap-align: center;
-    transform: scale(.93);
-    opacity: .55;
-    transition: transform .25s ease, opacity .25s ease;
+    transform: scale(.9);
+    opacity: .4;
+    transition: transform .25s ease, opacity .25s ease, box-shadow .25s ease;
   }
-  #contenido .inf-carrusel > .inf-resumen-trimestre.centrada { transform: none; opacity: 1; }
+  #contenido .inf-carrusel > .inf-resumen-trimestre.centrada {
+    transform: none;
+    opacity: 1;
+    box-shadow: 0 10px 24px -10px rgba(22, 22, 21, .45);
+  }
 }
 
 /* PC: sin carrusel. Los cuatro trimestres en fila con aire entre ellos,
@@ -1223,3 +1230,34 @@ button:active:not(:disabled) {
 /* El resultado de IVA/IRPF ("A pagar este trimestre") nunca parte la
    cifra de su €. */
 #contenido .imp-resultado strong { white-space: nowrap; }
+
+/* ============================================================
+   IVA E IRPF IGUALES (28/09/2026)
+   Las dos tarjetas miden lo mismo y tienen la misma forma: título,
+   subtítulo, dos líneas, resultado y, pegada abajo, la zona de pago.
+   En IRPF, el cálculo completo va plegado en "Ver cálculo".
+   ============================================================ */
+
+#contenido .imp-columnas .imp-tarjeta > :has(+ .imp-pago) { margin-bottom: 14px; }
+
+.imp-ver-calculo { margin-top: 10px; }
+.imp-ver-calculo > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texto);
+  cursor: pointer;
+  list-style: none;
+  padding: 4px 0;
+}
+.imp-ver-calculo > summary::-webkit-details-marker { display: none; }
+.imp-ver-calculo > summary::after {
+  font-family: 'tabler-icons';
+  content: '\ea5f';
+  font-size: 14px;
+  transition: transform .2s ease;
+}
+.imp-ver-calculo[open] > summary::after { transform: rotate(180deg); }
+.imp-ver-calculo[open] > summary { margin-bottom: 4px; }
