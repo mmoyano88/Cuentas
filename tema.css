@@ -257,7 +257,10 @@
 #contenido > .imp-cabecera-seccion,
 #contenido > .ct-cabecera-lista {
   position: relative;
-  z-index: 1;
+  /* Nivel 5 (no 1): el botón flotante "+" va dentro de esta fila y no
+     puede subir más que ella. Con 1 quedaba debajo de las etiquetas de
+     mes de Contabilidad (nivel 3). Arreglado el 28/09/2026. */
+  z-index: 5;
   margin: -70px 0 32px;      /* sube: 16 de margen + 16 de relleno + 38 del selector */
 }
 
