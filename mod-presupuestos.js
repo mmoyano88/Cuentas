@@ -650,7 +650,8 @@ function preAbrirMenuMas(boton, id) {
     '<button type="button" data-accion="estado">Cambiar estado</button>' +
     '<button type="button" data-accion="duplicar">Duplicar presupuesto</button>' +
     (typeof plDesdePresupuesto === 'function' ? '<button type="button" data-accion="plantilla">Guardar como plantilla</button>' : '') +
-    '<button type="button" data-accion="pdf">Descargar PDF</button>' +
+    '<button type="button" data-accion="pdf">Generar PDF</button>' +
+    '<button type="button" data-accion="drive">Abrir en Drive</button>' +
     '<button type="button" data-accion="factura"' + (puedeFacturar ? '' : ' disabled') + '>Convertir en factura</button>' +
     (tieneFactura ? '' : '<button type="button" class="peligro" data-accion="eliminar">Eliminar</button>');
 
@@ -669,6 +670,7 @@ function preAbrirMenuMas(boton, id) {
   menu.querySelector('[data-accion="duplicar"]')?.addEventListener('click', function () { cerrarMenu(); preDuplicar(id); });
   menu.querySelector('[data-accion="plantilla"]')?.addEventListener('click', function () { cerrarMenu(); plDesdePresupuesto(id); });
   menu.querySelector('[data-accion="pdf"]')?.addEventListener('click', function () { cerrarMenu(); pdfDocAbrirPresupuesto(id); });
+  menu.querySelector('[data-accion="drive"]')?.addEventListener('click', function () { cerrarMenu(); pdfDocAbrirEnDrivePresupuesto(id); });
   menu.querySelector('[data-accion="factura"]')?.addEventListener('click', function () {
     cerrarMenu();
     convertirPresupuestoEnFactura(id);

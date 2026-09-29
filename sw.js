@@ -25,7 +25,7 @@
  * control, la app se recarga sola una vez (ver el final de app.js).
  */
 
-const VERSION = 'cuentas-v71';
+const VERSION = 'cuentas-v72';
 
 const ARCHIVOS = [
   './',
@@ -40,6 +40,7 @@ const ARCHIVOS = [
   './mod-dashboard.js',
   './mod-configuracion.css',
   './mod-configuracion.js',
+  './mod-pdf-motor.js',
   './mod-pdf-documentos.js',
   './mod-clientes.css',
   './mod-clientes.js',
@@ -71,7 +72,18 @@ const ARCHIVOS = [
   // y Chart.js 4.4.1, las mismas versiones que antes venían de jsdelivr.
   './tabler-icons.min.css',
   './tabler-icons.woff2',
-  './chart.umd.js'
+  './chart.umd.js',
+  // PDF dentro de la app (29/09/2026): librería, fuentes recortadas y la
+  // imagen de cabecera del PDF (antes se pedía a raw.githubusercontent).
+  './jspdf.umd.min.js',
+  './pdf-inter-400.ttf',
+  './pdf-inter-700.ttf',
+  './pdf-inter-800.ttf',
+  './pdf-inter-900.ttf',
+  './pdf-inter-cursiva-400.ttf',
+  './pdf-inter-cursiva-700.ttf',
+  './pdf-archivo-black.ttf',
+  './20260906_145914_0000.png'
 ];
 
 self.addEventListener('install', function (evento) {

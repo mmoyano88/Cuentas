@@ -1617,3 +1617,78 @@ select.campo:disabled {
     white-space: normal;
   }
 }
+
+
+/* ============================================================
+   PDF EN DRIVE (v72, 29/09/2026)
+   Aviso de resultado al generar un PDF: tarjeta negra abajo, sin
+   bloquear la pantalla. Los colores de estado son los del indicador de
+   sincronización (verde guardado, ámbar pendiente, rojo error).
+   ============================================================ */
+
+[class$="-menu-mas"] button[data-accion="drive"]::before { content: '\ec1e'; } /* Drive */
+
+#pdf-aviso {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 40;
+  box-sizing: border-box;
+  width: min(440px, calc(100% - 32px));
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 14px 16px;
+  border-radius: 16px;
+  background: var(--banda);
+  color: #FFFFFF;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+}
+@media (min-width: 900px) {
+  #pdf-aviso { bottom: 24px; }
+}
+#pdf-aviso .pdf-aviso-icono { flex: 0 0 auto; font-size: 24px; line-height: 1; margin-top: 1px; }
+#pdf-aviso.pdf-aviso-ok .pdf-aviso-icono { color: var(--sync-verde); }
+#pdf-aviso.pdf-aviso-pendiente .pdf-aviso-icono { color: var(--sync-ambar); }
+#pdf-aviso.pdf-aviso-error .pdf-aviso-icono { color: var(--sync-rojo); }
+#pdf-aviso.pdf-aviso-trabajando .pdf-aviso-icono { color: var(--sync-azul); animation: pdf-aviso-giro 1s linear infinite; }
+@keyframes pdf-aviso-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  #pdf-aviso.pdf-aviso-trabajando .pdf-aviso-icono { animation: none; }
+}
+#pdf-aviso .pdf-aviso-cuerpo { flex: 1 1 auto; min-width: 0; }
+#pdf-aviso .pdf-aviso-titulo { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; }
+#pdf-aviso .pdf-aviso-detalle { margin: 4px 0 0; font-size: 13px; line-height: 1.4; color: rgba(255, 255, 255, .72); overflow-wrap: anywhere; }
+#pdf-aviso .pdf-aviso-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+#pdf-aviso .pdf-aviso-boton {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .4);
+  background: transparent;
+  color: #FFFFFF;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+#pdf-aviso #pdf-aviso-abrir { background: #FFFFFF; border-color: #FFFFFF; color: var(--banda); }
+#pdf-aviso .pdf-aviso-cerrar {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  margin: -4px -4px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, .7);
+  font-size: 18px;
+  cursor: pointer;
+}

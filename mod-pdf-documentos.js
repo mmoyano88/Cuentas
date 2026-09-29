@@ -1,391 +1,262 @@
 /**
- * MÓDULO PDF DE DOCUMENTOS (Presupuesto y Factura de venta)
+ * MÓDULO PDF DE DOCUMENTOS (Presupuesto y Factura de venta) — 29/09/2026
  * ------------------------------------------------------------
- * Genera el PDF de cliente para Presupuestos y Facturas de venta.
- * Compartido entre los dos módulos porque el diseño es casi idéntico:
- * solo cambian el color de acento y qué texto de pie se usa. Las
- * facturas de compra NO generan PDF (mapa 15.2), y eso no cambia.
+ * Genera el PDF de cliente de Presupuestos y Facturas de venta y lo
+ * GUARDA EN GOOGLE DRIVE, en la carpeta que le toca:
  *
- * MECANISMO — sin ninguna librería de PDF (mapa 15.1): se abre una
- * ventana nueva, se escribe un documento HTML con estilos de
- * impresión A4, y el propio navegador lo convierte a PDF al imprimir.
- * Si el navegador bloquea la ventana emergente, se avisa.
+ *     carpeta madre › año › Ventas | Presupuestos › F2026-0007 - Cliente.pdf
  *
- * ⚠️ VERSIÓN SIMPLIFICADA (07/09/2026, GUÍA sección 20). Sustituye a
- * un diseño anterior mucho más complejo que daba problemas continuos.
- * Lo que se eliminó y por qué:
+ * El año es el de la fecha de emisión. Si el mismo documento se vuelve
+ * a generar, el archivo anterior se sustituye. Las facturas de compra
+ * NO generan PDF (siguen guardándose a mano) y los Informes siguen con
+ * su sistema anterior (segundo paso).
  *
- *   - PAGINACIÓN MÚLTIPLE. El documento ocupa SIEMPRE una sola hoja.
- *     Con ello desaparecen el script que medía el documento ya
- *     maquetado, el relleno calculado para empujar el pie al fondo de
- *     la última hoja, el recorte de la página fantasma final, la
- *     "named page" para que la cabecera tocara el borde y los ajustes
- *     de margen por página. Eran mecanismos correctos por separado,
- *     pero juntos formaban un sistema frágil donde cada cambio movía
- *     otra pieza.
- *   - REESCALADO DE LÍNEAS. Las facturas ya no tienen líneas de
- *     detalle: llevan un único importe que ES la base imponible, así
- *     que no hay dos cifras que cuadrar entre sí.
- *   - COLUMNAS "Cant." y "Precio". Siempre mostraban 1 y el importe
- *     repetido, porque no existen datos reales de cantidad ni de
- *     precio unitario. La tabla se queda con Descripción e Importe.
+ * El dibujo del PDF vive en mod-pdf-motor.js. Este módulo se ocupa de:
+ *   1. Avisar si la descripción no cabe entera en la hoja (aviso exacto,
+ *      ya no una estimación).
+ *   2. Guardar el PDF en el dispositivo ANTES de enviarlo (IndexedDB), para
+ *      que nunca se pierda: si no hay conexión o falla el envío, queda
+ *      pendiente y se reenvía solo (al volver la conexión, al volver a
+ *      abrir la app o cada par de minutos).
+ *   3. Enviarlo al backend (acción guardar_pdf de Código.gs).
+ *   4. Avisar del resultado con «Abrir en Drive» y «Descargar».
  *
- * Si la descripción no cabe en la hoja, se AVISA al propietario antes
- * de generar el PDF para que edite el documento. Nunca se recorta en
- * silencio: perder texto de una factura sin que se note es peor que
- * tener que acortarlo a mano.
- *
- * La imagen de cabecera es una URL fija en el repositorio de GitHub
- * del propietario (ver PDF_DOC_URL_CABECERA). Antes se guardaba en
- * base64 dentro de la configuración, pero no llegaba a guardarse de
- * forma fiable. Para cambiarla, se sube un archivo con el mismo
- * nombre a esa carpeta — no hace falta tocar la app.
+ * Los PDF pendientes NO usan el sistema de pendientes de los registros
+ * (localStorage): un PDF es un archivo y no cabe ahí.
  */
 
 // ============================================================
-// 1. CONSTANTES
+// 1. PDF PENDIENTES EN EL DISPOSITIVO (IndexedDB)
 // ============================================================
 
-// La marca es el "logo de texto" del negocio: va escrita a fuego a
-// propósito, igual que un logotipo no cambia porque cambien los datos
-// fiscales. Convive con los datos fiscales reales de debajo, que sí
-// salen de Configuración.
-const PDF_DOC_MARCA_NOMBRE = 'MIGUEL MOYANO';
-const PDF_DOC_MARCA_ACTIVIDAD = 'Comunicación Audiovisual';
+const PDF_DB_NOMBRE = 'cuentas_pdf_v1';
+const PDF_DB_ALMACEN = 'pendientes';
 
-// Se sirve desde raw.githubusercontent.com, que es la dirección de
-// acceso directo al archivo (github.com/.../blob/... es la página que
-// lo muestra, no el archivo). Verificado: 1240×260px.
-const PDF_DOC_URL_CABECERA = 'https://raw.githubusercontent.com/mmoyano88/Cuentas/main/20260906_145914_0000.png';
-
-// Alto máximo aproximado, en píxeles de pantalla, que puede ocupar el
-// bloque de descripción sin que el documento se salga de una hoja A4.
-// Se calcula restando al alto útil de la página lo que ocupan las
-// piezas fijas (cabecera, datos, caja de cliente, tabla, totales y
-// observaciones). Es una estimación con margen: si se supera, se
-// avisa, y como el aviso no bloquea, el propietario decide.
-const PDF_DOC_ALTO_MAX_DESCRIPCION = 330;
-
-// ============================================================
-// 2. DATOS DEL EMISOR Y DEL CLIENTE
-// ============================================================
-
-function pdfDocTexto(v) {
-  return String(v === null || v === undefined ? '' : v).trim();
+function pdfDbAbrir() {
+  return new Promise(function (ok, ko) {
+    if (!window.indexedDB) { ko(new Error('Este navegador no permite guardar archivos en el dispositivo.')); return; }
+    const peticion = indexedDB.open(PDF_DB_NOMBRE, 1);
+    peticion.onupgradeneeded = function () { peticion.result.createObjectStore(PDF_DB_ALMACEN, { keyPath: 'clave' }); };
+    peticion.onsuccess = function () { ok(peticion.result); };
+    peticion.onerror = function () { ko(peticion.error); };
+  });
 }
 
-// Sin valor por defecto escrito a fuego (corrige mapa 15.3): si el
-// campo está vacío en Configuración, sale vacío en el PDF.
-function pdfDocDatosEmisor() {
-  const calle = [pdfDocTexto(cfgTexto('fiscal_calle')), pdfDocTexto(cfgTexto('fiscal_numero'))].filter(Boolean).join(' ');
-  const poblacion = [pdfDocTexto(cfgTexto('fiscal_codigo_postal')), pdfDocTexto(cfgTexto('fiscal_poblacion'))].filter(Boolean).join(' ');
-  const direccion = [calle, poblacion].filter(Boolean).join(' · ') +
-    (poblacion && pdfDocTexto(cfgTexto('fiscal_provincia')) ? ', ' + pdfDocTexto(cfgTexto('fiscal_provincia')) : '');
+function pdfDbOperar(modo, operacion) {
+  return pdfDbAbrir().then(function (db) {
+    return new Promise(function (ok, ko) {
+      const tx = db.transaction(PDF_DB_ALMACEN, modo);
+      const almacen = tx.objectStore(PDF_DB_ALMACEN);
+      const peticion = operacion(almacen);
+      tx.oncomplete = function () { db.close(); ok(peticion ? peticion.result : undefined); };
+      tx.onerror = function () { db.close(); ko(tx.error); };
+      tx.onabort = function () { db.close(); ko(tx.error); };
+    });
+  });
+}
 
-  return {
-    nombre: pdfDocTexto(cfgTexto('fiscal_nombre')),
-    nif: pdfDocTexto(cfgTexto('fiscal_nif')),
-    direccion: direccion,
-    telefono: pdfDocTexto(cfgTexto('perfil_telefono')),
-    email: pdfDocTexto(cfgTexto('perfil_email'))
+function pdfDbGuardar(item) { return pdfDbOperar('readwrite', function (a) { return a.put(item); }); }
+function pdfDbBorrar(clave) { return pdfDbOperar('readwrite', function (a) { return a.delete(clave); }); }
+function pdfDbLista() { return pdfDbOperar('readonly', function (a) { return a.getAll(); }); }
+
+// ============================================================
+// 2. ENVÍO A DRIVE
+// ============================================================
+
+function pdfDocABase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(bin);
+}
+
+// Envía un PDF pendiente. Devuelve { url, ruta } o lanza un error.
+async function pdfDocEnviar(item) {
+  if (navigator.onLine === false) throw new Error('Sin conexión.');
+  const resultado = await llamarBackend({
+    action: 'guardar_pdf',
+    tipo: item.carpeta,
+    anio: item.anio,
+    nombre: item.nombre,
+    pdf: pdfDocABase64(item.datos)
+  });
+  if (!resultado || resultado.status !== 'success') {
+    throw new Error((resultado && resultado.message) || 'No se pudo guardar en Drive.');
+  }
+  return { url: resultado.url, ruta: resultado.ruta || (item.anio + ' › ' + item.carpeta) };
+}
+
+// Claves de los PDF que se están enviando ahora mismo (para que el
+// reenvío automático no duplique el envío).
+const pdfDocEnCurso = {};
+let pdfDocReenviando = false;
+
+async function pdfDocReintentar() {
+  if (pdfDocReenviando) return;
+  if (typeof haySesion === 'function' && !haySesion()) return;
+  if (navigator.onLine === false) return;
+  pdfDocReenviando = true;
+  try {
+    const lista = await pdfDbLista();
+    for (let i = 0; i < lista.length; i++) {
+      const item = lista[i];
+      if (pdfDocEnCurso[item.clave]) continue;
+      pdfDocEnCurso[item.clave] = true;
+      try {
+        const r = await pdfDocEnviar(item);
+        await pdfDbBorrar(item.clave);
+        pdfDocAviso({ estado: 'ok', titulo: 'Guardado en Drive', detalle: r.ruta + ' › ' + item.nombre, url: r.url, blob: new Blob([item.datos], { type: 'application/pdf' }), nombre: item.nombre });
+      } catch (err) {
+        console.warn('El PDF sigue pendiente:', item.nombre, err);
+      } finally {
+        delete pdfDocEnCurso[item.clave];
+      }
+    }
+  } catch (err) {
+    console.warn('No se pudo revisar los PDF pendientes:', err);
+  } finally {
+    pdfDocReenviando = false;
+  }
+}
+
+// ============================================================
+// 3. AVISO DE RESULTADO
+// ============================================================
+// Una tarjeta negra abajo, sin bloquear la pantalla. Estados:
+//   trabajando · ok (con «Abrir en Drive» y «Descargar») · pendiente · error
+
+let pdfDocTemporizadorAviso = null;
+
+function pdfDocAvisoCerrar() {
+  clearTimeout(pdfDocTemporizadorAviso);
+  const a = document.getElementById('pdf-aviso');
+  if (a) a.remove();
+}
+
+function pdfDocDescargar(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+}
+
+function pdfDocAviso(opciones) {
+  pdfDocAvisoCerrar();
+  const iconos = {
+    trabajando: 'ti-loader-2',
+    ok: 'ti-circle-check',
+    pendiente: 'ti-clock',
+    error: 'ti-alert-triangle'
   };
-}
-
-function pdfDocDireccionContacto(contacto) {
-  if (!contacto) return '';
-  const calle = [pdfDocTexto(contacto.calle), pdfDocTexto(contacto.numero)].filter(Boolean).join(' ');
-  const poblacion = [pdfDocTexto(contacto.codigo_postal), pdfDocTexto(contacto.poblacion)].filter(Boolean).join(' ');
-  const primera = [calle, poblacion].filter(Boolean).join(' · ');
-  return contacto.provincia ? primera + (primera ? ', ' : '') + pdfDocTexto(contacto.provincia) : primera;
-}
-
-// El texto de observaciones ya se guarda saneado desde Configuración
-// (solo b/strong/i/em/u/br/p/div/ul/ol/li/span, sin atributos
-// peligrosos), así que aquí se usa tal cual.
-function pdfDocObservaciones(clave) {
-  const html = pdfDocTexto(cfgTexto(clave));
-  return html || '<span class="muted">Sin observaciones.</span>';
-}
-
-// ============================================================
-// 3. CONTENIDO DEL DOCUMENTO
-// ============================================================
-// Presupuestos y facturas tienen ya la misma forma: concepto,
-// descripción y un único importe. Por eso una sola función sirve para
-// los dos.
-//
-// El importe de la tabla es el precio ANTES del descuento especial
-// (23/09/2026): base imponible + descuento, los dos guardados en el
-// documento. Sin descuento, coincide con la base. En un presupuesto ya
-// lleva dentro el ajuste por tipo de cliente y la compensación de
-// IRPF, que NUNCA aparecen en el PDF: para el cliente es simplemente
-// el precio del trabajo.
-
-function pdfDocDatosDocumento(registro) {
-  return {
-    concepto: pdfDocTexto(registro.concepto),
-    descripcion: pdfDocTexto(registro.descripcion),
-    importe: roundMoney(parsearNumero(registro.base) + parsearNumero(registro.descuento_especial_importe))
-  };
-}
-
-// ============================================================
-// 4. BLOQUE DE TOTALES
-// ============================================================
-// Con descuento especial (23/09/2026), las cuentas se leen de arriba
-// abajo: Importe · Descuento (con % si lo es) · Base imponible · IVA ·
-// Retención IRPF (si la hay) · TOTAL. Antes salía la base (ya
-// descontada) y DESPUÉS el descuento, y la suma no cuadraba a la vista.
-// Sin descuento: Base imponible · IVA · Retención · TOTAL, como siempre.
-// Base imponible, IVA y Retención van en negrita (24/09/2026), para
-// distinguirlas de Importe y Descuento cuando aparecen.
-
-function pdfDocFilasTotales(registro) {
-  const descuento = parsearNumero(registro.descuento_especial_importe);
-  const irpf = parsearNumero(registro.irpf);
-  const etiquetaDescuento = String(registro.descuento_especial_tipo) === 'fixed'
-    ? 'Descuento'
-    : 'Descuento (' + parsearNumero(registro.descuento_especial_valor) + '%)';
-
-  return (descuento > 0
-      ? '<div class="summary-row"><span>Importe</span><span>' + escaparHtml(formatMoney(pdfDocDatosDocumento(registro).importe)) + '</span></div>' +
-        '<div class="summary-row"><span>' + escaparHtml(etiquetaDescuento) + '</span><span>−' + escaparHtml(formatMoney(descuento)) + '</span></div>'
-      : '') +
-    '<div class="summary-row fuerte"><span>Base imponible</span><span>' + escaparHtml(formatMoney(registro.base)) + '</span></div>' +
-    '<div class="summary-row fuerte"><span>IVA (' + parsearNumero(registro.iva_pct) + '%)</span><span>' + escaparHtml(formatMoney(registro.iva)) + '</span></div>' +
-    (irpf > 0
-      ? '<div class="summary-row fuerte"><span>Retención IRPF (' + parsearNumero(registro.irpf_pct) + '%)</span><span>−' + escaparHtml(formatMoney(irpf)) + '</span></div>'
-      : '') +
-    '<div class="summary-separator"></div>' +
-    '<div class="summary-total"><span>TOTAL</span><span>' + escaparHtml(formatMoney(registro.total)) + '</span></div>';
-}
-
-// ============================================================
-// 5. CONSTRUCCIÓN DEL DOCUMENTO
-// ============================================================
-
-// tipo: 'presupuesto' | 'factura'
-function pdfDocConstruir(registro, contacto, tipo) {
-  const esFactura = tipo === 'factura';
-  const acento = esFactura ? '#c93b3b' : '#24364f';
-  const titulo = esFactura ? 'FACTURA' : 'PRESUPUESTO';
-  const emisor = pdfDocDatosEmisor();
-  const doc = pdfDocDatosDocumento(registro);
-  const observaciones = pdfDocObservaciones(esFactura ? 'texto_pie_factura' : 'texto_pie_presupuesto');
-
-  const nombreCliente = pdfDocTexto(registro.cliente) || pdfDocTexto(contacto && (contacto.nombre_fiscal || contacto.nombre_contacto)) || 'Cliente';
-  const nifCliente = pdfDocTexto(registro.nif) || pdfDocTexto(contacto && contacto.nif);
-  const direccionCliente = pdfDocDireccionContacto(contacto);
-
-  const numeroDoc = pdfDocTexto(registro.numero);
-  const fileTitle = (esFactura ? 'Fra.' : 'Ptto.') + ' ' + numeroDoc + ' - ' + nombreCliente;
-
-  // Datos fiscales del emisor, en tres líneas. Se alinean, fila a
-  // fila, con el título / número / fecha de la derecha.
-  const lineaEmisor1 = emisor.nombre;
-  const lineaEmisor2 = [emisor.nif, emisor.direccion].filter(Boolean).join(' · ');
-  const lineaEmisor3 = [emisor.telefono, emisor.email].filter(Boolean).join(' · ');
-
-  return '<!doctype html><html lang="es"><head><meta charset="utf-8">' +
-    '<title>' + escaparHtml(fileTitle) + '</title>' +
-    '<link rel="preconnect" href="https://fonts.googleapis.com">' +
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
-    '<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;700;800;900&display=swap" rel="stylesheet">' +
-    '<style>' + pdfDocCss(acento) + '</style>' +
-    '</head><body>' +
-    '<div class="page">' +
-      '<div class="header"><img src="' + escaparHtml(PDF_DOC_URL_CABECERA) + '" alt=""></div>' +
-      '<div class="content">' +
-        // Cabecera en FILAS alineadas: cada dato de la izquierda tiene
-        // su pareja exacta a la derecha en la misma línea horizontal,
-        // sea cual sea el largo del nombre.
-        '<table class="cabecera-doc"><tbody>' +
-          '<tr>' +
-            '<td class="cab-izq">' +
-              '<div class="red-line"></div>' +
-              '<div class="brand">' + PDF_DOC_MARCA_NOMBRE + '</div>' +
-              '<div class="activity">' + PDF_DOC_MARCA_ACTIVIDAD + '</div>' +
-            '</td>' +
-            '<td class="cab-der"><div class="doc-title">' + titulo + '</div></td>' +
-          '</tr>' +
-          '<tr>' +
-            '<td class="cab-izq seller-line">' + escaparHtml(lineaEmisor1) + '</td>' +
-            '<td class="cab-der doc-number">' + escaparHtml(numeroDoc) + '</td>' +
-          '</tr>' +
-          '<tr>' +
-            '<td class="cab-izq">' + escaparHtml(lineaEmisor2) + '</td>' +
-            '<td class="cab-der">Fecha: ' + escaparHtml(mostrarFecha(registro.fecha)) + '</td>' +
-          '</tr>' +
-          (lineaEmisor3
-            ? '<tr><td class="cab-izq">' + escaparHtml(lineaEmisor3) + '</td><td class="cab-der"></td></tr>'
-            : '') +
-        '</tbody></table>' +
-
-        '<div class="client-box">' +
-          '<div class="client-label">Cliente</div>' +
-          '<div class="client-name">' + escaparHtml(nombreCliente) + '</div>' +
-          (nifCliente ? '<div>' + escaparHtml(nifCliente) + '</div>' : '') +
-          (direccionCliente ? '<div>' + escaparHtml(direccionCliente) + '</div>' : '') +
-        '</div>' +
-
-        (doc.concepto ? '<div class="concept">' + escaparHtml(doc.concepto) + '</div>' : '') +
-
-        // Solo la descripción, a todo el ancho (24/09/2026). El importe ya
-        // sale abajo, en los totales: repetirlo aquí era el mismo dato dos
-        // veces. Así la descripción puede llevar varias líneas con su
-        // precio, como información; las cuentas se hacen siempre con lo
-        // que se escribe en el formulario, no con este texto.
-        '<div class="desc-wrap">' +
-          '<div class="desc-head"><div>Descripción</div></div>' +
-          '<div class="detail-row" id="pdf-detalle">' +
-            '<div class="detail-desc">' + escaparHtml(doc.descripcion || doc.concepto || 'Servicio') + '</div>' +
-          '</div>' +
-        '</div>' +
-
-        // El pie se pega al fondo de la hoja con margin-top:auto. Aquí
-        // sí funciona sin más: al ser el documento de UNA sola página,
-        // `.content` es una columna flexible de alto conocido y no hay
-        // saltos de página que compliquen el cálculo.
-        '<div class="pie-doc">' +
-          '<div class="summary-box">' + pdfDocFilasTotales(registro) + '</div>' +
-          '<div class="observations">' +
-            '<div class="observations-title">OBSERVACIONES</div>' +
-            '<div class="observations-body">' + observaciones + '</div>' +
-          '</div>' +
-        '</div>' +
-      '</div>' +
+  const caja = document.createElement('div');
+  caja.id = 'pdf-aviso';
+  caja.className = 'pdf-aviso pdf-aviso-' + opciones.estado;
+  caja.setAttribute('role', 'status');
+  caja.innerHTML =
+    '<i class="ti ' + iconos[opciones.estado] + ' pdf-aviso-icono" aria-hidden="true"></i>' +
+    '<div class="pdf-aviso-cuerpo">' +
+      '<p class="pdf-aviso-titulo" id="pdf-aviso-texto">' + escaparHtml(opciones.titulo) + '</p>' +
+      (opciones.detalle ? '<p class="pdf-aviso-detalle" id="pdf-aviso-detalle">' + escaparHtml(opciones.detalle) + '</p>' : '') +
+      ((opciones.url || opciones.blob)
+        ? '<div class="pdf-aviso-botones">' +
+            (opciones.url ? '<a class="pdf-aviso-boton" id="pdf-aviso-abrir" href="' + escaparHtml(opciones.url) + '" target="_blank" rel="noopener">Abrir en Drive</a>' : '') +
+            (opciones.blob ? '<button type="button" class="pdf-aviso-boton" id="pdf-aviso-descargar">Descargar</button>' : '') +
+          '</div>'
+        : '') +
     '</div>' +
-    '<script>window.addEventListener("load",function(){' +
-      'if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){setTimeout(function(){window.print();},200);});}' +
-      'else{setTimeout(function(){window.print();},400);}' +
-    '});<\/script>' +
-    '</body></html>';
-}
+    (opciones.estado === 'trabajando' ? '' : '<button type="button" class="pdf-aviso-cerrar" id="pdf-aviso-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>');
+  document.body.appendChild(caja);
 
-// ============================================================
-// 6. HOJA DE ESTILOS DEL DOCUMENTO
-// ============================================================
+  const cerrar = caja.querySelector('#pdf-aviso-cerrar');
+  if (cerrar) cerrar.addEventListener('click', pdfDocAvisoCerrar);
+  const descargar = caja.querySelector('#pdf-aviso-descargar');
+  if (descargar) descargar.addEventListener('click', function () { pdfDocDescargar(opciones.blob, opciones.nombre || 'documento.pdf'); });
 
-function pdfDocCss(acento) {
-  return '' +
-  // Sin margen de página: la cabecera llega al borde real de la hoja.
-  // El margen del contenido lo pone `.content` con su propio padding,
-  // que basta porque el documento nunca pasa de una página.
-  '@page{size:A4 portrait;margin:0}' +
-  '*{box-sizing:border-box}' +
-  'html,body{margin:0;padding:0;width:210mm;background:#ffffff}' +
-  'body{font-family:"Inter",Arial,sans-serif;color:#172033;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
-  '.page{width:210mm;height:297mm;background:#ffffff;display:flex;flex-direction:column;overflow:hidden}' +
-
-  '.header{width:100%;height:38mm;overflow:hidden;background:#e8e8e4;flex:0 0 auto}' +
-  '.header img{width:100%;height:100%;display:block;object-fit:cover}' +
-
-  '.content{flex:1 1 auto;display:flex;flex-direction:column;padding:7mm 8% 12mm}' +
-
-  '.cabecera-doc{width:100%;border-collapse:collapse}' +
-  '.cab-izq{text-align:left;vertical-align:top;padding:0;font-size:9.5pt;line-height:1.5;font-weight:400}' +
-  '.cab-der{text-align:right;vertical-align:top;padding:0;white-space:nowrap;font-size:9.3pt;line-height:1.5}' +
-  '.red-line{width:26mm;height:1.1mm;background:' + acento + ';margin-bottom:2.5mm}' +
-  '.brand{font-family:"Archivo Black","Arial Black",sans-serif;font-size:19pt;line-height:1.05;color:#172033;text-transform:uppercase}' +
-  '.activity{font-size:10pt;font-weight:800;line-height:1.3;margin-top:.5mm}' +
-  '.doc-title{font-family:"Archivo Black","Arial Black",sans-serif;font-size:21pt;line-height:1.05;color:' + acento + ';text-transform:uppercase}' +
-  '.seller-line{padding-top:3.5mm}' +
-  '.doc-number{font-size:11pt;font-weight:800;padding-top:3.5mm}' +
-
-  '.client-box{margin-top:7mm;background:#eef1f4;border-radius:4mm;padding:4mm 4.5%;font-size:9.4pt;line-height:1.35}' +
-  '.client-label{font-family:"Archivo Black","Arial Black",sans-serif;font-size:12.2pt;line-height:1;color:' + acento + ';margin-bottom:2mm}' +
-  '.client-name{font-weight:800}' +
-
-  '.concept{margin-top:6mm;font-size:10.5pt;line-height:1.3;font-weight:800}' +
-
-  '.desc-wrap{margin-top:3mm}' +
-  '.desc-head{background:#172033;border-radius:1.5mm 1.5mm 0 0;color:#fff;font-size:9.1pt;font-weight:800;padding:3mm 3%}' +
-  '.detail-row{font-size:8.9pt;line-height:1.35;padding:2.8mm 3%;border-bottom:.25mm solid #e5e7eb}' +
-  // Los saltos de línea de la descripción se respetan tal cual, para
-  // que cada punto quede en su propio renglón.
-  '.detail-desc{white-space:pre-line}' +
-
-  '.pie-doc{margin-top:auto;padding-top:8mm}' +
-  '.summary-box{margin-left:50%;background:#eef1f4;border-radius:4mm;padding:4mm 4%}' +
-  '.summary-row{display:flex;justify-content:space-between;align-items:center;font-size:8.9pt;line-height:1.3;margin:1mm 0}' +
-  '.summary-row span:last-child{text-align:right;white-space:nowrap}' +
-  '.summary-row.fuerte{font-weight:700}' +
-  '.summary-separator{height:.35mm;background:#172033;margin:2mm 0}' +
-  '.summary-total{display:flex;justify-content:space-between;align-items:center;color:' + acento + ';font-weight:800;font-size:11pt;line-height:1}' +
-  '.summary-total span:last-child{font-family:"Inter",Arial,sans-serif;font-size:14pt;font-weight:900;white-space:nowrap}' +
-
-  '.observations{margin-top:8mm}' +
-  '.observations-title{font-family:"Archivo Black","Arial Black",sans-serif;color:' + acento + ';font-size:12.2pt;line-height:1;margin-bottom:3mm}' +
-  '.observations-body{font-size:9pt;line-height:1.3}' +
-  '.observations-body p{margin:0 0 2.5mm}' +
-  '.observations-body ul,.observations-body ol{margin:0 0 2.5mm;padding-left:5mm}' +
-  '.observations-body strong,.observations-body b{font-weight:800}' +
-  '.observations-body em,.observations-body i{font-style:italic}' +
-  '.observations-body u{text-decoration:underline}' +
-  '.muted{color:#64748b}';
-}
-
-// ============================================================
-// 7. AVISO SI LA DESCRIPCIÓN NO CABE
-// ============================================================
-// El documento es de una sola hoja, así que una descripción muy larga
-// se saldría del papel. En vez de recortarla en silencio (perder
-// texto de una factura sin que se note es peor), se avisa antes de
-// generar el PDF y el propietario decide: puede acortar el texto o
-// seguir adelante igualmente.
-//
-// La estimación es deliberadamente sencilla: número de renglones que
-// ocuparía la descripción, contando los saltos de línea que escribe
-// el propietario y las líneas de más que provoca el ajuste automático
-// del texto largo. No hace falta más precisión, porque el aviso no
-// bloquea: solo advierte.
-
-function pdfDocDescripcionSeSale(registro) {
-  const texto = pdfDocTexto(registro.descripcion);
-  if (!texto) return false;
-
-  // ~105 caracteres por renglón: la descripción ocupa ahora todo el
-  // ancho. Medido generando el documento de verdad (24/09/2026); se
-  // redondea a la baja para que el aviso salte antes, nunca tarde.
-  const CARACTERES_POR_RENGLON = 105;
-  const ALTO_RENGLON = 15;      // px aproximados por renglón
-  const ALTO_CONCEPTO = pdfDocTexto(registro.concepto) ? 30 : 0;
-
-  const renglones = texto.split('\n').reduce(function (total, linea) {
-    return total + Math.max(1, Math.ceil(linea.length / CARACTERES_POR_RENGLON));
-  }, 0);
-
-  return (renglones * ALTO_RENGLON + ALTO_CONCEPTO) > PDF_DOC_ALTO_MAX_DESCRIPCION;
-}
-
-// ============================================================
-// 8. APERTURA DE LA VENTANA DE IMPRESIÓN
-// ============================================================
-
-function pdfDocAbrir(registro, contacto, tipo) {
-  if (pdfDocDescripcionSeSale(registro)) {
-    const seguir = confirm(
-      'La descripción es larga y puede que no quepa entera en la hoja.\n\n' +
-      'Los presupuestos y facturas se generan siempre en una sola página, así que ' +
-      'el texto que sobre no se verá.\n\n' +
-      '¿Quieres generar el PDF de todas formas?'
-    );
-    if (!seguir) return;
+  if (opciones.estado === 'ok') {
+    pdfDocTemporizadorAviso = setTimeout(pdfDocAvisoCerrar, 15000);
   }
+}
 
-  const ventana = window.open('', '_blank');
-  if (!ventana) {
-    alert('El navegador ha bloqueado la ventana del PDF.\n\nPermite las ventanas emergentes para esta página y vuelve a intentarlo.');
-    return;
+// ============================================================
+// 4. GENERAR Y GUARDAR
+// ============================================================
+
+let pdfDocOcupado = false;
+
+function pdfDocCarpetaDe(tipo) {
+  return tipo === 'factura' ? 'Ventas' : 'Presupuestos';
+}
+
+async function pdfDocAbrir(registro, contacto, tipo) {
+  if (pdfDocOcupado) return;
+  pdfDocOcupado = true;
+  try {
+    pdfDocAviso({ estado: 'trabajando', titulo: 'Generando el PDF…' });
+    const pdf = await pdfMotorGenerar(registro, contacto, tipo);
+
+    if (pdf.recortado) {
+      pdfDocAvisoCerrar();
+      const eleccion = await mostrarDialogoOpciones(
+        'La descripción no cabe entera',
+        'Los presupuestos y facturas se generan siempre en una sola página, y el texto que sobra no se vería. ' +
+        'Puedes cancelar y acortar la descripción, o guardar el PDF tal como queda.',
+        [
+          { id: 'seguir', texto: 'Guardar así', tipo: 'principal' },
+          { id: 'cancelar', texto: 'Cancelar' }
+        ]
+      );
+      if (eleccion !== 'seguir') return;
+      pdfDocAviso({ estado: 'trabajando', titulo: 'Guardando el PDF…' });
+    }
+
+    const item = {
+      clave: tipo + '|' + (registro.id || pdf.nombre),
+      carpeta: pdfDocCarpetaDe(tipo),
+      anio: pdf.anio,
+      nombre: pdf.nombre,
+      datos: await pdf.blob.arrayBuffer(),
+      creado: Date.now()
+    };
+
+    // 1.º se apunta en el dispositivo; 2.º se envía. Si el paso 1 falla
+    // (navegador sin almacenamiento), se envía igualmente y, si tampoco
+    // hay conexión, queda la descarga como salvavidas.
+    let apuntado = true;
+    try { await pdfDbGuardar(item); } catch (err) { apuntado = false; console.warn('No se pudo apuntar el PDF en el dispositivo:', err); }
+
+    pdfDocEnCurso[item.clave] = true;
+    try {
+      const r = await pdfDocEnviar(item);
+      if (apuntado) { try { await pdfDbBorrar(item.clave); } catch (e) { /* se ignora */ } }
+      pdfDocAviso({ estado: 'ok', titulo: 'Guardado en Drive', detalle: r.ruta + ' › ' + pdf.nombre, url: r.url, blob: pdf.blob, nombre: pdf.nombre });
+    } catch (err) {
+      console.warn('El PDF queda pendiente de enviar a Drive:', err);
+      pdfDocAviso({
+        estado: 'pendiente',
+        titulo: 'Pendiente de enviar a Drive',
+        detalle: (apuntado ? 'Se enviará solo cuando haya conexión. ' : 'No se pudo apuntar en este dispositivo: descárgalo ahora. ') + pdf.nombre,
+        blob: pdf.blob,
+        nombre: pdf.nombre
+      });
+    } finally {
+      delete pdfDocEnCurso[item.clave];
+    }
+  } catch (err) {
+    console.error('No se pudo generar el PDF:', err);
+    pdfDocAviso({ estado: 'error', titulo: 'No se pudo generar el PDF', detalle: String(err && err.message || err) });
+  } finally {
+    pdfDocOcupado = false;
   }
-  ventana.document.open();
-  ventana.document.write(pdfDocConstruir(registro, contacto, tipo));
-  ventana.document.close();
-  ventana.focus();
 }
 
 // Puntos de entrada usados desde mod-presupuestos.js y
-// mod-facturas-venta.js.
+// mod-facturas-venta.js (sin cambios de nombre).
 function pdfDocAbrirPresupuesto(id) {
   const p = estado.presupuestos.find(function (x) { return String(x.id) === String(id); });
   if (!p) { alert('No se ha encontrado el presupuesto.'); return; }
@@ -397,3 +268,62 @@ function pdfDocAbrirFactura(id) {
   if (!f) { alert('No se ha encontrado la factura.'); return; }
   pdfDocAbrir(f, fvClienteDe(f), 'factura');
 }
+
+// ============================================================
+// 5. «ABRIR EN DRIVE» DESDE EL MENÚ
+// ============================================================
+// La hoja no guarda el enlace del PDF, así que se busca en Drive por su
+// nombre (mismo nombre y año que al generarlo). Sirve para volver a abrir
+// un PDF ya guardado sin generarlo de nuevo.
+
+async function pdfDocBuscarEnDrive(registro, contacto, tipo) {
+  const nombre = pdfMotorNombreDe(registro, contacto);
+  const anio = pdfMotorAnio(registro);
+  const carpeta = pdfDocCarpetaDe(tipo);
+  const clave = tipo + '|' + (registro.id || nombre);
+
+  pdfDocAviso({ estado: 'trabajando', titulo: 'Buscando en Drive…' });
+  try {
+    const pendientes = await pdfDbLista();
+    const pendiente = pendientes.find(function (p) { return p.clave === clave; });
+    if (pendiente) {
+      pdfDocAviso({
+        estado: 'pendiente', titulo: 'Pendiente de enviar a Drive',
+        detalle: 'Aún no ha llegado a Drive. Se enviará solo cuando haya conexión. ' + nombre,
+        blob: new Blob([pendiente.datos], { type: 'application/pdf' }), nombre: nombre
+      });
+      return;
+    }
+    const r = await llamarBackend({ action: 'url_pdf', tipo: carpeta, anio: anio, nombre: nombre });
+    if (r && r.status === 'success' && r.url) {
+      pdfDocAviso({ estado: 'ok', titulo: 'PDF en Drive', detalle: anio + ' › ' + carpeta + ' › ' + nombre, url: r.url });
+    } else if (r && r.status === 'success') {
+      pdfDocAviso({ estado: 'error', titulo: 'Todavía no hay PDF en Drive', detalle: 'Genera el PDF de este documento y se guardará en ' + anio + ' › ' + carpeta + '.' });
+    } else {
+      throw new Error((r && r.message) || 'No se pudo consultar Drive.');
+    }
+  } catch (err) {
+    pdfDocAviso({ estado: 'error', titulo: 'No se pudo consultar Drive', detalle: String(err && err.message || err) });
+  }
+}
+
+function pdfDocAbrirEnDrivePresupuesto(id) {
+  const p = estado.presupuestos.find(function (x) { return String(x.id) === String(id); });
+  if (p) pdfDocBuscarEnDrive(p, preClienteDe(p), 'presupuesto');
+}
+
+function pdfDocAbrirEnDriveFactura(id) {
+  const f = estado.ventas.find(function (x) { return String(x.id) === String(id); });
+  if (f) pdfDocBuscarEnDrive(f, fvClienteDe(f), 'factura');
+}
+
+// ============================================================
+// 6. REENVÍO AUTOMÁTICO DE LO PENDIENTE
+// ============================================================
+
+window.addEventListener('online', function () { setTimeout(pdfDocReintentar, 1500); });
+document.addEventListener('visibilitychange', function () {
+  if (document.visibilityState === 'visible') setTimeout(pdfDocReintentar, 1500);
+});
+setInterval(pdfDocReintentar, 120000);
+setTimeout(pdfDocReintentar, 6000);
