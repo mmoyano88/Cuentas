@@ -756,7 +756,12 @@ function impTarjetaIva(c, registro) {
 
     impBloqueResultado(c.iva, 'A pagar este trimestre', 'A tu favor este trimestre') +
 
-    impBloquePago('iva', registro, pagado, c.iva) +
+    // Lo de después del resultado va en su propio bloque: las filas de
+    // arriba de las dos tarjetas se alinean entre sí (tema.css) y este
+    // bloque se estira hasta el final con el pago pegado abajo.
+    '<div class="imp-tarjeta-resto">' +
+      impBloquePago('iva', registro, pagado, c.iva) +
+    '</div>' +
   '</div>';
 }
 
@@ -833,6 +838,7 @@ function impTarjetaIrpf(c, acumulado, registro) {
 
     impBloqueResultado(c.irpf, 'A apartar este trimestre', 'A tu favor este trimestre') +
 
+    '<div class="imp-tarjeta-resto">' +
     // Este aviso sí se queda a la vista: es dinero que se debe aparte.
     (c.retencionesTerceros > 0
       ? '<p class="imp-nota aviso">Has retenido ' + escaparHtml(dineroVisible(c.retencionesTerceros)) +
@@ -853,6 +859,7 @@ function impTarjetaIrpf(c, acumulado, registro) {
     '</details>' +
 
     impBloquePago('irpf', registro, pagado, c.irpf) +
+    '</div>' +
   '</div>';
 }
 

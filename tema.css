@@ -704,7 +704,7 @@ button:active:not(:disabled) {
 .imp-trim-tarjeta .imp-plazo-trim {
   font-family: var(--fuente-titulos);
   font-weight: 800;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1.15;
   white-space: nowrap;
 }
@@ -1071,8 +1071,7 @@ button:active:not(:disabled) {
    AJUSTES DE LA REVISIÓN — INFORMES
    ============================================================ */
 
-/* Año en píldora */
-#contenido .inf-select-anio { border-radius: 999px; padding: 0 14px; }
+/* Año en píldora: ahora en el bloque «UNIFORMIDAD» del final (v70). */
 
 /* El contenedor ya no es una tarjeta blanca: dentro van el carrusel de
    trimestres y la tarjeta oscura del año. */
@@ -1168,8 +1167,22 @@ button:active:not(:disabled) {
 #contenido .inf-tramo.pagado { background: var(--sync-verde); }
 #contenido .inf-tramo.pendiente, #contenido .inf-tramo.curso { background: var(--sync-ambar); }
 #contenido .inf-tramo.sinpago { background: rgba(255, 255, 255, .55); }
-#contenido .inf-anual-cifras { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
-#contenido .inf-anual-cifras small { display: block; font-size: 11px; color: rgba(255, 255, 255, .7); }
+/* Dos columnas y dos filas: las dos etiquetas en la misma línea y las dos
+   cifras sobre la misma línea base, aunque una sea más grande (v70). Los
+   <div> de dentro no pintan caja (display: contents): sus etiquetas y sus
+   cifras son las que se colocan en la rejilla. */
+#contenido .inf-anual-cifras {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: auto auto;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  column-gap: 12px;
+  row-gap: 0;
+  align-items: baseline;
+}
+#contenido .inf-anual-cifras > div { display: contents; }
+#contenido .inf-anual-cifras small { display: block; font-size: 11px; color: rgba(255, 255, 255, .7); align-self: end; }
 #contenido .inf-anual-cifras strong {
   font-family: var(--fuente-titulos);
   font-weight: 800;
@@ -1178,6 +1191,7 @@ button:active:not(:disabled) {
 }
 #contenido .inf-anual-cifras strong.grande { font-size: 26px; }
 #contenido .inf-anual-cifras .derecha { text-align: right; }
+#contenido .inf-anual-cifras strong { align-self: baseline; }
 
 /* Móvil: carrusel que se desliza de lado. La tarjeta del centro, entera;
    las de los lados, algo más pequeñas y apagadas. */
@@ -1226,8 +1240,8 @@ button:active:not(:disabled) {
   #contenido .inf-anual-cifras {
     grid-column: 2;
     grid-row: 1 / span 2;
-    gap: 40px;
-    align-items: flex-end;
+    column-gap: 40px;
+    align-items: baseline;
   }
   #contenido .inf-anual-cifras .derecha { text-align: left; }
   #contenido .inf-anual-cifras strong { font-size: 20px; }
@@ -1244,7 +1258,7 @@ button:active:not(:disabled) {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 16px;
-    align-items: start;
+    align-items: stretch;
   }
   #imp-zona:has(.inf-resumen-anual) > .inf-periodo,
   #imp-zona:has(.inf-resumen-anual) > .inf-nota-cabecera,
@@ -1417,3 +1431,166 @@ button:active:not(:disabled) {
 }
 #contenido .inf-carrusel > .inf-resumen-trimestre > .inf-trimestre-cabecera + .inf-resumen-bloque { grid-row: 2 / span 3; }
 #contenido .inf-carrusel > .inf-resumen-trimestre > .inf-resumen-bloque + .inf-resumen-bloque { grid-row: 5 / span 3; }
+
+/* ============================================================
+   UNIFORMIDAD — IMPUESTOS E INFORMES (v70, 29/09/2026)
+   Revisión de alineación y de coherencia con el resto de la app.
+   ============================================================ */
+
+/* Flecha común de TODOS los desplegables (formularios y selector de año):
+   fina y gris, como la lupa del buscador, a la misma distancia del borde.
+   Sustituye a la flecha nativa del navegador, que era gruesa y quedaba
+   pegada al borde (en el año, en píldora, parecía salirse). */
+select.campo {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 38px;
+  background-color: var(--superficie);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235A5A57' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+  text-overflow: ellipsis;
+}
+select.campo:disabled {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23B5B5B0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+}
+
+/* Selector de año: el mismo en Impuestos y en Informes, en píldora como el
+   buscador (mismo alto, 40 px) y con la misma posición en las dos pestañas.
+   En Informes, al ir en rejilla en PC, su margen de arriba ya no se fundía
+   con el de la banda y quedaba 14 px más abajo. */
+#imp-anio, #inf-anio {
+  width: auto;
+  min-width: 108px;
+  height: 40px;
+  border-radius: 999px;
+  padding: 0 40px 0 18px;
+  background-position: right 16px center;
+}
+#imp-zona:has(.inf-resumen-anual) > .inf-periodo { margin-top: 0; }
+/* La frase de debajo, con el mismo aire en las dos */
+#contenido .inf-nota-cabecera { margin-bottom: 14px; }
+
+/* Pastillas y textos pequeños de las tarjetas de Informes: 9 y 10 px eran
+   los más pequeños de la app y en el móvil costaba leerlos. */
+#contenido .inf-resumen-bloque-cabecera .pastilla { font-size: 11px; padding: 2px 8px; }
+#contenido .inf-resumen-dato small { font-size: 11px; }
+
+/* "Pago del trimestre" (tarjeta negra de Impuestos) con su barrita roja,
+   igual que "Año 2026" y "Resumen económico". */
+.imp-trim-tarjeta .imp-tarjeta-titulo::before {
+  content: '';
+  display: inline-block;
+  width: 4px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 2px;
+  background: var(--rojo);
+  vertical-align: -1px;
+}
+
+/* Móviles muy estrechos (menos de 360 px): en el carrusel de IVA e IRPF el
+   título "IRPF · Modelo 130" no cabe junto a su pastilla y se partía en
+   una sola de las dos tarjetas. Las dos ponen el estado debajo del título. */
+@media (max-width: 359px) {
+  #imp-carrusel-impuestos .imp-tarjeta-cabecera {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+/* "A pagar este trimestre" + la cifra: en móviles de 380 px o menos no
+   caben en una línea y la frase se partía en dos en una tarjeta sí y en
+   la otra no (la cifra de IVA suele ser más larga). Primero se aprietan
+   un poco y, por debajo de 360 px, la cifra baja a su propia línea en las
+   dos tarjetas. */
+@media (max-width: 380px) {
+  #imp-carrusel-impuestos .imp-resultado { gap: 8px; }
+  #imp-carrusel-impuestos .imp-resultado span { white-space: nowrap; font-size: 12px; }
+  #imp-carrusel-impuestos .imp-resultado strong { font-size: 20px; }
+}
+@media (max-width: 359px) {
+  #imp-carrusel-impuestos .imp-resultado {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+
+/* La barrita roja no se ve sobre la tarjeta roja: ahí, blanca (así el título
+   ocupa el mismo sitio y queda alineado con las demás tarjetas). */
+.imp-trim-tarjeta:has(.imp-plazo.pronto, .imp-plazo.vencido) .imp-tarjeta-titulo::before {
+  background: #FFFFFF;
+}
+
+/* PC: la misma separación (16 px) entre todas las tarjetas de las dos
+   pantallas, en horizontal y en vertical. Antes: 12 px entre los
+   trimestres de Impuestos y entre IVA e IRPF, 14 px en los de Informes, y
+   IVA/IRPF quedaban pegados a la tarjeta de debajo (0 px). */
+@media (min-width: 900px) {
+  #imp-carrusel-trimestres,
+  #contenido .inf-carrusel { column-gap: 16px; }
+  #contenido #imp-carrusel-impuestos { column-gap: 16px; margin-bottom: 16px; }
+}
+
+/* ============================================================
+   IVA E IRPF ALINEADOS FILA A FILA (v70)
+   Las dos tarjetas comparten seis filas: 1 título y estado · 2 subtítulo ·
+   3 y 4 las dos líneas · 5 resultado · 6 «el resto» (Ver cálculo, avisos
+   y, pegada abajo, la zona de pago). Si una frase se parte en dos líneas
+   en una tarjeta (pasaba en el IRPF a 360 px), la otra deja el mismo
+   hueco y todo lo de debajo sigue a la misma altura.
+   ============================================================ */
+#contenido #imp-carrusel-impuestos {
+  display: grid;
+  grid-template-rows: repeat(6, auto);
+  row-gap: 0;
+}
+@media (max-width: 899px) {
+  #contenido #imp-carrusel-impuestos {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 86%;
+    column-gap: 10px;
+  }
+}
+#contenido #imp-carrusel-impuestos > .imp-tarjeta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+  grid-row: 1 / span 6;
+}
+#contenido #imp-carrusel-impuestos > .imp-tarjeta > .imp-tarjeta-cabecera { grid-row: 1; }
+#contenido #imp-carrusel-impuestos > .imp-tarjeta > .imp-tarjeta-subtitulo { grid-row: 2; }
+#contenido #imp-carrusel-impuestos > .imp-tarjeta > .imp-tarjeta-subtitulo + .imp-linea { grid-row: 3; }
+#contenido #imp-carrusel-impuestos > .imp-tarjeta > .imp-linea + .imp-linea { grid-row: 4; }
+#contenido #imp-carrusel-impuestos > .imp-tarjeta > .imp-resultado { grid-row: 5; }
+#contenido #imp-carrusel-impuestos > .imp-tarjeta > .imp-tarjeta-resto {
+  grid-row: 6;
+  display: flex;
+  flex-direction: column;
+}
+/* Antes de la zona de pago, el mismo aire de siempre (14 px) */
+#contenido .imp-tarjeta-resto > :has(+ .imp-pago) { margin-bottom: 14px; }
+#contenido .imp-tarjeta-resto:has(> .imp-pago:first-child) { padding-top: 14px; }
+#contenido .imp-tarjeta-resto > .imp-pago { margin-top: auto; }
+
+@media (max-width: 380px) {
+  #imp-carrusel-impuestos .imp-linea { gap: 8px; }
+}
+
+/* Botones «Marcar como pagado» y «Sin pago»: en móviles de 380 px o menos el
+   texto del principal se partía en dos líneas dentro del botón. Se aprietan
+   los rellenos y, en los más estrechos (menos de 350 px), un botón debajo del
+   otro, a todo el ancho, en las dos tarjetas. */
+@media (max-width: 380px) {
+  #imp-carrusel-impuestos .imp-pago .imp-pago-botones .boton-principal { padding: 0 10px; white-space: nowrap; }
+  #imp-carrusel-impuestos .imp-pago .imp-pago-botones .boton-secundario { padding: 0 14px; white-space: nowrap; }
+}
+@media (max-width: 349px) {
+  #imp-carrusel-impuestos .imp-pago-botones { flex-direction: column; }
+  #imp-carrusel-impuestos .imp-pago .imp-pago-botones .boton-principal,
+  #imp-carrusel-impuestos .imp-pago .imp-pago-botones .boton-secundario { width: 100%; flex: 0 0 auto; }
+}
