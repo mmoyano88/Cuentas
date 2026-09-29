@@ -308,18 +308,24 @@
 body .fv-bloque-titulo,
 body .pre-bloque-titulo,
 body .ct-bloque-titulo,
-body .inf-descarga-titulo {
+body .inf-descarga-titulo,
+body #imp-detalle > .imp-tarjeta > .imp-tarjeta-titulo,
+body .pre-tarjeta-titulo {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .09em;
   text-transform: uppercase;
   color: #5A5A57;
 }
+/* En la tarjeta negra "Resultado" de la calculadora el título va claro */
+body .pre-tarjeta-resultado .pre-tarjeta-titulo { color: rgba(255, 255, 255, .78); }
 #app #contenido .dash-grafico-titulo::before,
 body .fv-bloque-titulo::before,
 body .pre-bloque-titulo::before,
 body .ct-bloque-titulo::before,
-body .inf-descarga-titulo::before {
+body .inf-descarga-titulo::before,
+body #imp-detalle > .imp-tarjeta > .imp-tarjeta-titulo::before,
+body .pre-tarjeta-titulo::before {
   content: '';
   display: inline-block;
   width: 4px;
@@ -1278,7 +1284,7 @@ button:active:not(:disabled) {
 /* 347 y Revisión de datos: subtítulos discretos, check verde cuando no
    hay nada, y cada aviso con su icono ámbar en un círculo. */
 #contenido .inf-347-subtitulo {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .08em;
   color: #8A8A86;
@@ -1593,4 +1599,21 @@ select.campo:disabled {
   #imp-carrusel-impuestos .imp-pago-botones { flex-direction: column; }
   #imp-carrusel-impuestos .imp-pago .imp-pago-botones .boton-principal,
   #imp-carrusel-impuestos .imp-pago .imp-pago-botones .boton-secundario { width: 100%; flex: 0 0 auto; }
+}
+
+
+/* ============================================================
+   ÚLTIMA PASADA (v71)
+   ============================================================ */
+
+/* Configuración en PC: los nombres de las pestañas pueden ocupar dos líneas
+   dentro de su botón ("Textos de presupuestos y facturas") sin salirse. */
+@media (min-width: 900px) {
+  #contenido .config-tab {
+    height: auto;
+    min-height: 36px;
+    padding: 8px 14px;
+    line-height: 1.25;
+    white-space: normal;
+  }
 }

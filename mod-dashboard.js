@@ -444,9 +444,9 @@ function dashBloqueInfo() {
       'Total de las facturas de venta activas todavía sin cobrar. Debajo, cuánto de los impuestos de esas facturas se adelanta a Hacienda en el próximo pago, antes de haber cobrado el dinero.') +
     dashPuntoInfo('ti-chart-line', 'Gráfico de evolución',
       'Ingresos, gastos y beneficio de los últimos 12 meses completos más el mes en curso (línea punteada, todavía a medias). Sin impuestos, igual que las tarjetas económicas.') +
-    dashPuntoInfo('ti-chart-donut', 'Clientes y Proveedores',
+    dashPuntoInfo('ti-chart-donut', 'Clientes y proveedores',
       'De qué contactos viene el dinero cobrado o pagado en los últimos 365 días (solo contactos registrados en Clientes). Sí cambian con el selector de arriba (Empresa/Personal/Total).') +
-    dashPuntoInfo('ti-chart-donut', 'Ingresos y Gastos: empresa y personal',
+    dashPuntoInfo('ti-chart-donut', 'Ingresos y gastos: empresa y personal',
       'Compara lo de empresa con lo personal en los últimos 365 días. Estos dos donuts NO cambian con el selector de arriba: su propio gráfico ya separa empresa de personal.')
   );
 }
@@ -542,7 +542,7 @@ function pintarDashboard() {
     '<div class="car-puntos" id="dash-puntos-donuts" aria-hidden="true"><span></span><span></span><span></span><span></span></div>' +
     '<div class="dash-info">' +
       '<button type="button" class="dash-info-cabecera" id="dash-info-cabecera">' +
-        '<span>Info del Dashboard</span>' +
+        '<span>Información del Inicio</span>' +
         '<i class="ti ti-chevron-down" id="dash-info-flecha"></i>' +
       '</button>' +
       '<div class="dash-info-cuerpo" id="dash-info-cuerpo">' +

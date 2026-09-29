@@ -1644,7 +1644,7 @@ function preRecalcularCalculadora() {
 }
 
 function preLimpiarCalculadora() {
-  if (!confirm('Vaciar la calculadora y empezar de cero?')) return;
+  if (!confirm('¿Vaciar la calculadora y empezar de cero?')) return;
   preCalc = Object.assign({}, PRE_CALC_VACIA, { equipos: [], servicios: [] });
   preAvisoCalculadora = '';
   preCalcEditandoId = null;

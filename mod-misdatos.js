@@ -4,7 +4,7 @@
  * Pantalla de solo lectura con tus datos de facturación y de cobro,
  * para copiarlos o compartirlos cuando un cliente te los pide.
  *
- * - Lee lo que ya está en Configuración → Mis Datos (más el IBAN, que
+ * - Lee lo que ya está en Configuración → Mis datos (más el IBAN, que
  *   se añadió allí el mismo día). No guarda nada ni escribe en Sheets.
  * - Con el ojo de la cabecera tachado, los datos se tapan en pantalla
  *   (menos el nombre). Copiar y Compartir dan siempre los datos
@@ -169,12 +169,12 @@ function pintarMisDatos() {
 
   contenido.innerHTML =
     '<div class="md-pantalla">' +
-      '<p class="md-nota">Para enviar a un cliente cuando te pide tus datos. Se cambian en Configuración → Mis Datos.</p>' +
+      '<p class="md-nota">Para enviar a un cliente cuando te pide tus datos. Se cambian en Configuración → Mis datos.</p>' +
       '<div class="md-tarjetas">' +
         mdTarjeta('Datos de facturación', 'ti-file-invoice', facturacion, 'facturacion',
           'Todavía no has rellenado tus datos.') +
         mdTarjeta('Datos de cobro', 'ti-building-bank', cobro, 'cobro',
-          'Añade tu IBAN en Configuración → Mis Datos para poder copiarlo desde aquí.') +
+          'Añade tu IBAN en Configuración → Mis datos para poder copiarlo desde aquí.') +
       '</div>' +
       (hayAlgo && facturacion.length && cobro.length
         ? '<section class="md-tarjeta md-todo">' +

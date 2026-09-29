@@ -543,7 +543,7 @@ async function fvCambiarCobro(id, alCambiar) {
 async function fvDesactivar(id) {
   const f = estado.ventas.find(function (x) { return String(x.id) === String(id); });
   if (!f) return;
-  if (!confirm('¿Desactivar la factura ' + (f.numero || '') + '?\n\nLa factura no se borra: queda guardada mas deja de contar como activa. Su número podrá volver a usarse en la siguiente factura.')) return;
+  if (!confirm('¿Desactivar la factura ' + (f.numero || '') + '?\n\nLa factura no se borra: queda guardada pero deja de contar como activa. Su número podrá volver a usarse en la siguiente factura.')) return;
 
   // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
   if (!await confirmarConPin('Vas a desactivar la factura ' + (f.numero || '') + '.')) return;

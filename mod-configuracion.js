@@ -11,11 +11,11 @@
 // ============================================================
 
 const CONFIG_PESTANAS = [
-  { id: 'mis-datos', titulo: 'Mis Datos' },
-  { id: 'impuestos-config', titulo: 'Impuestos y Retenciones' },
-  { id: 'params-calculadora', titulo: 'Parámetros Calculadora' },
-  { id: 'series', titulo: 'Numeración y Series' },
-  { id: 'textos', titulo: 'Textos Presupuestos/Facturas' },
+  { id: 'mis-datos', titulo: 'Mis datos' },
+  { id: 'impuestos-config', titulo: 'Impuestos y retenciones' },
+  { id: 'params-calculadora', titulo: 'Parámetros de la calculadora' },
+  { id: 'series', titulo: 'Numeración y series' },
+  { id: 'textos', titulo: 'Textos de presupuestos y facturas' },
   { id: 'copias', titulo: 'Copias de seguridad' }
 ];
 
@@ -116,7 +116,7 @@ function pintarPanelActivo() {
 
 function renderMisDatos() {
   return (
-    '<h2>Mis Datos</h2>' +
+    '<h2>Mis datos</h2>' +
     '<div class="config-cartel">' +
       'Estos son los datos con los que apareces en tus presupuestos, facturas e informes.' +
     '</div>' +
@@ -154,7 +154,7 @@ function construirDireccionPreview() {
 
 function renderImpuestosConfig() {
   return (
-    '<h2>Impuestos y Retenciones</h2>' +
+    '<h2>Impuestos y retenciones</h2>' +
     '<div class="campo-grupo">' +
       '<label>Tipos de IVA</label>' +
       renderArrayEditor('iva', [
@@ -183,7 +183,7 @@ function renderImpuestosConfig() {
 
 function renderParamsCalculadora() {
   return (
-    '<h2>Parámetros Calculadora</h2>' +
+    '<h2>Parámetros de la calculadora</h2>' +
     '<div class="config-grid dos-columnas">' +
       campoTexto('precio_hora_trabajo', 'Precio hora de trabajo (€)', cfgTexto('precio_hora_trabajo'), 'numero') +
       campoTexto('precio_hora_edicion', 'Precio hora de edición (€)', cfgTexto('precio_hora_edicion'), 'numero') +
@@ -230,7 +230,7 @@ function renderParamsCalculadora() {
 
 function renderSeries() {
   return (
-    '<h2>Numeración y Series</h2>' +
+    '<h2>Numeración y series</h2>' +
     '<div class="config-cartel">' +
       'Por ahora solo usas una serie de numeración (F/P + año + número). ' +
       'Cuando necesites una segunda actividad con numeración independiente, se activará aquí.' +
@@ -244,7 +244,7 @@ function renderSeries() {
 
 function renderTextos() {
   return (
-    '<h2>Textos Presupuestos/Facturas</h2>' +
+    '<h2>Textos de presupuestos y facturas</h2>' +
     '<div class="campo-grupo">' +
       '<label>Pie del PDF de presupuesto</label>' +
       renderRichEditor('texto_pie_presupuesto', cfgTexto('texto_pie_presupuesto')) +
