@@ -25,7 +25,7 @@
  * control, la app se recarga sola una vez (ver el final de app.js).
  */
 
-const VERSION = 'cuentas-v72';
+const VERSION = 'cuentas-v73';
 
 const ARCHIVOS = [
   './',
@@ -42,6 +42,7 @@ const ARCHIVOS = [
   './mod-configuracion.js',
   './mod-pdf-motor.js',
   './mod-pdf-documentos.js',
+  './mod-pdf-informes.js',
   './mod-clientes.css',
   './mod-clientes.js',
   './mod-presupuestos.css',

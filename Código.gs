@@ -91,6 +91,19 @@ const ANIOS_PROTEGIDOS = 5;
 const CARPETA_ARCHIVO = 'Cuentas - Archivo';
 const HOJAS_ARCHIVABLES = ['ventas', 'compras', 'apuntes', 'impuestos'];
 
+// PDF en Drive (29/09/2026, sección 9.2). Los PDF de presupuestos y
+// facturas de venta se guardan en:  carpeta madre › año › Ventas |
+// Presupuestos | Informes. La carpeta del año se crea sola si no existe
+// (las de dentro también). Si ya hay un archivo con el mismo nombre, se
+// sustituye (el antiguo va a la papelera de Drive).
+//
+// ⚠️ PON AQUÍ EL ID DE LA CARPETA MADRE DE DRIVE: es el trozo largo del
+// final de su dirección (drive.google.com/drive/folders/ESTE-TROZO).
+// Solo vive aquí: nunca lo subas a GitHub ni al proyecto relleno.
+const CARPETA_PDF_ID = 'PEGA_AQUI_EL_ID_DE_LA_CARPETA';
+const PDF_TIPOS = ['Ventas', 'Presupuestos', 'Informes'];
+const PDF_MAX_BASE64 = 12 * 1024 * 1024;   // ~9 MB de PDF: de sobra para una factura
+
 // ============================================================
 // 2. PUNTOS DE ENTRADA
 // ============================================================
@@ -157,6 +170,10 @@ function doPost(e) {
       resultado = infoCopias();                      // solo consulta la carpeta de Drive (26/09/2026)
     } else if (action === 'copia_ahora') {
       resultado = conCerrojo(function () { copiaDeSeguridad(); return infoCopias(); });
+    } else if (action === 'guardar_pdf') {
+      resultado = conCerrojo(function () { return guardarPdfEnDrive(peticion); });   // 29/09/2026
+    } else if (action === 'url_pdf') {
+      resultado = buscarPdfEnDrive(peticion);                                       // 29/09/2026
     } else if (action === 'archivar') {
       resultado = conCerrojo(function () { return archivarAnios(peticion.hasta, peticion.ids); });   // 28/09/2026
     } else {
@@ -959,6 +976,83 @@ function archivarAnios(hastaRecibido, idsRecibidos) {
 function carpetaDeArchivo() {
   const encontradas = DriveApp.getFoldersByName(CARPETA_ARCHIVO);
   return encontradas.hasNext() ? encontradas.next() : DriveApp.createFolder(CARPETA_ARCHIVO);
+}
+
+// ============================================================
+// 9.2 PDF EN DRIVE (29/09/2026)
+// ============================================================
+
+// Busca una subcarpeta por nombre (sin distinguir mayúsculas). Si no
+// existe y `crear` es verdadero, la crea.
+function subcarpeta(padre, nombre, crear) {
+  const buscado = String(nombre).trim().toLowerCase();
+  const hijas = padre.getFolders();
+  while (hijas.hasNext()) {
+    const c = hijas.next();
+    if (c.getName().trim().toLowerCase() === buscado && !c.isTrashed()) return c;
+  }
+  return crear ? padre.createFolder(String(nombre)) : null;
+}
+
+// Comprueba lo que manda la app antes de tocar Drive: solo se aceptan
+// los tres tipos de carpeta, un año de 4 cifras y un nombre de archivo
+// limpio que acabe en .pdf (o en .xlsx, solo para la carpeta Informes:
+// el Excel del informe).
+function validarDatosPdf(peticion) {
+  const tipo = String(peticion.tipo || '');
+  if (PDF_TIPOS.indexOf(tipo) === -1) throw new Error('Tipo de carpeta no válido: ' + tipo);
+  const anio = String(peticion.anio || '');
+  if (!/^\d{4}$/.test(anio) || Number(anio) < 2000 || Number(anio) > 2100) throw new Error('Año no válido: ' + anio);
+  const nombre = String(peticion.nombre || '').replace(/[\\\/:*?"<>|\u0000-\u001F]+/g, '-').trim();
+  const esExcel = /\.xlsx$/i.test(nombre);
+  if (!nombre || nombre.length > 160 || !(/\.pdf$/i.test(nombre) || esExcel)) throw new Error('Nombre de archivo no válido.');
+  if (esExcel && tipo !== 'Informes') throw new Error('Un Excel solo se guarda en la carpeta Informes.');
+  if (CARPETA_PDF_ID === 'PEGA_AQUI_EL_ID_DE_LA_CARPETA') throw new Error('Falta poner el ID de la carpeta de Drive en Código.gs (CARPETA_PDF_ID).');
+  return { tipo: tipo, anio: anio, nombre: nombre, esExcel: esExcel };
+}
+
+function guardarPdfEnDrive(peticion) {
+  const d = validarDatosPdf(peticion);
+  const base64 = String(peticion.pdf || '');
+  if (!base64 || base64.length > PDF_MAX_BASE64) throw new Error('PDF vacío o demasiado grande.');
+
+  const bytes = Utilities.base64Decode(base64);
+  // Un PDF de verdad empieza por «%PDF»; un Excel (.xlsx) es un ZIP y
+  // empieza por «PK» + 3 + 4.
+  if (d.esExcel) {
+    if (bytes.length < 5 || bytes[0] !== 0x50 || bytes[1] !== 0x4B || bytes[2] !== 0x03 || bytes[3] !== 0x04) {
+      throw new Error('El archivo recibido no es un Excel.');
+    }
+  } else if (bytes.length < 5 || bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46) {
+    throw new Error('El archivo recibido no es un PDF.');
+  }
+
+  const raiz = DriveApp.getFolderById(CARPETA_PDF_ID);
+  const carpetaAnio = subcarpeta(raiz, d.anio, true);
+  const carpeta = subcarpeta(carpetaAnio, d.tipo, true);
+
+  // Sustituir: el archivo anterior con el mismo nombre va a la papelera.
+  const iguales = carpeta.getFilesByName(d.nombre);
+  while (iguales.hasNext()) iguales.next().setTrashed(true);
+
+  const archivo = carpeta.createFile(Utilities.newBlob(bytes,
+    d.esExcel ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/pdf', d.nombre));
+  return { status: 'success', url: archivo.getUrl(), ruta: d.anio + ' › ' + d.tipo };
+}
+
+// Solo consulta: NO crea carpetas. Devuelve el enlace del PDF si existe.
+function buscarPdfEnDrive(peticion) {
+  const d = validarDatosPdf(peticion);
+  const raiz = DriveApp.getFolderById(CARPETA_PDF_ID);
+  const carpetaAnio = subcarpeta(raiz, d.anio, false);
+  const carpeta = carpetaAnio ? subcarpeta(carpetaAnio, d.tipo, false) : null;
+  if (!carpeta) return { status: 'success', url: null };
+  const archivos = carpeta.getFilesByName(d.nombre);
+  while (archivos.hasNext()) {
+    const f = archivos.next();
+    if (!f.isTrashed()) return { status: 'success', url: f.getUrl() };
+  }
+  return { status: 'success', url: null };
 }
 
 // ============================================================

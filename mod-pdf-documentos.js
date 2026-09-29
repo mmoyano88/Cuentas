@@ -11,6 +11,11 @@
  * NO generan PDF (siguen guardándose a mano) y los Informes siguen con
  * su sistema anterior (segundo paso).
  *
+ * Desde el 29/09/2026 (tarde) este módulo guarda también los INFORMES
+ * (PDF y Excel, carpeta «Informes»): mod-pdf-informes.js y mod-informes.js
+ * llaman a pdfDocGuardarArchivo(), que es el mismo camino que los PDF de
+ * documentos (apuntar en el dispositivo, enviar, avisar, reenviar).
+ *
  * El dibujo del PDF vive en mod-pdf-motor.js. Este módulo se ocupa de:
  *   1. Avisar si la descripción no cabe entera en la hoja (aviso exacto,
  *      ya no una estimación).
@@ -72,7 +77,14 @@ function pdfDocABase64(buffer) {
   return btoa(bin);
 }
 
-// Envía un PDF pendiente. Devuelve { url, ruta } o lanza un error.
+// Tipo de archivo según su nombre (los informes también van en Excel).
+function pdfDocMime(nombre) {
+  return /\.xlsx$/i.test(String(nombre || ''))
+    ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    : 'application/pdf';
+}
+
+// Envía un archivo pendiente. Devuelve { url, ruta } o lanza un error.
 async function pdfDocEnviar(item) {
   if (navigator.onLine === false) throw new Error('Sin conexión.');
   const resultado = await llamarBackend({
@@ -107,9 +119,9 @@ async function pdfDocReintentar() {
       try {
         const r = await pdfDocEnviar(item);
         await pdfDbBorrar(item.clave);
-        pdfDocAviso({ estado: 'ok', titulo: 'Guardado en Drive', detalle: r.ruta + ' › ' + item.nombre, url: r.url, blob: new Blob([item.datos], { type: 'application/pdf' }), nombre: item.nombre });
+        pdfDocAviso({ estado: 'ok', titulo: 'Guardado en Drive', detalle: r.ruta + ' › ' + item.nombre, url: r.url, blob: new Blob([item.datos], { type: pdfDocMime(item.nombre) }), nombre: item.nombre });
       } catch (err) {
-        console.warn('El PDF sigue pendiente:', item.nombre, err);
+        console.warn('El archivo sigue pendiente:', item.nombre, err);
       } finally {
         delete pdfDocEnCurso[item.clave];
       }
@@ -193,6 +205,46 @@ function pdfDocCarpetaDe(tipo) {
   return tipo === 'factura' ? 'Ventas' : 'Presupuestos';
 }
 
+// Camino común de guardado en Drive (documentos e informes): apunta el
+// archivo en el dispositivo, lo envía y enseña el resultado. Recibe
+// { clave, carpeta, anio, nombre, blob }.
+async function pdfDocGuardarArchivo(o) {
+  const item = {
+    clave: o.clave,
+    carpeta: o.carpeta,
+    anio: o.anio,
+    nombre: o.nombre,
+    datos: await o.blob.arrayBuffer(),
+    creado: Date.now()
+  };
+  const esExcel = /\.xlsx$/i.test(o.nombre);
+  const cosa = esExcel ? 'Excel' : 'PDF';
+
+  // 1.º se apunta en el dispositivo; 2.º se envía. Si el paso 1 falla
+  // (navegador sin almacenamiento), se envía igualmente y, si tampoco
+  // hay conexión, queda la descarga como salvavidas.
+  let apuntado = true;
+  try { await pdfDbGuardar(item); } catch (err) { apuntado = false; console.warn('No se pudo apuntar el archivo en el dispositivo:', err); }
+
+  pdfDocEnCurso[item.clave] = true;
+  try {
+    const r = await pdfDocEnviar(item);
+    if (apuntado) { try { await pdfDbBorrar(item.clave); } catch (e) { /* se ignora */ } }
+    pdfDocAviso({ estado: 'ok', titulo: 'Guardado en Drive', detalle: r.ruta + ' › ' + o.nombre, url: r.url, blob: o.blob, nombre: o.nombre });
+  } catch (err) {
+    console.warn('El ' + cosa + ' queda pendiente de enviar a Drive:', err);
+    pdfDocAviso({
+      estado: 'pendiente',
+      titulo: 'Pendiente de enviar a Drive',
+      detalle: (apuntado ? 'Se enviará solo cuando haya conexión. ' : 'No se pudo apuntar en este dispositivo: descárgalo ahora. ') + o.nombre,
+      blob: o.blob,
+      nombre: o.nombre
+    });
+  } finally {
+    delete pdfDocEnCurso[item.clave];
+  }
+}
+
 async function pdfDocAbrir(registro, contacto, tipo) {
   if (pdfDocOcupado) return;
   pdfDocOcupado = true;
@@ -215,38 +267,13 @@ async function pdfDocAbrir(registro, contacto, tipo) {
       pdfDocAviso({ estado: 'trabajando', titulo: 'Guardando el PDF…' });
     }
 
-    const item = {
+    await pdfDocGuardarArchivo({
       clave: tipo + '|' + (registro.id || pdf.nombre),
       carpeta: pdfDocCarpetaDe(tipo),
       anio: pdf.anio,
       nombre: pdf.nombre,
-      datos: await pdf.blob.arrayBuffer(),
-      creado: Date.now()
-    };
-
-    // 1.º se apunta en el dispositivo; 2.º se envía. Si el paso 1 falla
-    // (navegador sin almacenamiento), se envía igualmente y, si tampoco
-    // hay conexión, queda la descarga como salvavidas.
-    let apuntado = true;
-    try { await pdfDbGuardar(item); } catch (err) { apuntado = false; console.warn('No se pudo apuntar el PDF en el dispositivo:', err); }
-
-    pdfDocEnCurso[item.clave] = true;
-    try {
-      const r = await pdfDocEnviar(item);
-      if (apuntado) { try { await pdfDbBorrar(item.clave); } catch (e) { /* se ignora */ } }
-      pdfDocAviso({ estado: 'ok', titulo: 'Guardado en Drive', detalle: r.ruta + ' › ' + pdf.nombre, url: r.url, blob: pdf.blob, nombre: pdf.nombre });
-    } catch (err) {
-      console.warn('El PDF queda pendiente de enviar a Drive:', err);
-      pdfDocAviso({
-        estado: 'pendiente',
-        titulo: 'Pendiente de enviar a Drive',
-        detalle: (apuntado ? 'Se enviará solo cuando haya conexión. ' : 'No se pudo apuntar en este dispositivo: descárgalo ahora. ') + pdf.nombre,
-        blob: pdf.blob,
-        nombre: pdf.nombre
-      });
-    } finally {
-      delete pdfDocEnCurso[item.clave];
-    }
+      blob: pdf.blob
+    });
   } catch (err) {
     console.error('No se pudo generar el PDF:', err);
     pdfDocAviso({ estado: 'error', titulo: 'No se pudo generar el PDF', detalle: String(err && err.message || err) });
