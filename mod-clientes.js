@@ -458,7 +458,9 @@ function contactoTieneHistorial(id) {
   return estado.presupuestos.some(function (p) { return String(p.id_cliente) === String(id); }) ||
          estado.ventas.some(function (v) { return String(v.id_cliente) === String(id); }) ||
          estado.compras.some(function (c) { return String(c.id_proveedor) === String(id); }) ||
-         estado.apuntes.some(function (a) { return String(a.id_contacto) === String(id); });
+         estado.apuntes.some(function (a) { return String(a.id_contacto) === String(id); }) ||
+         // Trabajos de Pendiente, apuntados o ya facturados (octubre 2026).
+         estado.pendiente.some(function (t) { return String(t.id_cliente) === String(id); });
 }
 
 async function eliminarContactoDefinitivo(id) {

@@ -114,7 +114,8 @@ async function llamarBackend(cuerpo) {
 const ENTIDADES = [
   'clientes', 'presupuestos', 'presupuestos_detalle', 'ventas',
   'compras', 'apuntes', 'impuestos',
-  'plantillas_presupuesto', 'plantillas_factura', 'plantillas_apunte'
+  'plantillas_presupuesto', 'plantillas_factura', 'plantillas_apunte',
+  'pendiente'
 ];
 
 const estado = {
@@ -129,6 +130,7 @@ const estado = {
   plantillas_presupuesto: [],
   plantillas_factura: [],
   plantillas_apunte: [],
+  pendiente: [],
   syncReady: false
 };
 
@@ -612,7 +614,8 @@ function nombreLegible(entidad, registro) {
     impuestos: 'el impuesto',
     plantillas_presupuesto: 'la plantilla',
     plantillas_factura: 'la plantilla',
-    plantillas_apunte: 'la plantilla'
+    plantillas_apunte: 'la plantilla',
+    pendiente: 'el trabajo'
   };
   const base = etiquetas[entidad] || 'el elemento';
   return texto ? base + ' «' + texto + '»' : base;

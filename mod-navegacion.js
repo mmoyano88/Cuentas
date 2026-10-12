@@ -24,6 +24,7 @@
 const MENU = [
   { id: 'dashboard', titulo: 'Inicio', icono: 'ti-home', grupo: 1 },
   { id: 'presupuestos', titulo: 'Presupuestos', icono: 'ti-file-text', grupo: 2 },
+  { id: 'pendiente', titulo: 'Pendiente', icono: 'ti-progress-check', grupo: 2 },
   { id: 'facturas', titulo: 'Facturas', icono: 'ti-receipt-euro', grupo: 2 },
   { id: 'contabilidad', titulo: 'Contabilidad', icono: 'ti-coins', grupo: 2 },
   { id: 'impuestos', titulo: 'Impuestos', icono: 'ti-building-bank', grupo: 2 },
@@ -37,7 +38,7 @@ const MENU = [
 // Panel "Más" (26/09/2026): baldosas grandes para las secciones de uso
 // normal y, debajo, una línea pequeña para Mis datos y Configuración.
 const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'facturas', 'contabilidad'];
-const MOVIL_MAS = ['impuestos', 'clientes', 'plantillas'];
+const MOVIL_MAS = ['pendiente', 'impuestos', 'clientes', 'plantillas'];
 const MOVIL_MAS_PIE = ['misdatos', 'configuracion'];
 
 // ============================================================

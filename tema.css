@@ -308,6 +308,7 @@
 body .fv-bloque-titulo,
 body .pre-bloque-titulo,
 body .ct-bloque-titulo,
+body .pen-bloque-titulo,
 body .inf-descarga-titulo,
 body #imp-detalle > .imp-tarjeta > .imp-tarjeta-titulo,
 body .pre-tarjeta-titulo {
@@ -323,6 +324,7 @@ body .pre-tarjeta-resultado .pre-tarjeta-titulo { color: rgba(255, 255, 255, .78
 body .fv-bloque-titulo::before,
 body .pre-bloque-titulo::before,
 body .ct-bloque-titulo::before,
+body .pen-bloque-titulo::before,
 body .inf-descarga-titulo::before,
 body #imp-detalle > .imp-tarjeta > .imp-tarjeta-titulo::before,
 body .pre-tarjeta-titulo::before {

@@ -867,6 +867,11 @@ function abrirFormularioFacturaVenta(id, prefill) {
 
   const deDesdePresupuesto = !!(prefill && prefill.id_presupuesto);
 
+  // Factura creada desde Pendiente (octubre 2026): trae los ids de los
+  // trabajos que se facturan. Cliente fijo; al guardar, esos trabajos
+  // quedan unidos a la factura (penAsignarFactura, en mod-pendiente.js).
+  const dePendiente = !!(prefill && Array.isArray(prefill.trabajos_ids) && prefill.trabajos_ids.length);
+
   const datos = {
     numero: original ? original.numero : fvSiguienteNumero(),
     fecha: original ? normalizarFecha(original.fecha) : fechaHoyISO(),
@@ -955,7 +960,10 @@ function abrirFormularioFacturaVenta(id, prefill) {
             (deDesdePresupuesto
               ? '<p class="fv-aviso verde">Desde presupuesto ' + escaparHtml(fvNumeroPresupuestoDe(prefill.id_presupuesto)) +
                 '. El importe ya viene calculado del presupuesto, con su ajuste y su descuento incluidos. Puedes cambiarlo si hace falta.</p>'
-              : '<p class="fv-aviso" id="fv-aviso-tipo" hidden></p>') +
+              : (dePendiente
+                ? '<p class="fv-aviso verde">Desde Pendiente: ' + prefill.trabajos_ids.length + (prefill.trabajos_ids.length === 1 ? ' trabajo' : ' trabajos') +
+                  '. El importe es la suma de sus importes y la descripción lleva un trabajo por línea. Puedes cambiarlos si hace falta. El concepto lo pones tú.</p>'
+                : '<p class="fv-aviso" id="fv-aviso-tipo" hidden></p>')) +
 
             fvCampo('concepto', 'Concepto', datos.concepto, { textarea: true, anchoTotal: true }) +
             fvCampo('descripcion', 'Descripción (una línea por punto)', datos.descripcion, { textarea: true, anchoTotal: true }) +
@@ -989,6 +997,14 @@ function abrirFormularioFacturaVenta(id, prefill) {
   document.body.appendChild(fondo);
 
   fvPintarSelectorCliente(fondo, clientes, prefill);
+
+  // Desde Pendiente el cliente es el de su nota: no se cambia ni se crea
+  // otro. (No se usa el atributo `disabled` en el campo oculto que se
+  // guarda: solo en el botón, que no aporta ningún valor al guardar.)
+  if (dePendiente) {
+    fondo.querySelector('#fv-btn-cliente').disabled = true;
+    fondo.querySelector('#fv-nuevo-cliente').style.display = 'none';
+  }
 
   // ---- NO se cierra al tocar fuera (regla de formularios con trabajo dentro) ----
   fondo.querySelector('.fv-modal-cerrar').addEventListener('click', function () { fvCerrarFormulario(fondo); });
@@ -1265,6 +1281,12 @@ function fvProcesarGuardado(fondo, original, prefill) {
   fondo.remove();
 
   fvGuardarEnSegundoPlano(registro);
+
+  // Factura creada desde Pendiente: los trabajos marcados quedan unidos a
+  // esta factura (su id y su número). Se envían a la vez que la factura.
+  if (!original && prefill && Array.isArray(prefill.trabajos_ids) && typeof penAsignarFactura === 'function') {
+    penAsignarFactura(prefill.trabajos_ids, registro);
+  }
 
   // Dónde se queda la pantalla al guardar (28/09/2026). Antes se pintaba
   // siempre la lista de Facturas, aunque se estuviera en otra sección, y

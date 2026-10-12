@@ -1,0 +1,202 @@
+/* ============================================================
+   MÓDULO PENDIENTE — estilos propios (octubre 2026)
+   Las filas, el menú de tres puntos, la barra de búsqueda y las
+   ventanas reutilizan las clases fv-* de Facturas de venta (como ya
+   hace Facturas de compra). Aquí solo va lo específico: la fila de
+   clientes, el resumen oscuro y los trabajos con casilla.
+   Todo anclado a #contenido o a body para ganar a otros archivos.
+   ============================================================ */
+
+/* ---- Título de bloque + botón "+" ---- */
+#contenido .pen-fila-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+#contenido .pen-fila-titulo-lista { margin-top: 20px; }
+body .pen-bloque-titulo { margin: 0; }
+
+.pen-sin-clientes {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: var(--texto-secundario);
+}
+
+/* ---- Fila deslizable de clientes ----
+   Cada nombre ocupa SIEMPRE el alto de dos líneas, con "…" si es más
+   largo: así los círculos y todo lo de debajo quedan alineados aunque un
+   nombre ocupe una línea y otro dos. */
+#contenido .pen-clientes {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 4px 8px;
+  margin: 0 -4px 6px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+#contenido .pen-clientes::-webkit-scrollbar { display: none; }
+
+#contenido .pen-cliente {
+  flex: none;
+  width: 72px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: inherit;
+  color: var(--texto);
+  text-align: center;
+  cursor: pointer;
+}
+#contenido .pen-cliente-icono {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+#contenido .pen-cliente-icono .icono-contacto { flex: none; }
+#contenido .pen-cliente.activa .pen-cliente-icono .icono-contacto {
+  box-shadow: 0 0 0 3px var(--fondo), 0 0 0 6px var(--rojo);
+}
+#contenido .pen-cliente-nombre {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  height: 30px;
+  line-height: 15px;
+  font-size: 12px;
+  font-weight: 600;
+  word-break: break-word;
+}
+#contenido .pen-cliente.activa .pen-cliente-nombre { font-weight: 700; }
+#contenido .pen-cliente.inactivo { opacity: .55; }
+
+/* ---- Lista de trabajos ---- */
+#contenido .pen-lista { display: flex; flex-direction: column; gap: 8px; }
+
+/* Columna de importe y estado de ancho fijo: la de la izquierda se
+   recorta antes de empujarla, y todos los importes quedan en columna. */
+#contenido .pen-derecha {
+  min-width: 78px;
+  align-items: flex-end;
+}
+/* El concepto puede ocupar hasta dos líneas (suele ser una frase). */
+#contenido .pen-fila .fv-nombre,
+#contenido .pen-marcar-zona .fv-nombre {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 18px;
+}
+#contenido .pen-fila-facturada { cursor: pointer; }
+
+/* ---- Resumen oscuro del cliente elegido ---- */
+#contenido .pen-resumen {
+  background: #161615;
+  color: #FFFFFF;
+  border-radius: 16px;
+  padding: 16px;
+  margin: 4px 0 14px;
+}
+.pen-resumen-cab {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pen-resumen-cliente {
+  font-family: "Bricolage Grotesque", Inter, sans-serif;
+  font-weight: 800;
+  font-size: 18px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pen-resumen-marcados {
+  flex: none;
+  font-size: 12px;
+  color: rgba(255, 255, 255, .72);
+}
+.pen-resumen-lin {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, .85);
+}
+.pen-resumen-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, .2);
+}
+.pen-resumen-total span { font-size: 13px; font-weight: 700; }
+.pen-resumen-total strong {
+  font-family: "Bricolage Grotesque", Inter, sans-serif;
+  font-weight: 800;
+  font-size: 26px;
+  white-space: nowrap;
+}
+.pen-resumen-nota {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, .72);
+}
+#contenido .pen-aviso-inactivo { margin: 0 0 14px; }
+
+/* ---- Trabajos con casilla ---- */
+#contenido .pen-fila-marcar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--superficie);
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+#contenido .pen-fila-marcar.pen-sin-marcar .pen-marcar-zona { opacity: .55; }
+#contenido .pen-marcar-zona {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+#contenido .pen-casilla {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--rojo);
+}
+#contenido .pen-marcar-zona .fv-info { display: block; }
+#contenido .pen-marcar-zona .fv-meta { display: block; }
+
+#contenido .pen-btn-facturar {
+  width: 100%;
+  margin-top: 14px;
+}
+#contenido .pen-btn-facturar:disabled { opacity: .5; cursor: default; }
+
+/* ---- Formulario de un trabajo / cliente fijo en la factura ---- */
+.campo-contacto-btn:disabled { opacity: .7; cursor: default; }
+
+/* ---- PC ---- */
+@media (min-width: 900px) {
+  #contenido .pen-fila-titulo { margin-bottom: 14px; }
+  #contenido .pen-resumen { max-width: 560px; }
+  #contenido .pen-fila-titulo-lista,
+  #contenido .pen-lista-marcar,
+  #contenido .pen-btn-facturar { max-width: 560px; }
+}

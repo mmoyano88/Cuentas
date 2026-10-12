@@ -146,7 +146,8 @@
    Debajo, una línea pequeña para Mis datos y Configuración. */
 .panel-mas-rejilla {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 4 baldosas (con Pendiente, octubre 2026): cuadrícula de 2 x 2. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 4px 4px 10px;
 }
