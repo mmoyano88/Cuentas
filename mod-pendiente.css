@@ -155,6 +155,35 @@ body .pen-bloque-titulo { margin: 0; }
 }
 #contenido .pen-aviso-inactivo { margin: 0 0 14px; }
 
+/* ---- Botón para salir del cliente elegido y volver al listado ---- */
+#contenido .pen-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 12px;
+  padding: 8px 14px 8px 10px;
+  border: 1px solid #D9D9D3;
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--texto);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#contenido .pen-volver i { font-size: 16px; }
+
+/* ---- Panel del cliente elegido ----
+   Móvil: una columna con el orden resumen → trabajos → botón. El envoltorio
+   lateral "desaparece" (display: contents) y sus hijos se ordenan con
+   `order`. PC (más abajo): dos columnas. */
+#contenido .pen-panel { display: flex; flex-direction: column; }
+#contenido .pen-lateral { display: contents; }
+#contenido .pen-lateral .pen-resumen { order: 0; }
+#contenido .pen-lateral .pen-aviso-inactivo { order: 1; }
+#contenido .pen-trabajos { order: 2; min-width: 0; }
+#contenido .pen-lateral .pen-btn-facturar { order: 3; }
+
 /* ---- Trabajos con casilla ---- */
 #contenido .pen-fila-marcar {
   display: flex;
@@ -195,8 +224,23 @@ body .pen-bloque-titulo { margin: 0; }
 /* ---- PC ---- */
 @media (min-width: 900px) {
   #contenido .pen-fila-titulo { margin-bottom: 14px; }
-  #contenido .pen-resumen { max-width: 560px; }
-  #contenido .pen-fila-titulo-lista,
-  #contenido .pen-lista-marcar,
-  #contenido .pen-btn-facturar { max-width: 560px; }
+
+  /* Dos columnas: trabajos a la izquierda; a la derecha, el resumen y el
+     botón Facturar, que se quedan fijos al bajar por una lista larga. */
+  #contenido .pen-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 24px;
+    align-items: start;
+  }
+  #contenido .pen-trabajos { grid-column: 1; grid-row: 1; }
+  #contenido .pen-lateral {
+    display: block;
+    grid-column: 2;
+    grid-row: 1;
+    position: sticky;
+    top: 16px;
+  }
+  #contenido .pen-fila-titulo-lista { margin-top: 4px; }
+  #contenido .pen-resumen { margin-top: 0; }
 }

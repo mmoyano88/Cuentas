@@ -386,9 +386,18 @@ function pintarPanelCliente() {
   const cli = penClienteDe(penClienteSel);
   const facturable = penClienteFacturable(cli);
 
+  // Estructura: en el móvil, todo en una columna (resumen, trabajos y
+  // botón Facturar, por ese orden). En PC, dos columnas: los trabajos a
+  // la izquierda y, a la derecha y fijos al bajar, el resumen y el botón.
   zona.innerHTML =
-    '<div class="pen-resumen" id="pen-resumen"></div>' +
-    (facturable ? '' : '<p class="fv-aviso pen-aviso-inactivo">Este cliente está desactivado. Reactívalo en Clientes para poder facturar sus trabajos.</p>') +
+    '<button type="button" class="pen-volver" id="pen-volver"><i class="ti ti-arrow-left"></i> Todos los trabajos</button>' +
+    '<div class="pen-panel">' +
+    '<div class="pen-lateral">' +
+      '<div class="pen-resumen" id="pen-resumen"></div>' +
+      (facturable ? '' : '<p class="fv-aviso pen-aviso-inactivo">Este cliente está desactivado. Reactívalo en Clientes para poder facturar sus trabajos.</p>') +
+      '<button type="button" class="boton-principal pen-btn-facturar" id="pen-btn-facturar"></button>' +
+    '</div>' +
+    '<div class="pen-trabajos">' +
     '<div class="pen-fila-titulo pen-fila-titulo-lista">' +
       '<p class="pen-bloque-titulo">Trabajos pendientes</p>' +
       '<button type="button" class="boton-menor" id="pen-anadir">+ Añadir trabajo</button>' +
@@ -410,7 +419,14 @@ function pintarPanelCliente() {
         '</div>';
       }).join('') +
     '</div>' +
-    '<button type="button" class="boton-principal pen-btn-facturar" id="pen-btn-facturar"></button>';
+    '</div>' +
+    '</div>';
+
+  document.getElementById('pen-volver').addEventListener('click', function () {
+    penClienteSel = '';
+    penDesmarcados = {};
+    pintarPendiente();
+  });
 
   zona.querySelectorAll('[data-marcar]').forEach(function (c) {
     c.addEventListener('change', function () {
