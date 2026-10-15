@@ -303,7 +303,8 @@
 
 /* ---- Listas: últimos apuntes y facturas sin cobrar (26/09/2026) ----
    Entre las tarjetas y el gráfico de líneas. Una columna en el móvil,
-   dos de la misma altura en PC. Anclado a #contenido, como el resto del
+   tres de la misma altura en PC (Últimos apuntes, Facturas sin cobrar y
+   Pendiente de facturar). Anclado a #contenido, como el resto del
    reparto del Dashboard. */
 #contenido .dash-listas {
   display: grid;
@@ -312,7 +313,7 @@
   margin-bottom: 20px;
 }
 @media (min-width: 900px) {
-  #contenido .dash-listas { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; }
+  #contenido .dash-listas { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; }
 }
 #contenido .dash-lista {
   background: var(--superficie);

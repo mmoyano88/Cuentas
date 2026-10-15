@@ -1630,6 +1630,12 @@ function preRecalcularCalculadora() {
       ((!preCalcPlantillaId && typeof plAbrirFormulario === 'function')
         ? '<button type="button" class="boton-secundario" id="pcalc-plantilla">Guardar como plantilla</button>'
         : '') +
+      // "Guardar como pendiente" (octubre 2026): apunta el resultado como
+      // trabajo por facturar de un cliente (módulo Pendiente). Tampoco
+      // aparece mientras se edita una plantilla.
+      ((!preCalcPlantillaId && typeof penAbrirFormulario === 'function')
+        ? '<button type="button" class="boton-secundario" id="pcalc-pendiente">Guardar como pendiente</button>'
+        : '') +
       '<div class="pre-calc-botones-fila">' +
         '<button type="button" class="boton-secundario" id="pcalc-limpiar">Limpiar</button>' +
         '<button type="button" class="boton-secundario" id="pcalc-cerrar">Cerrar</button>' +
@@ -1643,6 +1649,7 @@ function preRecalcularCalculadora() {
   document.getElementById('pcalc-limpiar').addEventListener('click', preLimpiarCalculadora);
   document.getElementById('pcalc-usar').addEventListener('click', preUsarCalculadora);
   document.getElementById('pcalc-plantilla')?.addEventListener('click', preGuardarComoPlantilla);
+  document.getElementById('pcalc-pendiente')?.addEventListener('click', preGuardarComoPendiente);
 }
 
 function preLimpiarCalculadora() {
@@ -1876,6 +1883,25 @@ async function preGuardarComoPlantilla() {
       irpf_pct: r.tipoIrpf ? r.tipoIrpf.porcentaje : 0
     }, null, { avisarAlGuardar: true });
   }
+}
+
+// Botón "Guardar como pendiente" de la calculadora: abre el formulario
+// de un trabajo nuevo de Pendiente con el concepto de la calculadora y,
+// como importe, la BASE ya calculada (con ajuste de cliente, compensación
+// de IRPF y descuento incluidos), igual que la plantilla de factura y que
+// convertir un presupuesto en factura. El IVA y el IRPF no se guardan en
+// el trabajo (son de la factura) y el desglose tampoco.
+function preGuardarComoPendiente() {
+  const r = preCalcularCalculadora(preCalc);
+  if (!(r.base > 0)) {
+    alert('La calculadora todavía no tiene ningún importe que apuntar.');
+    return;
+  }
+  penAbrirFormulario(null, '', {
+    concepto: String(preCalc.concepto || ''),
+    importe: r.base,
+    avisar: true
+  });
 }
 
 // Editar en la calculadora una plantilla de presupuesto que se hizo

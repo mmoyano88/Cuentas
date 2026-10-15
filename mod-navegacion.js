@@ -143,7 +143,9 @@ function abrirPanelMas() {
       '<div class="panel-mas-rejilla">' +
         MOVIL_MAS.map(buscar).map(function (item) {
           return '<button type="button" class="panel-mas-baldosa' + (item.id === vistaActiva ? ' activa' : '') + '" data-vista="' + item.id + '">' +
-            '<i class="ti ' + item.icono + '" aria-hidden="true"></i><span>' + escaparHtml(item.titulo) + '</span></button>';
+            '<span class="panel-mas-icono"><i class="ti ' + item.icono + '" aria-hidden="true"></i></span>' +
+            '<span class="panel-mas-texto">' + escaparHtml(item.titulo) + '</span>' +
+            '<i class="ti ti-chevron-right panel-mas-flecha" aria-hidden="true"></i></button>';
         }).join('') +
       '</div>' +
       '<div class="panel-mas-pie">' +

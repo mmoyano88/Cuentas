@@ -146,29 +146,42 @@
    Debajo, una línea pequeña para Mis datos y Configuración. */
 .panel-mas-rejilla {
   display: grid;
-  /* 4 baldosas (con Pendiente, octubre 2026): cuadrícula de 2 x 2. */
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Filas horizontales a todo el ancho (octubre 2026): icono en un círculo
+     oscuro, el nombre y una flecha. Caben más secciones sin apretar. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   padding: 4px 4px 10px;
 }
 .panel-mas-baldosa {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 16px 4px 14px;
+  gap: 14px;
+  height: 56px;
+  padding: 0 14px 0 12px;
   border: none;
   border-radius: var(--radio-tarjeta);
   background: var(--fondo);
   font-family: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--texto);
+  text-align: left;
   cursor: pointer;
   min-width: 0;
 }
-.panel-mas-baldosa i { font-size: 28px; color: var(--texto); }
-.panel-mas-baldosa span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.panel-mas-icono {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--gris-oscuro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.panel-mas-icono i { font-size: 22px; color: #FFFFFF; }
+.panel-mas-texto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-mas-flecha { flex: none; font-size: 20px; color: #8A8A82; }
 .panel-mas-baldosa.activa { background: var(--gris-neutro); }
 .panel-mas-pie {
   display: flex;

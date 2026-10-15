@@ -670,12 +670,37 @@ function dashFilaFactura(f) {
   '</button>';
 }
 
+// Clientes con trabajos por facturar (módulo Pendiente): una línea por
+// cliente, el último con un trabajo apuntado primero. Cifra = lo que
+// saldría en la factura de todos sus trabajos pendientes (con IVA e IRPF
+// de su última factura), igual que en la pantalla Pendiente.
+function dashPendienteClientes() {
+  if (typeof penClientesConPendientes !== 'function') return [];
+  return penClientesConPendientes();
+}
+
+function dashFilaPendiente(c) {
+  const cliente = estado.clientes.find(function (x) { return String(x.id) === String(c.id); }) || {};
+  const total = penCalcularFactura(c.total, penCondicionesDe(c.id)).total;
+  return '<button type="button" class="dash-lista-fila" data-pendiente="' + escaparHtml(c.id) + '">' +
+    htmlIconoContacto(cliente.icono, 32) +
+    '<span class="dash-lista-info">' +
+      '<span class="dash-lista-nombre">' + escaparHtml(penNombreCliente(c.id)) + '</span>' +
+      '<span class="dash-lista-meta">' + c.n + (c.n === 1 ? ' trabajo' : ' trabajos') + '</span>' +
+    '</span>' +
+    '<span class="dash-lista-derecha">' +
+      '<span class="dash-lista-importe">' + escaparHtml(dineroVisible(total)) + '</span>' +
+    '</span>' +
+  '</button>';
+}
+
 function dashRepintarListas() {
   const caja = document.getElementById('dash-listas');
   if (!caja) return;
 
   const apuntes = dashUltimosApuntes();
   const facturas = dashFacturasSinCobrar();
+  const pendientes = dashPendienteClientes();
   const tituloApuntes = 'Últimos apuntes' + (dashPerspectiva === 'total' ? '' : ' (' + dashEtiquetaPerspectiva() + ')');
 
   caja.innerHTML =
@@ -700,6 +725,16 @@ function dashRepintarListas() {
         : '<p class="dash-lista-vacia">No tienes facturas pendientes de cobro.</p>') +
       '<button type="button" class="boton-menor dash-lista-mas" id="dash-mas-facturas">Más facturas' +
         (facturas.length ? ' (' + facturas.length + ')' : '') + ' <i class="ti ti-chevron-right" aria-hidden="true"></i></button>' +
+    '</section>' +
+    '<section class="dash-lista">' +
+      '<div class="dash-lista-cabecera">' +
+        '<p class="dash-grafico-titulo">Pendiente de facturar</p>' +
+      '</div>' +
+      (pendientes.length
+        ? '<div class="dash-lista-filas">' + pendientes.slice(0, DASH_LISTA_MAX).map(dashFilaPendiente).join('') + '</div>'
+        : '<p class="dash-lista-vacia">No tienes trabajos pendientes de facturar.</p>') +
+      '<button type="button" class="boton-menor dash-lista-mas" id="dash-mas-pendiente">Más trabajos' +
+        (pendientes.length > DASH_LISTA_MAX ? ' (' + pendientes.length + ' clientes)' : '') + ' <i class="ti ti-chevron-right" aria-hidden="true"></i></button>' +
     '</section>';
 
   caja.querySelectorAll('[data-apunte]').forEach(function (b) {
@@ -711,6 +746,19 @@ function dashRepintarListas() {
     b.addEventListener('click', function () {
       if (typeof abrirFichaFacturaVenta === 'function') abrirFichaFacturaVenta(b.dataset.factura);
     });
+  });
+  caja.querySelectorAll('[data-pendiente]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      // Lleva a Pendiente con ese cliente ya elegido.
+      penClienteSel = String(b.dataset.pendiente);
+      penDesmarcados = {};
+      cambiarVista('pendiente');
+    });
+  });
+  document.getElementById('dash-mas-pendiente').addEventListener('click', function () {
+    penClienteSel = '';
+    penDesmarcados = {};
+    cambiarVista('pendiente');
   });
   document.getElementById('dash-mas-apuntes').addEventListener('click', function () {
     cambiarVista('contabilidad');

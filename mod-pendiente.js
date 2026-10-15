@@ -592,8 +592,12 @@ function penEliminar(id) {
 /**
  * @param id               id del trabajo a editar, o null si es nuevo
  * @param idClientePrevio  cliente con el que se abre un trabajo nuevo
+ * @param extra            opcional, solo en trabajos nuevos:
+ *                         { concepto, importe, avisar }. Lo usa la calculadora
+ *                         ("Guardar como pendiente"): rellena el formulario y,
+ *                         al guardar, avisa y ofrece ir a Pendiente.
  */
-function penAbrirFormulario(id, idClientePrevio) {
+function penAbrirFormulario(id, idClientePrevio, extra) {
   if (document.querySelector('.pen-modal-fondo')) return;
 
   const editando = !!id;
@@ -629,13 +633,13 @@ function penAbrirFormulario(id, idClientePrevio) {
             '</div>' +
             '<div class="fv-campo-grupo ancho-total">' +
               '<label for="pen-campo-concepto">Concepto *</label>' +
-              '<input class="campo" id="pen-campo-concepto" type="text" value="' + escaparHtml(original ? String(original.concepto || '') : '') + '">' +
+              '<input class="campo" id="pen-campo-concepto" type="text" value="' + escaparHtml(original ? String(original.concepto || '') : String((extra && extra.concepto) || '')) + '">' +
               '<p class="fv-mensaje-error" data-error-de="concepto" hidden></p>' +
             '</div>' +
             '<div class="fv-campo-grupo ancho-total">' +
               '<label for="pen-campo-importe">Importe *</label>' +
               '<input class="campo" id="pen-campo-importe" type="text" data-numero="1" inputmode="decimal" value="' +
-                escaparHtml(original && penImporte(original) !== 0 ? String(penImporte(original)) : '') + '">' +
+                escaparHtml(original ? (penImporte(original) !== 0 ? String(penImporte(original)) : '') : (extra && extra.importe > 0 ? String(roundMoney(extra.importe)) : '')) + '">' +
               '<p class="fv-mensaje-error" data-error-de="importe" hidden></p>' +
             '</div>' +
           '</div>' +
@@ -675,7 +679,7 @@ function penAbrirFormulario(id, idClientePrevio) {
 
   fondo.querySelector('#pen-form').addEventListener('submit', function (ev) {
     ev.preventDefault();
-    penGuardarFormulario(fondo, original);
+    penGuardarFormulario(fondo, original, extra);
   });
 
   setTimeout(function () {
@@ -684,7 +688,7 @@ function penAbrirFormulario(id, idClientePrevio) {
   }, 50);
 }
 
-function penGuardarFormulario(fondo, original) {
+function penGuardarFormulario(fondo, original, extra) {
   fondo.querySelectorAll('.fv-mensaje-error').forEach(function (p) { p.hidden = true; });
   fondo.querySelectorAll('.fv-campo-error').forEach(function (e) { e.classList.remove('fv-campo-error'); });
 
@@ -724,6 +728,24 @@ function penGuardarFormulario(fondo, original) {
 
   fondo.remove();
   guardarRegistro(PEN_ENTIDAD, registro, penRepintar, null);
+
+  // Desde la calculadora: se queda donde estaba, pero se avisa y se
+  // ofrece ir a ver el trabajo apuntado.
+  if (extra && extra.avisar && !original) {
+    mostrarDialogoOpciones(
+      'Trabajo apuntado',
+      'Se ha apuntado en Pendiente para ' + penNombreCliente(cliente.id) + '.',
+      [
+        { id: 'ver', texto: 'Ver en Pendiente', tipo: 'principal' },
+        { id: 'seguir', texto: 'Seguir aquí' }
+      ]
+    ).then(function (eleccion) {
+      if (eleccion !== 'ver') return;
+      penClienteSel = String(cliente.id);
+      penDesmarcados = {};
+      cambiarVista('pendiente');
+    });
+  }
 }
 
 // ============================================================
