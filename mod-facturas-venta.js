@@ -1353,6 +1353,13 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
     return;
   }
 
+  // Presupuesto a nombre de alguien sin ficha (octubre 2026): antes de
+  // facturar hay que registrarlo como cliente.
+  if (!p.id_cliente) {
+    fvRegistrarClienteDePresupuesto(p);
+    return;
+  }
+
   const cliente = estado.clientes.find(function (c) { return String(c.id) === String(p.id_cliente); });
   if (!cliente) {
     alert('El cliente de este presupuesto ya no existe. No se puede facturar.');
@@ -1396,6 +1403,43 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
     iva_id: tipoPorPorcentaje(preTiposIva(), p.iva_pct),
     irpf_id: tipoPorPorcentaje(preTiposIrpf(), p.irpf_pct)
   });
+}
+
+// Presupuesto sin cliente registrado (octubre 2026). Se pide registrar
+// al cliente (el formulario arranca con el nombre ya escrito y el rol
+// fijado), se enlaza el presupuesto con esa ficha y se sigue con la
+// conversión de siempre. Si se cancela en cualquier punto, no cambia nada.
+async function fvRegistrarClienteDePresupuesto(p) {
+  if (typeof abrirCreacionRapidaContacto !== 'function' || typeof preVincularCliente !== 'function') {
+    alert('El módulo de Clientes no está disponible.');
+    return;
+  }
+  // Solo puede haber una ventana de nuevo cliente abierta a la vez.
+  if (document.querySelector('.cli-modal-fondo')) return;
+
+  const nombre = String(p.cliente || '').trim();
+  const eleccion = await mostrarDialogoOpciones(
+    'Registra primero al cliente',
+    'El presupuesto ' + (p.numero || '') + ' está a nombre de «' + (nombre || 'sin nombre') +
+      '», que todavía no es un cliente registrado. Para facturar hace falta su ficha (NIF y dirección).',
+    [
+      { id: 'registrar', texto: 'Registrar cliente', tipo: 'principal' },
+      { id: 'cancelar', texto: 'Cancelar' }
+    ]
+  );
+  if (eleccion !== 'registrar') return;
+  if (document.querySelector('.cli-modal-fondo')) return;
+
+  abrirCreacionRapidaContacto('cliente', function (contacto) {
+    if (!contacto || (contacto.rol !== 'cliente' && contacto.rol !== 'ambos')) {
+      alert('Esa ficha no es de cliente. El presupuesto sigue sin cliente registrado.');
+      return;
+    }
+    if (!preVincularCliente(p.id, contacto)) return;
+    const actual = estado.presupuestos.find(function (x) { return String(x.id) === String(p.id); });
+    if (!actual || String(actual.id_cliente) !== String(contacto.id)) return;
+    convertirPresupuestoEnFactura(p.id);
+  }, { nombre_contacto: nombre, nombre_fiscal: nombre });
 }
 
 // ============================================================

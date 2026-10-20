@@ -250,6 +250,24 @@ function preClientesDisponibles() {
   });
 }
 
+// Enlaza un presupuesto con una ficha de cliente recién registrada
+// (octubre 2026). Solo cambia id_cliente, cliente (nombre fiscal) y nif:
+// ni importes ni estado ni ajuste, así que vale también para un
+// presupuesto aceptado, que no se puede editar. Devuelve false si no se
+// ha podido (no hay presupuesto, o la escritura está bloqueada).
+function preVincularCliente(idPresupuesto, contacto) {
+  const p = estado.presupuestos.find(function (x) { return String(x.id) === String(idPresupuesto); });
+  if (!p || !contacto || !contacto.id) return false;
+  const registro = Object.assign({}, p, {
+    id_cliente: contacto.id,
+    cliente: contacto.nombre_fiscal || contacto.nombre_contacto || '',
+    nif: contacto.nif || ''
+  });
+  guardarRegistro('presupuestos', registro, preRepintarLista, null);
+  const despues = estado.presupuestos.find(function (x) { return String(x.id) === String(idPresupuesto); });
+  return !!despues && String(despues.id_cliente) === String(contacto.id);
+}
+
 function preTextoBusqueda(p) {
   return normalizarBusqueda([
     p.numero, preNombreMostrado(p), p.cliente, p.nif, p.concepto, mostrarFecha(p.fecha), p.estado,
@@ -810,7 +828,7 @@ function abrirFichaPresupuesto(id) {
       '</div>' +
 
       '<div class="pre-modal-cuerpo">' +
-        '<div class="pre-ficha-dato"><span>Cliente</span><span>' + escaparHtml(p.cliente || '—') + '</span></div>' +
+        '<div class="pre-ficha-dato"><span>Cliente</span><span>' + escaparHtml(p.cliente || '—') + (p.cliente && !p.id_cliente ? ' (sin registrar)' : '') + '</span></div>' +
         '<div class="pre-ficha-dato"><span>NIF</span><span>' + escaparHtml(p.nif || '—') + '</span></div>' +
         '<div class="pre-ficha-dato"><span>Fecha</span><span>' + escaparHtml(mostrarFecha(p.fecha)) + '</span></div>' +
         '<div class="pre-ficha-dato"><span>Concepto</span><span>' + escaparHtml(p.concepto || '—') + '</span></div>' +
@@ -999,6 +1017,9 @@ function abrirFormularioPresupuesto(id, prefill) {
     numero: original ? original.numero : preSiguienteNumero(),
     fecha: original ? normalizarFecha(original.fecha) : fechaHoyISO(),
     id_cliente: original ? String(original.id_cliente || '') : String((prefill && prefill.id_cliente_prefill) || ''),
+    // Cliente sin ficha (octubre 2026): si el presupuesto no tiene
+    // id_cliente, su nombre vive en la columna `cliente`.
+    cliente_libre: (original && !original.id_cliente) ? String(original.cliente || '') : '',
     concepto: deCalculadora ? (prefill.concepto || '') : (original ? (original.concepto || '') : ''),
     descripcion: original ? (original.descripcion || '') : '',
     subtotal: deCalculadora ? prefill.subtotal : (original ? parsearNumero(original.subtotal) : 0),
@@ -1046,6 +1067,7 @@ function abrirFormularioPresupuesto(id, prefill) {
             '<div class="pre-campo-grupo ancho-total">' +
               '<label>Cliente *</label>' +
               '<input type="hidden" id="pre-campo-id_cliente" name="id_cliente" value="' + escaparHtml(datos.id_cliente) + '">' +
+              '<input type="hidden" id="pre-campo-cliente_libre" name="cliente_libre" value="' + escaparHtml(datos.cliente_libre) + '">' +
               '<button type="button" class="campo-contacto-btn" id="pre-btn-cliente"></button>' +
               '<p class="pre-mensaje-error" data-error-de="id_cliente" hidden></p>' +
             '</div>' +
@@ -1106,6 +1128,7 @@ function abrirFormularioPresupuesto(id, prefill) {
         clientes.push(contacto);
       }
       fondo.querySelector('#pre-campo-id_cliente').value = String(contacto.id);
+      fondo.querySelector('#pre-campo-cliente_libre').value = '';
       prePintarSelectorCliente(fondo, clientes, prefill);
       preActualizarFormulario(fondo, prefill);
     });
@@ -1143,6 +1166,7 @@ function preCerrarFormulario(fondo) {
 // lee preLeerFormulario — así el resto del módulo no cambia.
 function prePintarSelectorCliente(fondo, clientes, prefill) {
   const oculto = fondo.querySelector('#pre-campo-id_cliente');
+  const libre = fondo.querySelector('#pre-campo-cliente_libre');
   const boton = fondo.querySelector('#pre-btn-cliente');
 
   function nombreDe(id) {
@@ -1152,16 +1176,32 @@ function prePintarSelectorCliente(fondo, clientes, prefill) {
   }
 
   function repintar() {
-    const nombre = nombreDe(oculto.value);
+    let nombre = nombreDe(oculto.value);
+    if (!nombre && libre.value) nombre = libre.value + ' (sin registrar)';
     boton.innerHTML =
       '<span class="campo-contacto-valor' + (nombre ? '' : ' vacio') + '">' + escaparHtml(nombre || 'Selecciona un cliente...') + '</span>' +
       '<i class="ti ti-chevron-down"></i>';
   }
 
   boton.addEventListener('click', function () {
-    abrirSelectorContacto(clientes, oculto.value, { permitirLibre: false }).then(function (resultado) {
+    // Se puede elegir una ficha o escribir un nombre sin registrar
+    // (octubre 2026). Registrarlo solo hace falta al facturar.
+    abrirSelectorContacto(clientes, oculto.value, {
+      permitirLibre: true,
+      etiquetaLibre: 'nombre de cliente'
+    }).then(function (resultado) {
       if (resultado === null) return;
-      oculto.value = resultado || '';
+      if (resultado && typeof resultado === 'object' && 'libre' in resultado) {
+        oculto.value = '';
+        libre.value = resultado.libre;
+      } else if (resultado) {
+        oculto.value = resultado;
+        libre.value = '';
+      } else {
+        // "Sin contacto": un presupuesto necesita cliente o, al menos, un nombre.
+        alert('Elige un cliente de la lista o escribe un nombre.');
+        return;
+      }
       repintar();
       preActualizarFormulario(fondo, prefill);
     });
@@ -1179,6 +1219,7 @@ function preLeerFormulario(fondo) {
   return {
     fecha: valor('fecha'),
     id_cliente: valor('id_cliente'),
+    cliente_libre: valor('cliente_libre').trim(),
     concepto: valor('concepto').trim(),
     descripcion: valor('descripcion').trim(),
     subtotal: parsearNumero(valor('subtotal')),
@@ -1198,6 +1239,9 @@ function preCalcularFormulario(datos, prefill) {
   // calculadora como referencia provisional.
   let tipo = cliente ? preTipoClientePorId(cliente.tipo) : null;
   if (!tipo && prefill && prefill.tipo_cliente_id) tipo = preTipoClientePorId(prefill.tipo_cliente_id);
+  // Sin cliente registrado no hay tipo: ajuste 0 % (octubre 2026). Con
+  // cliente, el comportamiento de siempre.
+  if (!tipo && !cliente) tipo = { id: '', etiqueta: 'Sin tipo', ajustePct: 0, factor: 1 };
   if (!tipo) tipo = preTiposCliente()[0];
 
   const iva = preTiposIva().find(function (x) { return x.id === datos.iva_id; }) || { porcentaje: 0 };
@@ -1230,6 +1274,9 @@ function preActualizarFormulario(fondo, prefill) {
       r.tipo ? r.tipo.etiqueta : '',
       r.tipo ? ('ajuste ' + (r.tipo.ajustePct >= 0 ? '+' : '') + r.tipo.ajustePct + '%') : ''
     ].filter(Boolean).join(' · ');
+  } else if (datos.cliente_libre) {
+    info.hidden = false;
+    info.textContent = 'Cliente sin registrar · para facturar este presupuesto habrá que registrarlo antes.';
   } else {
     info.hidden = true;
   }
@@ -1285,14 +1332,17 @@ function preProcesarGuardado(fondo, original, prefill) {
   // Validaciones (mapa 8.6)
   let valido = true;
   if (!datos.fecha) { preMostrarError(fondo, 'fecha', 'Obligatoria'); valido = false; }
-  if (!datos.id_cliente) {
-    preMostrarError(fondo, 'id_cliente', 'Selecciona un cliente activo. Si no existe, créalo primero.');
+  if (!datos.id_cliente && !datos.cliente_libre) {
+    preMostrarError(fondo, 'id_cliente', 'Elige un cliente de la lista o escribe un nombre.');
     valido = false;
   }
   if (!valido) return;
 
-  const cliente = estado.clientes.find(function (c) { return String(c.id) === String(datos.id_cliente); });
-  if (!cliente) {
+  // Con ficha: como siempre. Sin ficha (octubre 2026): solo el nombre.
+  const cliente = datos.id_cliente
+    ? estado.clientes.find(function (c) { return String(c.id) === String(datos.id_cliente); })
+    : null;
+  if (datos.id_cliente && !cliente) {
     preMostrarError(fondo, 'id_cliente', 'Ese cliente ya no existe.');
     return;
   }
@@ -1312,9 +1362,9 @@ function preProcesarGuardado(fondo, original, prefill) {
     id_presupuesto_origen: original ? (original.id_presupuesto_origen || '') : '',
     numero: original ? original.numero : preSiguienteNumero(),
     fecha: normalizarFecha(datos.fecha),
-    id_cliente: cliente.id,
-    cliente: cliente.nombre_fiscal || cliente.nombre_contacto || '',
-    nif: cliente.nif || '',
+    id_cliente: cliente ? cliente.id : '',
+    cliente: cliente ? (cliente.nombre_fiscal || cliente.nombre_contacto || '') : datos.cliente_libre,
+    nif: cliente ? (cliente.nif || '') : '',
     concepto: datos.concepto,
     descripcion: datos.descripcion,
     subtotal: t.subtotal,

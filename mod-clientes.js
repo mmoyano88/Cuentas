@@ -1028,8 +1028,11 @@ function renderFusionFila(campo, existente, original) {
 // para crear un contacto rápido sin salir de su formulario:
 //   abrirCreacionRapidaContacto('proveedor', function (contacto) {...})
 
-function abrirCreacionRapidaContacto(rolForzado, alCrear) {
-  abrirFormularioContacto(null, { rolForzado: rolForzado, alCrear: alCrear });
+//
+// `valores` (opcional, octubre 2026): datos con los que arranca el
+// formulario, por ejemplo { nombre_contacto: 'La Nao' }.
+function abrirCreacionRapidaContacto(rolForzado, alCrear, valores) {
+  abrirFormularioContacto(null, { rolForzado: rolForzado, alCrear: alCrear, valores: valores || null });
 }
 
 // ============================================================

@@ -1694,3 +1694,13 @@ select.campo:disabled {
   font-size: 18px;
   cursor: pointer;
 }
+
+/* ============================================================
+   PRESUPUESTO CON CLIENTE SIN FICHA (v78, octubre 2026)
+   Un nombre largo (de una ficha o escrito a mano) empujaba el botón
+   del cliente fuera del formulario en móvil: un elemento de una
+   rejilla no se encoge por debajo de su texto si no se le dice. Con
+   min-width:0 el botón se queda del ancho de la columna y el nombre
+   se corta con "…".
+   ============================================================ */
+#pre-form .pre-campo-grupo { min-width: 0; }
