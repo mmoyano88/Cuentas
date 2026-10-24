@@ -506,6 +506,7 @@ function pintarDashboard() {
         }).join('') +
       '</div>' +
     '</div>' +
+    '<div id="dash-mes" class="dash-mes"></div>' +
     '<div id="dash-tarjetas" class="dash-tarjetas"></div>' +
     '<div id="dash-listas" class="dash-listas"></div>' +
     '<div class="dash-grafico-grande">' +
@@ -775,7 +776,99 @@ function dashRepintarListas() {
   });
 }
 
+// Beneficio de cada mes (octubre 2026): carrusel con los últimos 12 meses,
+// el mes en curso y los 11 anteriores. Cada tarjeta lleva ingresos menos
+// gastos del mes natural, sobre la base (sin IVA) y sin pagos de
+// impuestos: la misma cuenta que el gráfico de líneas, así que coinciden.
+// Sigue el selector Empresa/Personal/Total y el ojo. Móvil: se desliza y
+// abre en el mes en curso. PC: se ven tres y dos flechas recorren el resto.
+const DASH_MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const DASH_MESES_VISTA = 12;
+
+function dashNombreMes(clave) {
+  const n = parseInt(String(clave).slice(5, 7), 10);
+  const m = DASH_MESES_LARGOS[n - 1] || '';
+  return m.charAt(0).toUpperCase() + m.slice(1) + ' ' + String(clave).slice(0, 4);
+}
+
+// De más antiguo a más reciente: el mes en curso queda el último.
+function dashClavesMeses() {
+  const hoy = new Date();
+  const claves = [];
+  for (let k = DASH_MESES_VISTA - 1; k >= 0; k--) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - k, 1);
+    claves.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  }
+  return claves;
+}
+
+function dashTarjetaMes(clave, t, enCurso) {
+  // Con el ojo cerrado la cifra va en blanco: el color delataría si el mes fue bueno o malo.
+  const oculto = (typeof cifrasOcultas !== 'undefined') && cifrasOcultas;
+  const signo = oculto ? 'cero' : (t.beneficio > 0.004 ? 'pos' : (t.beneficio < -0.004 ? 'neg' : 'cero'));
+  return '<div class="dash-mes-tarjeta ' + signo + (enCurso ? ' actual' : '') + '">' +
+    '<div class="dm-int">' +
+      '<span class="dm-titulo"><i class="ti ti-calendar-month" aria-hidden="true"></i>' + escaparHtml(dashNombreMes(clave)) + '</span>' +
+      '<p class="dm-valor">' + escaparHtml(dineroVisible(t.beneficio)) + '</p>' +
+      '<span class="dm-sub"><span class="dm-par">Ingresos ' + escaparHtml(dineroVisible(t.ingresos)) + '</span>' +
+        '<span class="dm-par">Gastos ' + escaparHtml(dineroVisible(t.gastos)) + '</span></span>' +
+    '</div>' +
+    (enCurso ? '<em class="dm-curso">en curso</em>' : '') +
+  '</div>';
+}
+
+function dashRepintarMes() {
+  const zona = document.getElementById('dash-mes');
+  if (!zona) return;
+
+  const movimientos = dashFiltrarPerspectiva(dashMovimientos(), dashPerspectiva);
+  const actual = dashMesActual();
+  const claves = dashClavesMeses();
+
+  zona.innerHTML =
+    '<div class="dash-meses-caja">' +
+      '<button type="button" class="dash-meses-flecha izq" id="dash-meses-izq" aria-label="Meses anteriores" hidden><i class="ti ti-chevron-left"></i></button>' +
+      '<div class="dash-meses" id="dash-meses-carrusel">' +
+        claves.map(function (c) {
+          const t = dashTotales(movimientos.filter(function (m) { return m.mes === c; }));
+          return dashTarjetaMes(c, t, c === actual);
+        }).join('') +
+      '</div>' +
+      '<button type="button" class="dash-meses-flecha der" id="dash-meses-der" aria-label="Meses siguientes" hidden><i class="ti ti-chevron-right"></i></button>' +
+    '</div>' +
+    '<div class="car-puntos" id="dash-puntos-meses" aria-hidden="true">' +
+      claves.map(function () { return '<span></span>'; }).join('') +
+    '</div>';
+
+  const carrusel = document.getElementById('dash-meses-carrusel');
+  const izq = document.getElementById('dash-meses-izq');
+  const der = document.getElementById('dash-meses-der');
+  const ultimo = claves.length - 1;
+
+  if (window.matchMedia('(max-width: 899px)').matches) {
+    prepararCarrusel(carrusel, document.getElementById('dash-puntos-meses'), { inicial: ultimo });
+    return;
+  }
+
+  // PC: abre en los tres últimos y las flechas recorren los anteriores.
+  function flechas() {
+    izq.hidden = carrusel.scrollLeft <= 2;
+    der.hidden = carrusel.scrollLeft >= carrusel.scrollWidth - carrusel.clientWidth - 2;
+  }
+  function mover(sentido) {
+    const paso = carrusel.children[0].offsetWidth + 10;
+    carrusel.scrollBy({ left: sentido * paso, behavior: 'smooth' });
+  }
+  izq.addEventListener('click', function () { mover(-1); });
+  der.addEventListener('click', function () { mover(1); });
+  carrusel.addEventListener('scroll', flechas);
+  carrusel.scrollLeft = carrusel.scrollWidth;
+  flechas();
+}
+
 function dashRepintarTarjetas() {
+  dashRepintarMes();
   const zona = document.getElementById('dash-tarjetas');
   if (!zona) return;
 

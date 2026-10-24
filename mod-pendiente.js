@@ -410,7 +410,9 @@ function pintarPanelCliente() {
             '<input type="checkbox" class="pen-casilla" data-marcar="' + escaparHtml(t.id) + '"' + (marcado ? ' checked' : '') + '>' +
             '<span class="fv-info"><span class="fv-nombre pen-concepto">' + escaparHtml(String(t.concepto || '—')) + '</span>' +
               '<span class="fv-meta pen-sub">Apuntado el ' + escaparHtml(penFechaApuntado(t) || '—') + '</span></span>' +
-            '<span class="fv-total-fila">' + escaparHtml(dineroVisible(penImporte(t))) + '</span>' +
+            // Dentro de un cliente las cifras se ven siempre, aunque el ojo esté cerrado:
+            // abrir el cliente es dar permiso, como al abrir una ficha (octubre 2026).
+            '<span class="fv-total-fila">' + escaparHtml(formatMoney(penImporte(t))) + '</span>' +
           '</label>' +
           '<div class="fv-control">' +
             '<button type="button" class="fv-btn-icono" data-mas="' + escaparHtml(t.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +

@@ -1704,3 +1704,132 @@ select.campo:disabled {
    se corta con "…".
    ============================================================ */
 #pre-form .pre-campo-grupo { min-width: 0; }
+
+/* ============================================================
+   BENEFICIO DE CADA MES (octubre 2026)
+   Carrusel de 12 tarjetas negras con el beneficio del mes: cifra en
+   verde (positivo), rojo (negativo) o blanca (cero); ingresos y gastos
+   en blanco. Móvil: se desliza y abre en el mes en curso (mismo patrón
+   que los trimestres de Impuestos). PC: tres a la vista, alineadas con
+   las columnas de abajo, y dos flechas para ver los meses anteriores.
+   Sobre negro se usan los tonos vivos de la app (#5EE08A, #FF6B60).
+   ============================================================ */
+#contenido #dash-mes { margin-bottom: 10px; }
+#dash-mes .dash-meses-caja { position: relative; }
+#dash-mes .dash-mes-tarjeta {
+  box-sizing: border-box;
+  position: relative;
+  background: var(--banda);
+  color: #FFFFFF;
+  border-radius: var(--radio-tarjeta);
+  padding: 12px 16px;
+  min-width: 0;
+  container-type: inline-size;
+}
+#dash-mes .dm-int {
+  display: grid;
+  height: 100%;
+  min-height: 54px;
+  /* Móvil: título y datos a la izquierda, la cifra a la derecha. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 3px;
+  align-items: center;
+}
+#dash-mes .dm-titulo { grid-column: 1; grid-row: 1; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; min-width: 0; overflow: hidden; }
+#dash-mes .dm-titulo i { font-size: 16px; opacity: .9; }
+#dash-mes .dm-curso {
+  position: absolute; top: 7px; right: 14px;
+  font-style: normal; font-size: 10px; font-weight: 600; padding: 1px 7px;
+  border-radius: 10px; background: rgba(255, 255, 255, .16);
+}
+#dash-mes .dm-sub { grid-column: 1; grid-row: 2; font-size: 11px; color: rgba(255, 255, 255, .8); }
+/* Siempre ingresos arriba y gastos debajo, también cuando las cifras están ocultas. */
+#dash-mes .dm-par { display: block; white-space: nowrap; margin: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+#dash-mes .dm-valor {
+  grid-column: 2; grid-row: 1 / 3; align-self: end; margin: 0;
+  font-family: var(--fuente-titulos); font-weight: 800;
+  font-size: 26px; white-space: nowrap; color: #FFFFFF;
+}
+#dash-mes .pos .dm-valor { color: #5EE08A; }
+#dash-mes .neg .dm-valor { color: #FF6B60; }
+
+@media (max-width: 359px) {
+  #dash-mes .dm-valor { font-size: 22px; }
+}
+@media (max-width: 899px) {
+  #dash-mes .dash-meses {
+    display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+    padding: 6px 7% 12px; margin: 0 calc(-1 * var(--padding-pagina));
+    scrollbar-width: none; align-items: stretch;
+  }
+  #dash-mes .dash-meses::-webkit-scrollbar { display: none; }
+  #dash-mes .dash-meses > * {
+    flex: 0 0 86%; scroll-snap-align: center; transform: scale(.94); opacity: .45;
+    transition: transform .25s ease, opacity .25s ease, box-shadow .25s ease;
+  }
+  #dash-mes .dash-meses > .centrada {
+    transform: none; opacity: 1; box-shadow: 0 10px 24px -10px rgba(22, 22, 21, .45);
+  }
+  #dash-mes .dash-meses-flecha { display: none; }
+}
+@media (min-width: 900px) {
+  #dash-puntos-meses { display: none; }
+  #dash-mes .dash-meses {
+    display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+    scrollbar-width: none; scroll-behavior: smooth; align-items: stretch;
+  }
+  #dash-mes .dash-meses::-webkit-scrollbar { display: none; }
+  /* Tres a la vista: los anteriores a una unidad y el mes en curso, a
+     la derecha, a unidad y media. No siguen las tres columnas de abajo:
+     es una línea de tiempo propia. */
+  #dash-mes .dash-meses > * { flex: 0 0 calc((100% - 20px) / 3.5); scroll-snap-align: start; }
+  #dash-mes .dash-meses > .actual { flex-basis: calc((100% - 20px) * 1.5 / 3.5); }
+  /* PC: el título arriba, la cifra debajo y, pegados a ella, ingresos y gastos. */
+  #dash-mes .dash-mes-tarjeta { padding: 12px 20px; }
+  #dash-mes .dm-int { grid-template-columns: auto minmax(0, 1fr); column-gap: 16px; row-gap: 2px; }
+  #dash-mes .dm-titulo { grid-column: 1 / 3; }
+  #dash-mes .dm-valor { grid-column: 1; grid-row: 2; }
+  #dash-mes .dm-sub { grid-column: 2; grid-row: 2; align-self: center; }
+  #dash-mes .dm-par { display: block; margin: 0; }
+  #dash-mes .dm-curso { right: 20px; top: 12px; }
+  /* El mes en curso, más grande. */
+  #dash-mes .actual .dm-titulo { font-size: 14px; }
+  #dash-mes .actual .dm-valor { font-size: 38px; }
+  #dash-mes .actual .dm-sub { font-size: 12px; }
+  #dash-mes .actual .dm-int { column-gap: 22px; }
+  /* Si la tarjeta es estrecha, la cifra se encoge para no pisar los datos
+     ni salirse. Se mide el ancho de la propia tarjeta, no el de la pantalla. */
+  @container (max-width: 340px) {
+    #dash-mes .actual .dm-valor { font-size: 28px; }
+    #dash-mes .actual .dm-int { column-gap: 14px; }
+  }
+  @container (max-width: 250px) {
+    #dash-mes .dm-valor { font-size: 22px; }
+    #dash-mes .actual .dm-valor { font-size: 24px; }
+    #dash-mes .dm-int { column-gap: 12px; }
+  }
+  /* Muy estrecha (pantallas de 900 a 1200 px): los datos van debajo de la cifra. */
+  @container (max-width: 225px) {
+    #dash-mes .dm-int { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+    #dash-mes .dm-titulo { grid-column: 1; }
+    #dash-mes .dm-valor { grid-column: 1; grid-row: 2; }
+    #dash-mes .dm-sub { grid-column: 1; grid-row: 3; }
+  }
+  #dash-mes .dash-meses-flecha {
+    position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+    width: 32px; height: 32px; border-radius: 50%; border: 1px solid #D8D8D4;
+    background: #FFFFFF; color: var(--texto); display: flex; align-items: center; justify-content: center;
+    font-size: 17px; cursor: pointer; padding: 0; box-shadow: 0 2px 8px rgba(22, 22, 21, .18);
+  }
+  #dash-mes .dash-meses-flecha[hidden] { display: none; }
+  #dash-mes .dash-meses-flecha:hover { background: #F2F2EF; }
+  #dash-mes .dash-meses-flecha.izq { left: -16px; }
+  #dash-mes .dash-meses-flecha.der { right: -16px; }
+}
+/* Pantallas anchas: cuatro a la vista (tres anteriores y el mes en curso). */
+@media (min-width: 1500px) {
+  #dash-mes .dash-meses > * { flex-basis: calc((100% - 30px) / 4.5); }
+  #dash-mes .dash-meses > .actual { flex-basis: calc((100% - 30px) * 1.5 / 4.5); }
+}
