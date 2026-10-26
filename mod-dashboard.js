@@ -4,7 +4,34 @@
  * Primera pantalla que se ve al abrir la aplicación. Resumen visual
  * del negocio: seis tarjetas de colores y cinco gráficos.
  *
- * DOS CIFRAS POR TARJETA 🔒 (mapa 14.2), concepto clave de esta
+ * SIMPLIFICACIÓN DEL 26/10/2026 (decisión del propietario). SUSTITUYE a
+ * lo que dicen más abajo "DOS CIFRAS POR TARJETA" y la media mensual
+ * anterior. Solo cambian fórmulas y datos; el orden, los colores, los
+ * iconos y el diseño son los de siempre:
+ *
+ *   · Todo se mide como lo que te queda en el bolsillo, sin IVA:
+ *       ingreso = base − retención de IRPF (la retención la paga el
+ *                 cliente en tu nombre, pero no es ganancia tuya);
+ *       gasto   = base.
+ *     Los pagos de impuestos no cuentan y no se reserva nada para el
+ *     trimestre. Por eso estas cifras salen algo menores que las de
+ *     Impuestos e Informes, que siguen sobre la base completa.
+ *   · Tarjetas negras de los 12 meses: ingresos, gastos y lo que queda
+ *     de cada mes, con esa definición.
+ *   · Ingresos, Gastos y Beneficio del año: cifra grande = suma desde
+ *     el 1 de enero; cifra pequeña = últimos 3 meses (90 días hasta
+ *     hoy, sin pasar del 1 de enero: hasta finales de marzo coinciden).
+ *   · Media mensual: cifra grande = últimos 365 días entre 12; cifra
+ *     pequeña = últimos 90 días entre 3 (por mes). No se corta en el 1
+ *     de enero: es una ventana móvil de un año.
+ *   · Gráfico: acumulado de los 12 meses con tres líneas (empresa,
+ *     personal y total) que se ven siempre, sin depender del selector.
+ *   · Se quita la cifra de tesorería ("Cobrado", "Pagado", "En banco")
+ *     de las tarjetas. Próximo pago, Te deben, listas y donuts no
+ *     cambian (los donuts siguen midiendo la base sin IVA).
+ *
+ * DOS CIFRAS POR TARJETA 🔒 (mapa 14.2) — SUPERADO, solo historial. Era el
+ * concepto clave de esta
  * pantalla y decisión mantenida por el propietario:
  *
  *   · ECONÓMICO  → se calcula sobre `base` (sin impuestos). Es el
@@ -102,21 +129,6 @@ function dashEtiquetaMes(clave) {
   return MESES[mes - 1] + ' ' + dashTexto(p[0]).slice(2);
 }
 
-// Los 12 meses COMPLETOS anteriores al actual, del más antiguo al más
-// reciente. El mes en curso NO entra: está a medias y hundiría la
-// media (decisión del propietario: "si estamos a mediados de
-// septiembre, contamos desde octubre del año anterior, octubre
-// completo").
-function dashUltimos12Meses() {
-  const hoy = new Date();
-  const claves = [];
-  for (let i = 12; i >= 1; i--) {
-    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-    claves.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
-  }
-  return claves;
-}
-
 // ÚLTIMOS 365 DÍAS HASTA HOY (23/09/2026, decisión del propietario).
 // Sustituye a "los 12 meses completos" en los donuts y en la media
 // mensual: así cuentan también el mes en curso y los datos no se
@@ -170,13 +182,18 @@ function dashMovimientos() {
   estado.apuntes.forEach(function (a) {
     const mes = dashClaveMes(a.fecha);
     if (!mes) return;
+    const tipo = dashTexto(a.tipo) === 'ingreso' ? 'ingreso' : 'gasto';
+    const base = parsearNumero(a.base);
     lista.push({
       mes: mes,
       fecha: normalizarFecha(a.fecha),
-      tipo: dashTexto(a.tipo) === 'ingreso' ? 'ingreso' : 'gasto',
+      tipo: tipo,
       ambito: dashTexto(a.ambito) === 'personal' ? 'personal' : 'empresa',
       pagoImpuestos: dashEsPagoImpuestos(a),
-      base: parsearNumero(a.base),
+      base: base,
+      // Importe que cuenta en las tarjetas y en el gráfico (26/10/2026):
+      // un ingreso, sin IVA y sin la retención de IRPF; un gasto, su base.
+      neto: tipo === 'ingreso' ? roundMoney(base - parsearNumero(a.irpf)) : base,
       total: parsearNumero(a.total),
       idContacto: a.id_contacto || ''
     });
@@ -193,95 +210,128 @@ function dashFiltrarPerspectiva(movimientos, perspectiva) {
 // 3. CÁLCULO DE LAS TARJETAS 🔒
 // ============================================================
 
-// Suma económica y de tesorería de una lista de movimientos.
-// El económico deja fuera los pagos de impuestos (mapa 14.2).
+// Suma de una lista de movimientos: ingresos netos (base − retención
+// de IRPF), gastos (base) y lo que queda. Deja fuera los pagos de
+// impuestos y no reserva nada para el trimestre (26/10/2026).
 function dashTotales(movimientos) {
-  let ingresos = 0, gastos = 0, tesIngresos = 0, tesGastos = 0;
+  let ingresos = 0, gastos = 0;
 
   movimientos.forEach(function (m) {
-    if (m.tipo === 'ingreso') {
-      if (!m.pagoImpuestos) ingresos += m.base;
-      tesIngresos += m.total;
-    } else {
-      if (!m.pagoImpuestos) gastos += m.base;
-      tesGastos += m.total;
-    }
+    if (m.pagoImpuestos) return;
+    if (m.tipo === 'ingreso') ingresos += m.neto;
+    else gastos += m.neto;
   });
 
   return {
     ingresos: roundMoney(ingresos),
     gastos: roundMoney(gastos),
-    beneficio: roundMoney(ingresos - gastos),
-    tesIngresos: roundMoney(tesIngresos),
-    tesGastos: roundMoney(tesGastos),
-    tesNeta: roundMoney(tesIngresos - tesGastos)
+    beneficio: roundMoney(ingresos - gastos)
   };
 }
 
-// Media mensual sobre los ÚLTIMOS 365 DÍAS hasta hoy 🔒
-// (regla del propietario; el 23/09/2026 pasó de "12 meses completos"
-// a "365 días hasta hoy", para que cuente también el mes en curso):
-//   · Se suma lo de los últimos 365 días y se divide entre 12.
-//   · Un periodo sin actividad cuenta como CERO, no se descarta — la
-//     media busca aproximar "un sueldo medio" para ver la viabilidad
-//     del negocio, y un mes sin ingresos también forma parte de eso.
-//   · PERO no se cuenta el tiempo anterior al primer movimiento
-//     registrado: si la actividad empezó hace 3 meses, se divide
-//     entre 3, no entre 12. Se calcula en días (días de actividad
-//     dentro de la ventana ÷ 30,42) y nunca por debajo de 1 mes, para
-//     que en las primeras semanas la media no salga disparada.
+// Últimos 90 días hasta hoy (los "últimos 3 meses" de las tarjetas),
+// ambos días incluidos. Con `noAntesDe` (una fecha ISO) la ventana no
+// empieza antes de ese día: las tarjetas del año usan el 1 de enero.
+function dashVentana90(noAntesDe) {
+  const hoy = new Date();
+  const desde = dashIsoLocal(new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() - 89));
+  return {
+    desde: noAntesDe && desde < noAntesDe ? noAntesDe : desde,
+    hasta: dashIsoLocal(hoy)
+  };
+}
+
+// Meses de actividad dentro de una ventana, contados en días (días desde
+// el primer movimiento registrado ÷ 30,42), con un mínimo de 1 mes y un
+// máximo de `maxMeses`. Devuelve 0 si aún no hay actividad en la ventana.
 const DASH_DIAS_POR_MES = 365 / 12;
 
-function dashMediaMensual(movimientos) {
-  const ventana = dashVentana365();
+function dashMesesDeActividad(ventana, maxMeses) {
   const inicio = dashDiaInicioActividad();
-  if (!inicio || inicio > ventana.hasta) {
-    return { beneficio: 0, tesoreria: 0, meses: 0 };
-  }
+  if (!inicio || inicio > ventana.hasta) return 0;
+  // Actividad que cubre toda la ventana: justo `maxMeses` (90 días = 3
+  // meses, 365 días = 12), sin el redondeo de dividir días entre 30,42.
+  if (inicio <= ventana.desde) return maxMeses;
 
   const desde = inicio > ventana.desde ? inicio : ventana.desde;
   const p = desde.split('-').map(Number), h = ventana.hasta.split('-').map(Number);
   const dias = Math.round((new Date(h[0], h[1] - 1, h[2]) - new Date(p[0], p[1] - 1, p[2])) / 86400000) + 1;
-  const meses = Math.min(12, Math.max(1, dias / DASH_DIAS_POR_MES));
+  return Math.min(maxMeses, Math.max(1, dias / DASH_DIAS_POR_MES));
+}
 
-  const enVentana = movimientos.filter(function (m) { return dashEnVentana(m.fecha, ventana); });
-  const t = dashTotales(enVentana);
+// Media mensual 🔒 de lo que te queda (ingresos netos − gastos):
+//   · Grande: los ÚLTIMOS 365 DÍAS hasta hoy entre 12. Un mes sin
+//     actividad cuenta como cero (la media busca aproximar "un sueldo
+//     medio"), pero no se cuenta el tiempo anterior al primer movimiento
+//     registrado: si la actividad lleva menos de un año, se divide entre
+//     los meses reales.
+//   · Pequeña: los ÚLTIMOS 90 DÍAS entre 3, es decir, por mes, con la
+//     misma regla si la actividad lleva menos de 3 meses. Si es mayor
+//     que la grande, ahora vas por encima de tu media.
+function dashMediaMensual(movimientos) {
+  const v365 = dashVentana365();
+  const v90 = dashVentana90(null);
+  const meses365 = dashMesesDeActividad(v365, 12);
+  if (meses365 === 0) return { beneficio: 0, reciente: 0, meses: 0 };
+
+  const meses90 = dashMesesDeActividad(v90, 3);
+  const b365 = dashTotales(movimientos.filter(function (m) { return dashEnVentana(m.fecha, v365); })).beneficio;
+  const b90 = meses90 > 0
+    ? dashTotales(movimientos.filter(function (m) { return dashEnVentana(m.fecha, v90); })).beneficio
+    : 0;
 
   return {
-    beneficio: roundMoney(t.beneficio / meses),
-    tesoreria: roundMoney(t.tesNeta / meses),
-    meses: Math.round(meses)
+    beneficio: roundMoney(b365 / meses365),
+    reciente: meses90 > 0 ? roundMoney(b90 / meses90) : 0,
+    meses: Math.round(meses365)
   };
 }
 
-// Datos mes a mes para el gráfico grande de líneas: los 12 meses
-// completos y, al final, el mes en curso (23/09/2026). El mes en curso
-// va marcado como "en curso" y se dibuja punteado y con el punto
-// hueco, para que no se lea como una bajada: todavía está a medias.
+// Mes en curso, como «2026-10».
 function dashMesActual() {
   const hoy = new Date();
   return hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
 }
 
+// Datos del gráfico (26/10/2026): lo que queda cada mes (ingresos netos
+// − gastos, sin pagos de impuestos) de Empresa y de Personal, y su
+// acumulado a lo largo de los mismos 12 meses de las tarjetas negras
+// (el último es el mes en curso). El acumulado empieza en cero al
+// principio de la ventana. Total = empresa + personal. Los valores
+// pueden ser negativos: es normal, no un fallo.
 function dashSerieMensual(movimientos) {
-  const meses = dashUltimos12Meses().concat([dashMesActual()]);
-  const porMes = {};
-  meses.forEach(function (m) { porMes[m] = { ingresos: 0, gastos: 0 }; });
+  const meses = dashClavesMeses();
+  const posicion = {};
+  meses.forEach(function (m, i) { posicion[m] = i; });
+
+  const mensual = {
+    empresa: meses.map(function () { return 0; }),
+    personal: meses.map(function () { return 0; })
+  };
 
   movimientos.forEach(function (m) {
-    if (!porMes[m.mes]) return;
-    if (m.pagoImpuestos) return;   // el gráfico es económico, sin impuestos
-    if (m.tipo === 'ingreso') porMes[m.mes].ingresos += m.base;
-    else porMes[m.mes].gastos += m.base;
+    if (m.pagoImpuestos) return;
+    const i = posicion[m.mes];
+    if (i === undefined) return;
+    mensual[m.ambito === 'personal' ? 'personal' : 'empresa'][i] += (m.tipo === 'ingreso' ? m.neto : -m.neto);
+  });
+
+  mensual.empresa = mensual.empresa.map(roundMoney);
+  mensual.personal = mensual.personal.map(roundMoney);
+  mensual.total = mensual.empresa.map(function (v, i) { return roundMoney(v + mensual.personal[i]); });
+
+  const acumulado = {};
+  ['empresa', 'personal', 'total'].forEach(function (k) {
+    let suma = 0;
+    acumulado[k] = mensual[k].map(function (v) { suma = roundMoney(suma + v); return suma; });
   });
 
   return {
     etiquetas: meses.map(function (m, i) {
       return i === meses.length - 1 ? dashEtiquetaMes(m) + ' (en curso)' : dashEtiquetaMes(m);
     }),
-    ingresos: meses.map(function (m) { return roundMoney(porMes[m].ingresos); }),
-    gastos: meses.map(function (m) { return roundMoney(porMes[m].gastos); }),
-    beneficio: meses.map(function (m) { return roundMoney(porMes[m].ingresos - porMes[m].gastos); })
+    mensual: mensual,
+    acumulado: acumulado
   };
 }
 
@@ -430,24 +480,26 @@ function dashPuntoInfo(icono, titulo, texto) {
 
 function dashBloqueInfo() {
   return (
+    dashPuntoInfo('ti-calendar-month', 'Tarjetas negras de cada mes',
+      'Lo que te queda cada mes: ingresos menos gastos, sin IVA y sin la retención de IRPF que te descuenta el cliente (esa retención no es ganancia tuya). Los pagos de impuestos no cuentan y no se aparta nada para el trimestre. Siguen el selector de arriba.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.ingresos.icono, 'Ingresos',
-      'Suma de lo cobrado en el año (apuntes de Contabilidad), sin impuestos. Debajo, en pequeño, lo cobrado con impuestos incluidos (lo que ha entrado en el banco).') +
+      'Suma desde el 1 de enero de lo cobrado, sin IVA y sin la retención de IRPF. Por eso sale algo menor que en Impuestos e Informes, que cuentan la base entera. Debajo, lo cobrado en los últimos 3 meses (90 días hasta hoy, sin pasar del 1 de enero: hasta finales de marzo las dos cifras coinciden).') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.gastos.icono, 'Gastos',
-      'Suma de lo pagado en el año, sin impuestos. Debajo, lo pagado con impuestos incluidos (lo que ha salido del banco).') +
+      'Suma desde el 1 de enero de lo pagado, sin IVA. Debajo, lo pagado en los últimos 3 meses.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.beneficio.icono, 'Beneficio',
-      'Ingresos menos gastos del año, sin impuestos: lo que de verdad gana el negocio. Debajo, el resultado en banco (con impuestos).') +
+      'Ingresos menos gastos desde el 1 de enero: lo que te queda en el bolsillo, sin reservar nada para impuestos. Debajo, lo mismo en los últimos 3 meses.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.media.icono, 'Media mensual',
-      'Beneficio medio de los últimos 365 días, repartido entre los meses reales de actividad (si el negocio lleva menos de un año, se divide solo entre esos meses). Debajo, la misma media pero en banco.') +
+      'Lo que te queda de media al mes en los últimos 365 días (entre 12): una idea aproximada de tu sueldo. Si llevas menos de un año de actividad, se divide entre los meses reales. Debajo, la media de los últimos 3 meses (90 días entre 3): si es mayor que la grande, ahora vas mejor que tu media.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.impuestos.icono, 'Próximo pago',
       'Lo que queda por pagar del trimestre que toca (IVA + IRPF, cada uno desde 0 €). Debajo, el plazo: hasta cuándo hay tiempo o si ya está pagado. A diferencia del resto, cuenta las facturas desde que se emiten, aunque no estén cobradas.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.adelantar.icono, 'Te deben',
       'Total de las facturas de venta activas todavía sin cobrar. Debajo, cuánto de los impuestos de esas facturas se adelanta a Hacienda en el próximo pago, antes de haber cobrado el dinero.') +
     dashPuntoInfo('ti-chart-line', 'Gráfico de evolución',
-      'Ingresos, gastos y beneficio de los últimos 12 meses completos más el mes en curso (línea punteada, todavía a medias). Sin impuestos, igual que las tarjetas económicas.') +
+      'Lo que te queda, acumulado mes a mes en los últimos 12 meses, con tres líneas: empresa, personal y total (empresa más personal). La inclinación dice cuándo sube más o menos; por debajo de cero es que has gastado más de lo que has ingresado. Al pulsar un mes sale el acumulado y lo de ese mes. El último tramo, punteado, es el mes en curso. Este gráfico no cambia con el selector de arriba.') +
     dashPuntoInfo('ti-chart-donut', 'Clientes y proveedores',
-      'De qué contactos viene el dinero cobrado o pagado en los últimos 365 días (solo contactos registrados en Clientes). Sí cambian con el selector de arriba (Empresa/Personal/Total).') +
+      'De qué contactos viene el dinero cobrado o pagado en los últimos 365 días, medido en base sin IVA (solo contactos registrados en Clientes). Sí cambian con el selector de arriba (Empresa/Personal/Total).') +
     dashPuntoInfo('ti-chart-donut', 'Ingresos y gastos: empresa y personal',
-      'Compara lo de empresa con lo personal en los últimos 365 días. Estos dos donuts NO cambian con el selector de arriba: su propio gráfico ya separa empresa de personal.')
+      'Compara lo de empresa con lo personal en los últimos 365 días, en base sin IVA. Estos dos donuts NO cambian con el selector de arriba: su propio gráfico ya separa empresa de personal.')
   );
 }
 
@@ -511,13 +563,7 @@ function pintarDashboard() {
     '<div id="dash-listas" class="dash-listas"></div>' +
     '<div class="dash-grafico-grande">' +
       '<div class="dash-grafico-cabecera">' +
-        '<p class="dash-grafico-titulo">Evolución: 12 meses y el mes en curso</p>' +
-        '<div class="dash-selector pequeno" id="dash-selector-grafico">' +
-          DASH_PERSPECTIVAS.map(function (p) {
-            return '<button type="button" data-perspectiva="' + p.id + '"' +
-              (p.id === dashPerspectiva ? ' class="activa"' : '') + '>' + p.etiqueta + '</button>';
-          }).join('') +
-        '</div>' +
+        '<p class="dash-grafico-titulo">Evolución acumulada: 12 meses</p>' +
       '</div>' +
       '<div class="dash-lienzo alto"><canvas id="dash-g-evolucion"></canvas></div>' +
     '</div>' +
@@ -557,20 +603,20 @@ function pintarDashboard() {
     prepararCarrusel(document.querySelector('#contenido .dash-donuts'), document.getElementById('dash-puntos-donuts'), { inicial: 0 });
   }
 
-  // Los dos selectores hacen lo mismo: cambian toda la pantalla. Se
-  // repinta sin mover la página (28/09/2026): en ventanas grandes, el
-  // selector del gráfico mandaba la página arriba del todo.
-  ['dash-selector', 'dash-selector-grafico'].forEach(function (id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.querySelectorAll('[data-perspectiva]').forEach(function (b) {
+  // El selector cambia las tarjetas, las listas y los donuts de clientes
+  // y proveedores (el gráfico enseña siempre las tres líneas; desde el
+  // 26/10/2026 ya no tiene selector propio). Se repinta sin mover la
+  // página (28/09/2026).
+  const selector = document.getElementById('dash-selector');
+  if (selector) {
+    selector.querySelectorAll('[data-perspectiva]').forEach(function (b) {
       b.addEventListener('click', function () {
         dashPerspectiva = b.dataset.perspectiva;
         if (typeof repintarSinSaltar === 'function') repintarSinSaltar(pintarDashboard);
         else pintarDashboard();
       });
     });
-  });
+  }
 
   dashRepintarTarjetas();
   dashRepintarListas();
@@ -876,21 +922,21 @@ function dashRepintarTarjetas() {
   const movimientos = dashFiltrarPerspectiva(dashMovimientos(), dashPerspectiva);
   const delAnio = movimientos.filter(function (m) { return m.mes.slice(0, 4) === String(anio); });
 
+  // Cifra grande: desde el 1 de enero. Cifra pequeña: últimos 90 días
+  // hasta hoy, sin pasar del 1 de enero (26/10/2026).
   const t = dashTotales(delAnio);
+  const ventanaReciente = dashVentana90(anio + '-01-01');
+  const r = dashTotales(movimientos.filter(function (m) { return dashEnVentana(m.fecha, ventanaReciente); }));
   const media = dashMediaMensual(movimientos);
   const imp = dashImpuestos();
 
-  // La etiqueta de la cifra pequeña cambia según la tarjeta: "En
-  // banco" solo tiene sentido donde el dinero entra o queda. Para
-  // gastos es dinero que sale, y decir "en banco" confundía
-  // (comentario del propietario, 06/09/2026).
   zona.innerHTML =
-    dashTarjeta('ingresos',  'Ingresos ' + anio,  t.ingresos,  'Cobrado:', t.tesIngresos) +
-    dashTarjeta('gastos',    'Gastos ' + anio,    t.gastos,    'Pagado:',  t.tesGastos) +
-    dashTarjeta('beneficio', 'Beneficio ' + anio, t.beneficio, 'En banco:', t.tesNeta) +
+    dashTarjeta('ingresos',  'Ingresos ' + anio,  t.ingresos,  'Últimos 3 meses:', r.ingresos) +
+    dashTarjeta('gastos',    'Gastos ' + anio,    t.gastos,    'Últimos 3 meses:', r.gastos) +
+    dashTarjeta('beneficio', 'Beneficio ' + anio, t.beneficio, 'Últimos 3 meses:', r.beneficio) +
     dashTarjeta('media',
       'Media mensual' + (media.meses > 0 && media.meses < 12 ? ' (' + media.meses + ' meses)' : ''),
-      media.beneficio, 'En banco:', media.tesoreria) +
+      media.beneficio, 'Últimos 3 meses, al mes:', media.reciente) +
     dashTarjeta('impuestos', 'Próximo pago ' + imp.trimestre, imp.pendiente, imp.plazo, null) +
     dashTarjeta('adelantar', 'Te deben', imp.teDeben, 'Adelanto ' + imp.trimestre + ':', imp.adelantas);
 }
@@ -971,19 +1017,21 @@ function dashGraficoEvolucion() {
   const lienzo = document.getElementById('dash-g-evolucion');
   if (!lienzo) return;
 
-  const movimientos = dashFiltrarPerspectiva(dashMovimientos(), dashPerspectiva);
-  const serie = dashSerieMensual(movimientos);
+  // Las tres líneas se enseñan siempre, sin depender del selector.
+  const serie = dashSerieMensual(dashMovimientos());
 
-  const hayAlgo = serie.ingresos.concat(serie.gastos).some(function (v) { return v !== 0; });
+  const hayAlgo = ['empresa', 'personal', 'total'].some(function (k) {
+    return serie.mensual[k].some(function (v) { return v !== 0; });
+  });
   if (!hayAlgo) {
-    dashMensajeVacio('dash-g-evolucion', 'Todavía no hay movimientos en los últimos 12 meses ni en el mes en curso.');
+    dashMensajeVacio('dash-g-evolucion', 'Todavía no hay movimientos en los últimos 12 meses.');
     return;
   }
 
   // El último punto es el mes en curso: tramo final punteado y punto
-  // hueco (blanco), para que se vea que aún no está cerrado. Desde el
-  // rediseño (28/09/2026) además lleva un fondo gris muy suave, y el
-  // resto de puntos no se dibujan (salen al pulsar).
+  // hueco (blanco), para que se vea que aún no está cerrado, más un
+  // fondo gris muy suave. El resto de puntos no se dibujan (salen al
+  // pulsar).
   const ultimo = serie.etiquetas.length - 1;
   const tramoEnCurso = { borderDash: function (ctx) { return ctx.p1DataIndex === ultimo ? [2, 4] : undefined; } };
   const rellenoPuntos = function (color) {
@@ -994,25 +1042,14 @@ function dashGraficoEvolucion() {
   };
 
   // Mes completo con el año para la etiqueta al pulsar ("Enero 2026").
-  // Hace falta el año: en el gráfico hay dos meses con el mismo nombre.
   const MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
     'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  const clavesMeses = dashUltimos12Meses().concat([dashMesActual()]);
+  const clavesMeses = dashClavesMeses();
   const mesLargo = function (i) {
     const p = String(clavesMeses[i] || '').split('-');
     const n = parseInt(p[1], 10);
     if (!(n >= 1 && n <= 12)) return serie.etiquetas[i];
     return MESES_LARGOS[n - 1] + ' ' + p[0] + (i === ultimo ? ' (en curso)' : '');
-  };
-
-  // Relleno suave bajo la línea de Beneficio: azul arriba, transparente abajo.
-  const areaBeneficio = function (ctx) {
-    const area = ctx.chart.chartArea;
-    if (!area) return 'rgba(47, 111, 181, 0)';
-    const g = ctx.chart.ctx.createLinearGradient(0, area.top, 0, area.bottom);
-    g.addColorStop(0, 'rgba(47, 111, 181, .26)');
-    g.addColorStop(1, 'rgba(47, 111, 181, 0)');
-    return g;
   };
 
   // Fondo gris muy suave detrás del mes en curso.
@@ -1032,19 +1069,40 @@ function dashGraficoEvolucion() {
     }
   };
 
+  // Empresa y Personal con sus colores de siempre; Total en negro y más
+  // gruesa, dibujada encima (order 0 se pinta la última).
+  const LINEAS = [
+    { clave: 'empresa',  etiqueta: 'Empresa',  color: DASH_COLORES_AMBITO.Empresa,  ancho: 2.5, orden: 1, punto: 3 },
+    { clave: 'personal', etiqueta: 'Personal', color: DASH_COLORES_AMBITO.Personal, ancho: 2.5, orden: 1, punto: 3 },
+    { clave: 'total',    etiqueta: 'Total',    color: '#161615',                     ancho: 3.5, orden: 0, punto: 3.5 }
+  ];
+
+  // Lo de ese mes, con signo ("+1.200,00 €"). Con el ojo cerrado no se
+  // enseña ninguna cifra, ni el signo.
+  const delMes = function (v) { return (v > 0 ? '+' : '') + formatMoney(v); };
+
   dashGraficos.evolucion = new Chart(lienzo, {
     type: 'line',
     data: {
       labels: serie.etiquetas,
-      datasets: [
-        // Curva suave "monotone" (28/09/2026): no se pasa por encima ni
-        // por debajo de los puntos reales. Con la curva normal, la línea
-        // bajaba de 0 junto a un mes alto y parecía que hubo ingresos o
-        // gastos negativos. Los datos no cambian.
-        { label: 'Ingresos',  data: serie.ingresos,  borderColor: '#3E9E4E', backgroundColor: '#3E9E4E', pointBackgroundColor: rellenoPuntos('#3E9E4E'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, cubicInterpolationMode: 'monotone', borderWidth: 2, segment: tramoEnCurso },
-        { label: 'Gastos',    data: serie.gastos,    borderColor: '#D32F2F', backgroundColor: '#D32F2F', pointBackgroundColor: rellenoPuntos('#D32F2F'), pointRadius: radioPuntos(3), pointHoverRadius: 4, tension: 0.4, cubicInterpolationMode: 'monotone', borderWidth: 2, segment: tramoEnCurso },
-        { label: 'Beneficio', data: serie.beneficio, borderColor: '#2F6FB5', backgroundColor: areaBeneficio, fill: 'origin', pointBackgroundColor: rellenoPuntos('#2F6FB5'), pointRadius: radioPuntos(3.5), pointHoverRadius: 5, tension: 0.4, cubicInterpolationMode: 'monotone', borderWidth: 3.5, order: 0, segment: tramoEnCurso }
-      ]
+      datasets: LINEAS.map(function (l) {
+        return {
+          label: l.etiqueta,
+          data: serie.acumulado[l.clave],
+          borderColor: l.color,
+          backgroundColor: l.color,
+          pointBackgroundColor: rellenoPuntos(l.color),
+          pointRadius: radioPuntos(l.punto),
+          pointHoverRadius: l.punto + 1,
+          // Curva suave "monotone": no se pasa por encima ni por debajo
+          // de los puntos reales.
+          tension: 0.4,
+          cubicInterpolationMode: 'monotone',
+          borderWidth: l.ancho,
+          order: l.orden,
+          segment: tramoEnCurso
+        };
+      })
     },
     options: {
       responsive: true,
@@ -1060,6 +1118,9 @@ function dashGraficoEvolucion() {
             boxWidth: 7,
             boxHeight: 7,
             font: { size: 11 },
+            // Empresa, Personal y Total, en ese orden (la línea Total se
+            // pinta encima por su `order`, pero no cambia el orden aquí).
+            sort: function (a, b) { return a.datasetIndex - b.datasetIndex; },
             generateLabels: function (grafico) {
               return Chart.defaults.plugins.legend.labels.generateLabels(grafico).map(function (etiqueta) {
                 const color = grafico.data.datasets[etiqueta.datasetIndex].borderColor;
@@ -1071,11 +1132,18 @@ function dashGraficoEvolucion() {
             }
           }
         },
-        // Etiqueta al pulsar: negra, con el mes completo arriba.
+        // Etiqueta al pulsar: negra, con el mes completo arriba y una
+        // fila por línea: acumulado y, entre paréntesis, lo de ese mes.
         tooltip: Object.assign(dashEstiloAviso(), {
+          itemSort: function (a, b) { return a.datasetIndex - b.datasetIndex; },
           callbacks: {
             title: function (items) { return items.length ? mesLargo(items[0].dataIndex) : ''; },
-            label: function (ctx) { return ' ' + ctx.dataset.label + ': ' + dineroVisible(ctx.parsed.y); },
+            label: function (ctx) {
+              const acumulado = dineroVisible(ctx.parsed.y);
+              if (cifrasOcultas) return ' ' + ctx.dataset.label + ': ' + acumulado;
+              const mes = serie.mensual[LINEAS[ctx.datasetIndex].clave][ctx.dataIndex];
+              return ' ' + ctx.dataset.label + ': ' + acumulado + ' (' + delMes(mes) + ' este mes)';
+            },
             labelColor: function (ctx) {
               const color = ctx.dataset.borderColor;
               return { borderColor: color, backgroundColor: color, borderWidth: 0, borderRadius: 4 };
@@ -1086,8 +1154,10 @@ function dashGraficoEvolucion() {
       scales: {
         y: {
           border: { display: false },
-          // Con las cifras ocultas (botón del ojo) no se pintan los
-          // números del eje: la forma de las líneas se sigue viendo.
+          // La escala se ajusta sola a los valores, por encima y por
+          // debajo de cero; la línea del cero se marca algo más. Con las
+          // cifras ocultas (botón del ojo) no se pintan los números del
+          // eje: la forma de las líneas se sigue viendo.
           ticks: {
             display: !cifrasOcultas,
             font: { size: 10 },
@@ -1095,7 +1165,9 @@ function dashGraficoEvolucion() {
             maxTicksLimit: 5,
             callback: function (v) { return dashCifraCorta(v); }
           },
-          grid: { color: '#F0F0EC' }
+          grid: {
+            color: function (ctx) { return Number(ctx.tick && ctx.tick.value) === 0 ? '#C3C2B7' : '#F0F0EC'; }
+          }
         },
         x: {
           border: { display: false },
