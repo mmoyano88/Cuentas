@@ -437,25 +437,43 @@ function dashPorAmbito(tipo) {
 function dashImpuestos() {
   const disponible = typeof impProximoPago === 'function' &&
     typeof impPendienteDePago === 'function' &&
-    typeof impEstadoPlazo === 'function' &&
     typeof impFacturasSinCobrar === 'function';
 
   if (!disponible) {
-    return { trimestre: fvTrimestreDeFecha(fechaHoyISO()), pendiente: 0, plazo: '', teDeben: 0, adelantas: 0 };
+    return { trimestre: fvTrimestreDeFecha(fechaHoyISO()), pendiente: 0, facturado: 0, teDeben: 0, adelantas: 0 };
   }
 
   const proximo = impProximoPago();
   const pendiente = impPendienteDePago(proximo.anio, proximo.trimestre);
-  const plazo = impEstadoPlazo(proximo.anio, proximo.trimestre);
   const sinCobrar = impFacturasSinCobrar();
+
+  // "Te deben" (26/10/2026): facturas de venta sin cobrar + trabajos de
+  // Pendiente todavía sin facturar, estos con el IVA y el IRPF que
+  // llevarían en la factura (igual que la tarjeta "Pendiente de
+  // facturar"). "Ya facturado" es solo la parte de facturas emitidas.
+  const porFacturar = dashPendienteClientes().reduce(function (suma, c) {
+    return suma + penCalcularFactura(c.total, penCondicionesDe(c.id)).total;
+  }, 0);
 
   return {
     trimestre: proximo.trimestre,
     pendiente: pendiente.total,
-    plazo: plazo.corto,
-    teDeben: sinCobrar.total,
+    facturado: sinCobrar.total,
+    teDeben: roundMoney(sinCobrar.total + porFacturar),
     adelantas: roundMoney(sinCobrar.yaAdelantado + sinCobrar.enProximo)
   };
+}
+
+// Pulsar la tarjeta "Próximo pago" lleva a Impuestos, al trimestre que
+// toca pagar (26/10/2026). Es la única tarjeta del Inicio que actúa
+// como botón.
+function dashIrAImpuestos() {
+  if (typeof impProximoPago === 'function' && typeof impAnio !== 'undefined') {
+    const p = impProximoPago();
+    impAnio = p.anio;
+    impTrimestre = p.trimestre;
+  }
+  cambiarVista('impuestos');
 }
 
 // ============================================================
@@ -491,9 +509,9 @@ function dashBloqueInfo() {
     dashPuntoInfo(DASH_TARJETAS_COLOR.media.icono, 'Media mensual',
       'Lo que te queda de media al mes en los últimos 365 días (entre 12): una idea aproximada de tu sueldo. Si llevas menos de un año de actividad, se divide entre los meses reales. Debajo, la media de los últimos 3 meses (90 días entre 3): si es mayor que la grande, ahora vas mejor que tu media.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.impuestos.icono, 'Próximo pago',
-      'Lo que queda por pagar del trimestre que toca (IVA + IRPF, cada uno desde 0 €). Debajo, el plazo: hasta cuándo hay tiempo o si ya está pagado. A diferencia del resto, cuenta las facturas desde que se emiten, aunque no estén cobradas.') +
+      'Lo que queda por pagar del trimestre que toca (IVA + IRPF, cada uno desde 0 €). Debajo, el adelanto: la parte de ese pago que viene de facturas emitidas que todavía no has cobrado. A diferencia del resto, cuenta las facturas desde que se emiten, aunque no estén cobradas. Pulsa la tarjeta para ir a Impuestos, donde están el plazo y el pago.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.adelantar.icono, 'Te deben',
-      'Total de las facturas de venta activas todavía sin cobrar. Debajo, cuánto de los impuestos de esas facturas se adelanta a Hacienda en el próximo pago, antes de haber cobrado el dinero.') +
+      'Lo que te deben y te deberán: las facturas de venta activas sin cobrar más los trabajos de Pendiente que aún no has facturado, estos con el IVA y el IRPF que llevarían en la factura. Debajo, "Ya facturado": solo la parte de facturas ya emitidas y sin cobrar.') +
     dashPuntoInfo('ti-chart-line', 'Gráfico de evolución',
       'Lo que te queda, acumulado mes a mes en los últimos 12 meses, con tres líneas: empresa, personal y total (empresa más personal). La inclinación dice cuándo sube más o menos; por debajo de cero es que has gastado más de lo que has ingresado. Al pulsar un mes sale el acumulado y lo de ese mes. El último tramo, punteado, es el mes en curso. Este gráfico no cambia con el selector de arriba.') +
     dashPuntoInfo('ti-chart-donut', 'Clientes y proveedores',
@@ -528,16 +546,16 @@ const DASH_TARJETAS_COLOR = {
   adelantar: { clase: 'ambar-fuerte',icono: 'ti-clock-dollar' }
 };
 
-function dashTarjeta(clave, titulo, valor, etiquetaTesoreria, valorTesoreria) {
+function dashTarjeta(clave, titulo, valor, etiquetaTesoreria, valorTesoreria, comoBoton) {
   const info = DASH_TARJETAS_COLOR[clave];
-  return '<div class="dash-tarjeta ' + info.clase + '">' +
+  return '<div class="dash-tarjeta ' + info.clase + (comoBoton ? ' dash-tarjeta-boton' : '') + '"' +
+    (comoBoton ? ' role="button" tabindex="0" data-ir-impuestos="1"' : '') + '>' +
     '<div class="dash-tarjeta-cabecera">' +
       '<span class="dash-tarjeta-titulo">' + escaparHtml(titulo) + '</span>' +
       '<i class="ti ' + info.icono + '"></i>' +
     '</div>' +
     '<p class="dash-tarjeta-valor">' + escaparHtml(dineroVisible(valor)) + '</p>' +
-    // Sin cifra pequeña (valorTesoreria null), la línea es solo texto:
-    // la usa "Próximo pago" para el plazo.
+    // Sin cifra pequeña (valorTesoreria null), la línea es solo texto.
     '<p class="dash-tarjeta-tesoreria">' +
       escaparHtml(etiquetaTesoreria) +
       (valorTesoreria === null ? '' : ' ' + escaparHtml(dineroVisible(valorTesoreria))) +
@@ -936,9 +954,18 @@ function dashRepintarTarjetas() {
     dashTarjeta('beneficio', 'Beneficio ' + anio, t.beneficio, 'Últimos 3 meses:', r.beneficio) +
     dashTarjeta('media',
       'Media mensual' + (media.meses > 0 && media.meses < 12 ? ' (' + media.meses + ' meses)' : ''),
-      media.beneficio, 'Últimos 3 meses, al mes:', media.reciente) +
-    dashTarjeta('impuestos', 'Próximo pago ' + imp.trimestre, imp.pendiente, imp.plazo, null) +
-    dashTarjeta('adelantar', 'Te deben', imp.teDeben, 'Adelanto ' + imp.trimestre + ':', imp.adelantas);
+      media.beneficio, 'Últimos 3 meses:', media.reciente) +
+    dashTarjeta('impuestos', 'Próximo pago ' + imp.trimestre, imp.pendiente, 'Adelanto ' + imp.trimestre + ':', imp.adelantas, true) +
+    dashTarjeta('adelantar', 'Te deben', imp.teDeben, 'Ya facturado:', imp.facturado);
+
+  // La tarjeta de Próximo pago lleva a Impuestos (también con teclado).
+  const boton = zona.querySelector('[data-ir-impuestos]');
+  if (boton) {
+    boton.addEventListener('click', dashIrAImpuestos);
+    boton.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); dashIrAImpuestos(); }
+    });
+  }
 }
 
 // ============================================================
