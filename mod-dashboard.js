@@ -1096,12 +1096,12 @@ function dashGraficoEvolucion() {
     }
   };
 
-  // Empresa y Personal con sus colores de siempre; Total en negro y más
+  // Empresa y Personal con sus colores de siempre; Total en el azul de la tarjeta Beneficio y más
   // gruesa, dibujada encima (order 0 se pinta la última).
   const LINEAS = [
     { clave: 'empresa',  etiqueta: 'Empresa',  color: DASH_COLORES_AMBITO.Empresa,  ancho: 2.5, orden: 1, punto: 3 },
     { clave: 'personal', etiqueta: 'Personal', color: DASH_COLORES_AMBITO.Personal, ancho: 2.5, orden: 1, punto: 3 },
-    { clave: 'total',    etiqueta: 'Total',    color: '#161615',                     ancho: 3.5, orden: 0, punto: 3.5 }
+    { clave: 'total',    etiqueta: 'Total',    color: '#2F6FB5',                     ancho: 3.5, orden: 0, punto: 3.5 }
   ];
 
   // Lo de ese mes, con signo ("+1.200,00 €"). Con el ojo cerrado no se

@@ -37,8 +37,8 @@ const MENU = [
 // Móvil: 4 accesos directos en la barra inferior + "Más" con el resto.
 // Panel "Más" (26/09/2026): baldosas grandes para las secciones de uso
 // normal y, debajo, una línea pequeña para Mis datos y Configuración.
-const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'facturas', 'contabilidad'];
-const MOVIL_MAS = ['pendiente', 'impuestos', 'clientes', 'plantillas'];
+const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'pendiente', 'facturas'];
+const MOVIL_MAS = ['contabilidad', 'impuestos', 'clientes', 'plantillas'];
 const MOVIL_MAS_PIE = ['misdatos', 'configuracion'];
 
 // ============================================================
