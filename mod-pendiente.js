@@ -98,6 +98,39 @@ function penEsFacturado(t) {
   return penActiva(f);
 }
 
+// ---- Enlace con presupuestos (octubre 2026) ----
+// Un trabajo puede venir de un presupuesto aceptado (columna id_presupuesto).
+// Vacío = trabajo apuntado a mano, como siempre.
+function penEsDePresupuesto(t) {
+  return !!t && String(t.id_presupuesto || '') !== '';
+}
+
+function penPresupuestoDe(t) {
+  if (!penEsDePresupuesto(t)) return null;
+  return estado.presupuestos.find(function (p) { return String(p.id) === String(t.id_presupuesto); }) || null;
+}
+
+// Trabajo pendiente (sin facturar) unido a este presupuesto, o null.
+function penPendienteDePresupuesto(idPresupuesto) {
+  return estado.pendiente.find(function (t) {
+    return String(t.id_presupuesto || '') === String(idPresupuesto) && !penEsFacturado(t);
+  }) || null;
+}
+
+// ¿Hay algún trabajo unido a este presupuesto que ya esté facturado?
+function penPresupuestoFacturado(idPresupuesto) {
+  return estado.pendiente.some(function (t) {
+    return String(t.id_presupuesto || '') === String(idPresupuesto) && penEsFacturado(t);
+  });
+}
+
+// Abre Pendiente con un cliente ya elegido.
+function penIrACliente(idCliente) {
+  penClienteSel = String(idCliente);
+  penDesmarcados = {};
+  cambiarVista('pendiente');
+}
+
 function penPendientesDe(idCliente) {
   return estado.pendiente.filter(function (t) {
     return String(t.id_cliente) === String(idCliente) && !penEsFacturado(t);
@@ -149,6 +182,37 @@ function penCondicionesDe(idCliente) {
     ivaPct: iva ? parsearNumero(iva.porcentaje) : 0,
     irpfPct: irpf ? parsearNumero(irpf.porcentaje) : 0,
     deUltima: deUltima
+  };
+}
+
+// IVA e IRPF al facturar unos trabajos. Si TODOS vienen de presupuestos y
+// esos presupuestos llevan el mismo IVA y el mismo IRPF, se usan los del
+// presupuesto. En cualquier otro caso, los de siempre (última factura del
+// cliente o primeros de la lista).
+function penCondiciones(idCliente, trabajos) {
+  const base = penCondicionesDe(idCliente);
+  const lista = trabajos || [];
+  if (!lista.length) return base;
+  const presupuestos = lista.map(function (t) { return penPresupuestoDe(t); });
+  if (presupuestos.some(function (p) { return !p; })) return base;
+
+  const iva0 = parsearNumero(presupuestos[0].iva_pct);
+  const irpf0 = parsearNumero(presupuestos[0].irpf_pct);
+  const iguales = presupuestos.every(function (p) {
+    return Math.abs(parsearNumero(p.iva_pct) - iva0) < 0.01 && Math.abs(parsearNumero(p.irpf_pct) - irpf0) < 0.01;
+  });
+  if (!iguales) return base;
+
+  const iva = preTiposIva().find(function (x) { return Math.abs(parsearNumero(x.porcentaje) - iva0) < 0.01; });
+  const irpf = preTiposIrpf().find(function (x) { return Math.abs(parsearNumero(x.porcentaje) - irpf0) < 0.01; });
+  if (!iva || !irpf) return base;
+  return {
+    iva: iva,
+    irpf: irpf,
+    ivaPct: parsearNumero(iva.porcentaje),
+    irpfPct: parsearNumero(irpf.porcentaje),
+    deUltima: false,
+    dePresupuesto: true
   };
 }
 
@@ -320,11 +384,12 @@ function penFila(t) {
   const c = penClienteDe(t.id_cliente);
   const facturado = penEsFacturado(t);
   const fecha = penFechaApuntado(t);
+  const pres = penPresupuestoDe(t);
   return '<div class="fv-fila pen-fila' + (facturado ? ' pen-fila-facturada' : '') + '" data-id="' + escaparHtml(t.id) + '">' +
     htmlIconoContacto(c ? c.icono : '', 42) +
     '<div class="fv-info">' +
       '<p class="fv-nombre">' + escaparHtml(String(t.concepto || '—')) + '</p>' +
-      '<p class="fv-meta">' + escaparHtml(penNombreCliente(t.id_cliente)) + (fecha ? ' · ' + escaparHtml(fecha) : '') + '</p>' +
+      '<p class="fv-meta">' + escaparHtml(penNombreCliente(t.id_cliente)) + (fecha ? ' · ' + escaparHtml(fecha) : '') + (pres ? ' · ' + escaparHtml(pres.numero || '') : '') + '</p>' +
     '</div>' +
     '<div class="fv-derecha pen-derecha">' +
       '<span class="fv-total-fila">' + escaparHtml(dineroVisible(penImporte(t))) + '</span>' +
@@ -405,11 +470,12 @@ function pintarPanelCliente() {
     '<div class="pen-lista pen-lista-marcar">' +
       todos.map(function (t) {
         const marcado = !penDesmarcados[t.id];
+        const pres = penPresupuestoDe(t);
         return '<div class="pen-fila-marcar' + (marcado ? '' : ' pen-sin-marcar') + '" data-id="' + escaparHtml(t.id) + '">' +
           '<label class="pen-marcar-zona">' +
             '<input type="checkbox" class="pen-casilla" data-marcar="' + escaparHtml(t.id) + '"' + (marcado ? ' checked' : '') + '>' +
             '<span class="fv-info"><span class="fv-nombre pen-concepto">' + escaparHtml(String(t.concepto || '—')) + '</span>' +
-              '<span class="fv-meta pen-sub">Apuntado el ' + escaparHtml(penFechaApuntado(t) || '—') + '</span></span>' +
+              '<span class="fv-meta pen-sub">Apuntado el ' + escaparHtml(penFechaApuntado(t) || '—') + (pres ? ' · ' + escaparHtml(pres.numero || '') : '') + '</span></span>' +
             // Dentro de un cliente las cifras se ven siempre, aunque el ojo esté cerrado:
             // abrir el cliente es dar permiso, como al abrir una ficha (octubre 2026).
             '<span class="fv-total-fila">' + escaparHtml(formatMoney(penImporte(t))) + '</span>' +
@@ -459,7 +525,7 @@ function penActualizarResumen() {
   const todos = penPendientesDe(penClienteSel);
   const marcados = penMarcadosDe(penClienteSel);
   const suma = roundMoney(marcados.reduce(function (n, t) { return n + penImporte(t); }, 0));
-  const cond = penCondicionesDe(penClienteSel);
+  const cond = penCondiciones(penClienteSel, marcados);
   const r = penCalcularFactura(suma, cond);
 
   resumen.innerHTML =
@@ -470,7 +536,7 @@ function penActualizarResumen() {
     '<div class="pen-resumen-lin"><span>Subtotal</span><span>' + escaparHtml(formatMoney(suma)) + '</span></div>' +
     '<div class="pen-resumen-total"><span>Factura</span><strong>' + escaparHtml(formatMoney(r.total)) + '</strong></div>' +
     '<p class="pen-resumen-nota">IVA ' + cond.ivaPct + ' % · IRPF ' + cond.irpfPct + ' %' +
-      (cond.deUltima ? ' (de su última factura)' : '') + '</p>';
+      (cond.dePresupuesto ? ' (del presupuesto)' : (cond.deUltima ? ' (de su última factura)' : '')) + '</p>';
 
   const facturable = penClienteFacturable(penClienteDe(penClienteSel));
   boton.textContent = marcados.length === 0
@@ -496,8 +562,19 @@ function penFacturar(idCliente) {
     return;
   }
 
+  // Un solo trabajo unido a un presupuesto: es un acceso directo al
+  // presupuesto, que se factura tal cual (concepto, descripción, importe,
+  // IVA e IRPF). El trabajo queda unido a la factura al guardarla.
+  if (marcados.length === 1 && penEsDePresupuesto(marcados[0])) {
+    const pres = penPresupuestoDe(marcados[0]);
+    if (pres && typeof convertirPresupuestoEnFactura === 'function') {
+      convertirPresupuestoEnFactura(pres.id);
+      return;
+    }
+  }
+
   const suma = roundMoney(marcados.reduce(function (n, t) { return n + penImporte(t); }, 0));
-  const cond = penCondicionesDe(idCliente);
+  const cond = penCondiciones(idCliente, marcados);
 
   // El concepto se escribe al facturar; la descripción lleva un trabajo
   // por línea, sin guion, en el orden en que se apuntaron.
@@ -552,8 +629,10 @@ function penAbrirMenuMas(boton, id) {
       ? (factura
           ? '<button type="button" data-accion="ver">Ver factura</button>'
           : '<button type="button" disabled>Factura archivada</button>')
-      : '<button type="button" data-accion="editar">Editar</button>' +
-        '<button type="button" class="peligro" data-accion="eliminar">Eliminar</button>');
+      : (penEsDePresupuesto(t) ? '' : '<button type="button" data-accion="editar">Editar</button>') +
+        '<button type="button" class="peligro" data-accion="eliminar">' +
+          (penEsDePresupuesto(t) ? 'Quitar de Pendiente' : 'Eliminar') + '</button>') +
+    (penPresupuestoDe(t) ? '<button type="button" data-accion="verpresupuesto">Ver presupuesto</button>' : '');
 
   document.body.appendChild(menu);
   fvPosicionarMenu(menu, boton);
@@ -570,6 +649,7 @@ function penAbrirMenuMas(boton, id) {
   };
   accion('reintentar', function () { reintentarRegistro(PEN_ENTIDAD, id, penRepintar); });
   accion('ver', function () { abrirFichaFacturaVenta(t.id_factura); });
+  accion('verpresupuesto', function () { abrirFichaPresupuesto(t.id_presupuesto); });
   accion('editar', function () { penAbrirFormulario(id, ''); });
   accion('eliminar', function () { penEliminar(id); });
 
@@ -583,7 +663,10 @@ function penEliminar(id) {
     alert('Este trabajo ya está facturado y no se puede borrar.');
     return;
   }
-  if (!confirm('¿Eliminar el trabajo «' + String(t.concepto || '') + '»?')) return;
+  const mensaje = penEsDePresupuesto(t)
+    ? '¿Quitar «' + String(t.concepto || '') + '» de Pendiente? El presupuesto sigue aceptado y podrás volver a pasarlo a Pendiente.'
+    : '¿Eliminar el trabajo «' + String(t.concepto || '') + '»?';
+  if (!confirm(mensaje)) return;
   borrarRegistro(PEN_ENTIDAD, id, penRepintar, null);
 }
 
@@ -719,14 +802,14 @@ function penGuardarFormulario(fondo, original, extra) {
 
   // Un trabajo nuevo, o editado, queda pendiente y sin factura: si
   // pertenecía a una factura desactivada, deja de estar unido a ella.
-  const registro = {
+  const registro = Object.assign({}, original || {}, {
     id: original ? original.id : penNuevoId(),
     id_cliente: cliente.id,
     concepto: concepto,
     importe: importe,
     id_factura: '',
     factura: ''
-  };
+  });
 
   fondo.remove();
   guardarRegistro(PEN_ENTIDAD, registro, penRepintar, null);
@@ -748,6 +831,77 @@ function penGuardarFormulario(fondo, original, extra) {
       cambiarVista('pendiente');
     });
   }
+}
+
+// ============================================================
+// 5 bis. DESDE UN PRESUPUESTO ACEPTADO (octubre 2026)
+// ============================================================
+// "Pasar a Pendiente": el trabajo está hecho y queda por facturar. Se
+// apunta un trabajo con la BASE del presupuesto (ya lleva el ajuste de
+// cliente, la compensación y el descuento) y unido a él por id_presupuesto.
+// El presupuesto sigue aceptado y bloqueado. Facturar el trabajo solo es
+// facturar el presupuesto (penFacturar); junto a otros, solo cuenta su
+// concepto e importe.
+
+async function penPasarPresupuesto(idPresupuesto) {
+  const p = estado.presupuestos.find(function (x) { return String(x.id) === String(idPresupuesto); });
+  if (!p) { alert('Este presupuesto ya no existe.'); return; }
+  if (String(p.estado) !== 'aceptado') {
+    alert('El presupuesto debe estar aceptado para pasarlo a Pendiente.');
+    return;
+  }
+  if (typeof preTieneFactura === 'function' && preTieneFactura(p.id)) {
+    alert('Este presupuesto ya tiene una factura asociada.');
+    return;
+  }
+  if (penPendienteDePresupuesto(p.id)) {
+    alert('Este presupuesto ya está en Pendiente.');
+    return;
+  }
+
+  // Presupuesto a nombre de alguien sin ficha: primero hay que registrarlo.
+  if (!p.id_cliente) {
+    if (typeof fvRegistrarClienteDePresupuesto === 'function') {
+      fvRegistrarClienteDePresupuesto(p, function () { penPasarPresupuesto(p.id); });
+    }
+    return;
+  }
+  const cli = penClienteDe(p.id_cliente);
+  if (!penClienteFacturable(cli)) {
+    alert('El cliente de este presupuesto no está activo como cliente. Reactívalo en Clientes para pasarlo a Pendiente.');
+    return;
+  }
+  const importe = roundMoney(parsearNumero(p.base));
+  if (!(importe > 0)) {
+    alert('Este presupuesto no tiene importe. No se puede pasar a Pendiente.');
+    return;
+  }
+  if (!puedeEscribir()) return;
+
+  const registro = {
+    id: penNuevoId(),
+    id_cliente: cli.id,
+    concepto: String(p.concepto || '').trim() || ('Presupuesto ' + String(p.numero || '')),
+    importe: importe,
+    id_factura: '',
+    factura: '',
+    id_presupuesto: String(p.id),
+    tipo: 'factura',
+    ambito: 'empresa',
+    id_apunte: '',
+    contacto_libre: ''
+  };
+  guardarRegistro(PEN_ENTIDAD, registro, penRepintar, null);
+
+  const eleccion = await mostrarDialogoOpciones(
+    'Trabajo en Pendiente',
+    'El presupuesto ' + String(p.numero || '') + ' queda en Pendiente para ' + penNombreCliente(cli.id) + ', listo para facturar.',
+    [
+      { id: 'ver', texto: 'Ver en Pendiente', tipo: 'principal' },
+      { id: 'seguir', texto: 'Seguir aquí' }
+    ]
+  );
+  if (eleccion === 'ver') penIrACliente(cli.id);
 }
 
 // ============================================================

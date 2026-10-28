@@ -203,9 +203,17 @@ function preSiguienteNumero() {
 }
 
 function preTieneFactura(idPresupuesto) {
-  return estado.ventas.some(function (v) {
+  const directa = estado.ventas.some(function (v) {
     return String(v.id_presupuesto || '') === String(idPresupuesto);
   });
+  if (directa) return true;
+  // Facturado desde Pendiente, junto a otros trabajos (octubre 2026).
+  return typeof penPresupuestoFacturado === 'function' && penPresupuestoFacturado(idPresupuesto);
+}
+
+// ¿El trabajo está hecho y esperando factura en Pendiente?
+function preEnPendiente(idPresupuesto) {
+  return typeof penPendienteDePresupuesto === 'function' && !!penPendienteDePresupuesto(idPresupuesto);
 }
 
 function preBloqueado(p) {
@@ -657,6 +665,7 @@ function preAbrirMenuMas(boton, id) {
 
   const tieneFactura = preTieneFactura(id);
   const puedeFacturar = String(p.estado) === 'aceptado' && !tieneFactura;
+  const enPendiente = preEnPendiente(id);
 
   const menu = document.createElement('div');
   menu.className = 'pre-menu-mas';
@@ -671,6 +680,9 @@ function preAbrirMenuMas(boton, id) {
     '<button type="button" data-accion="pdf">Generar PDF</button>' +
     '<button type="button" data-accion="drive">Abrir en Drive</button>' +
     '<button type="button" data-accion="factura"' + (puedeFacturar ? '' : ' disabled') + '>Convertir en factura</button>' +
+    (enPendiente
+      ? '<button type="button" data-accion="verpendiente">Ver en Pendiente</button>'
+      : '<button type="button" data-accion="pendiente"' + (puedeFacturar ? '' : ' disabled') + '>Pasar a Pendiente</button>') +
     (tieneFactura ? '' : '<button type="button" class="peligro" data-accion="eliminar">Eliminar</button>');
 
   document.body.appendChild(menu);
@@ -693,6 +705,12 @@ function preAbrirMenuMas(boton, id) {
     cerrarMenu();
     convertirPresupuestoEnFactura(id);
   });
+  menu.querySelector('[data-accion="pendiente"]')?.addEventListener('click', function () { cerrarMenu(); penPasarPresupuesto(id); });
+  menu.querySelector('[data-accion="verpendiente"]')?.addEventListener('click', function () {
+    cerrarMenu();
+    const t = penPendienteDePresupuesto(id);
+    if (t) penIrACliente(t.id_cliente);
+  });
   menu.querySelector('[data-accion="eliminar"]')?.addEventListener('click', function () { cerrarMenu(); preEliminar(id); });
 
   setTimeout(function () { document.addEventListener('click', cerrarSiFuera); }, 0);
@@ -714,6 +732,10 @@ async function preCambiarEstado(id) {
 
   if (preTieneFactura(id)) {
     alert('Este presupuesto ya tiene una factura asociada. No se puede cambiar de estado.');
+    return;
+  }
+  if (preEnPendiente(id)) {
+    alert('Este presupuesto está en Pendiente. Quítalo de Pendiente antes de cambiar su estado.');
     return;
   }
   // Aceptado y sin factura: solo se ofrece volver a pendiente, y es una
@@ -788,6 +810,10 @@ async function preEliminar(id) {
     alert('Este presupuesto tiene una factura asociada. No se puede eliminar.');
     return;
   }
+  if (preEnPendiente(id)) {
+    alert('Este presupuesto está en Pendiente. Quítalo de Pendiente antes de eliminarlo.');
+    return;
+  }
   if (!confirm('Eliminar el presupuesto ' + (p.numero || '') + '? Esto no se puede deshacer.')) return;
 
   // Acción delicada: pide el PIN cada vez (decisión 15/09/2026).
@@ -812,6 +838,8 @@ function abrirFichaPresupuesto(id) {
 
   const detalle = preDetalleDe(id);
   const bloqueado = preBloqueado(p);
+  const puedeAvanzar = String(p.estado) === 'aceptado' && !preTieneFactura(id);
+  const enPendiente = preEnPendiente(id);
 
   const fondo = document.createElement('div');
   fondo.className = 'pre-modal-fondo';
@@ -831,6 +859,7 @@ function abrirFichaPresupuesto(id) {
         '<div class="pre-ficha-dato"><span>Cliente</span><span>' + escaparHtml(p.cliente || '—') + (p.cliente && !p.id_cliente ? ' (sin registrar)' : '') + '</span></div>' +
         '<div class="pre-ficha-dato"><span>NIF</span><span>' + escaparHtml(p.nif || '—') + '</span></div>' +
         '<div class="pre-ficha-dato"><span>Fecha</span><span>' + escaparHtml(mostrarFecha(p.fecha)) + '</span></div>' +
+        (enPendiente ? '<div class="pre-ficha-dato"><span>Pendiente</span><span>Trabajo hecho, por facturar</span></div>' : '') +
         '<div class="pre-ficha-dato"><span>Concepto</span><span>' + escaparHtml(p.concepto || '—') + '</span></div>' +
         (p.descripcion
           ? '<div class="pre-ficha-dato"><span>Descripción</span><span style="white-space:pre-line">' + escaparHtml(p.descripcion) + '</span></div>'
@@ -846,6 +875,11 @@ function abrirFichaPresupuesto(id) {
       '<div class="pre-modal-pie">' +
         (bloqueado ? '' : '<button type="button" class="boton-secundario" id="pre-ficha-editar">Editar</button>') +
         '<button type="button" class="boton-principal" id="pre-ficha-pdf">PDF</button>' +
+        (puedeAvanzar
+          ? '<button type="button" class="boton-secundario" id="pre-ficha-factura" aria-label="Convertir en factura" title="Convertir en factura"></button>' +
+            '<button type="button" class="boton-secundario' + (enPendiente ? ' pre-en-pendiente' : '') + '" id="pre-ficha-pendiente" aria-label="' +
+              (enPendiente ? 'Ver en Pendiente' : 'Pasar a Pendiente') + '" title="' + (enPendiente ? 'Ya está en Pendiente: ver' : 'Pasar a Pendiente (trabajo hecho, por facturar)') + '"></button>'
+          : '') +
       '</div>' +
     '</div>';
 
@@ -866,6 +900,19 @@ function abrirFichaPresupuesto(id) {
   fondo.querySelector('#pre-ficha-editar')?.addEventListener('click', function () {
     cerrar();
     preAbrirEdicion(id);
+  });
+  fondo.querySelector('#pre-ficha-factura')?.addEventListener('click', function () {
+    cerrar();
+    convertirPresupuestoEnFactura(id);
+  });
+  fondo.querySelector('#pre-ficha-pendiente')?.addEventListener('click', function () {
+    cerrar();
+    if (enPendiente) {
+      const t = penPendienteDePresupuesto(id);
+      if (t) penIrACliente(t.id_cliente);
+    } else {
+      penPasarPresupuesto(id);
+    }
   });
   fondo.querySelector('#pre-ficha-calculadora')?.addEventListener('click', function () {
     cerrar();

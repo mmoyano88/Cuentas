@@ -518,6 +518,9 @@ button:active:not(:disabled) {
 [class$="-menu-mas"] button[data-accion="convertir"]::before   { content: '\eb67'; } /* a factura */
 [class$="-menu-mas"] button[data-accion="usar"]::before        { content: '\eaa0'; } /* crear desde plantilla */
 [class$="-menu-mas"] button[data-accion="verfactura"]::before  { content: '\fd68'; } /* ver factura */
+[class$="-menu-mas"] button[data-accion="pendiente"]::before,
+[class$="-menu-mas"] button[data-accion="verpendiente"]::before { content: '\fa09'; } /* pendiente */
+[class$="-menu-mas"] button[data-accion="verpresupuesto"]::before { content: '\eaa2'; } /* ver presupuesto */
 [class$="-menu-mas"] button[data-accion="verimpuesto"]::before { content: '\ebe2'; } /* ver impuesto */
 
 /* ============================================================
@@ -547,6 +550,29 @@ button:active:not(:disabled) {
   font-size: 20px;
   line-height: 1;
 }
+
+/* Presupuesto aceptado (octubre 2026): junto al PDF, dos botones circulares
+   pequeños: convertir en factura y pasar a Pendiente (trabajo hecho). */
+#pre-ficha-factura, #pre-ficha-pendiente {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  min-height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#pre-ficha-factura::before, #pre-ficha-pendiente::before {
+  font-family: 'tabler-icons';
+  font-size: 20px;
+  line-height: 1;
+}
+#pre-ficha-factura::before { content: '\fd68'; }     /* factura */
+#pre-ficha-pendiente::before { content: '\fa09'; }   /* pendiente */
+#pre-ficha-pendiente.pre-en-pendiente { border-color: #3E9E4E; color: #3E9E4E; }
 
 /* Iconos en el pie SOLO donde explican algo (28/09/2026): "Ver" lleva el
    icono de la sección a la que lleva (el mismo del menú) y "Pagada" el

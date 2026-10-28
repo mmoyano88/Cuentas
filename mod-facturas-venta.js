@@ -1347,7 +1347,9 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
     alert('El presupuesto debe estar aceptado para poder convertirlo en factura.');
     return;
   }
-  const yaTieneFactura = estado.ventas.some(function (f) { return String(f.id_presupuesto || '') === String(idPresupuesto); });
+  const yaTieneFactura = (typeof preTieneFactura === 'function')
+    ? preTieneFactura(idPresupuesto)
+    : estado.ventas.some(function (f) { return String(f.id_presupuesto || '') === String(idPresupuesto); });
   if (yaTieneFactura) {
     alert('Este presupuesto ya tiene una factura asociada.');
     return;
@@ -1394,8 +1396,13 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
     return encontrado ? encontrado.id : '';
   };
 
+  // Si el presupuesto está en Pendiente (trabajo hecho), ese trabajo queda
+  // unido a la factura al guardarla (octubre 2026).
+  const trabajoPendiente = (typeof penPendienteDePresupuesto === 'function') ? penPendienteDePresupuesto(p.id) : null;
+
   abrirFormularioFacturaVenta(null, {
     id_presupuesto: p.id,
+    trabajos_ids: trabajoPendiente ? [trabajoPendiente.id] : undefined,
     id_cliente: p.id_cliente,
     concepto: p.concepto || '',
     descripcion: p.descripcion || '',
@@ -1409,7 +1416,7 @@ function convertirPresupuestoEnFactura(idPresupuesto) {
 // al cliente (el formulario arranca con el nombre ya escrito y el rol
 // fijado), se enlaza el presupuesto con esa ficha y se sigue con la
 // conversión de siempre. Si se cancela en cualquier punto, no cambia nada.
-async function fvRegistrarClienteDePresupuesto(p) {
+async function fvRegistrarClienteDePresupuesto(p, despues) {
   if (typeof abrirCreacionRapidaContacto !== 'function' || typeof preVincularCliente !== 'function') {
     alert('El módulo de Clientes no está disponible.');
     return;
@@ -1438,7 +1445,8 @@ async function fvRegistrarClienteDePresupuesto(p) {
     if (!preVincularCliente(p.id, contacto)) return;
     const actual = estado.presupuestos.find(function (x) { return String(x.id) === String(p.id); });
     if (!actual || String(actual.id_cliente) !== String(contacto.id)) return;
-    convertirPresupuestoEnFactura(p.id);
+    if (typeof despues === 'function') despues();
+    else convertirPresupuestoEnFactura(p.id);
   }, { nombre_contacto: nombre, nombre_fiscal: nombre });
 }
 
