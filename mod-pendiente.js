@@ -8,7 +8,20 @@
  * importes se suman.
  *
  * Hoja `pendiente` (una fila por trabajo):
- *   id | id_cliente | concepto | importe | id_factura | factura
+ *   id | id_cliente | concepto | importe | id_factura | factura |
+ *   id_presupuesto | tipo | ambito | id_apunte | contacto_libre
+ *
+ * DOS ÁMBITOS (selector Empresa / Personal):
+ *  - EMPRESA (ambito vacío o 'empresa', tipo 'factura'): trabajos por
+ *    facturar, como siempre. Pueden venir de un presupuesto aceptado
+ *    (id_presupuesto).
+ *  - PERSONAL (ambito 'personal', tipo 'cobro'): cobros SIN factura, sin
+ *    IVA ni IRPF. El pagador es un contacto registrado (id_cliente) o un
+ *    nombre escrito a mano (contacto_libre). Al marcarlos como cobrados
+ *    se crea un apunte de Contabilidad (ingreso personal, fecha de hoy) y
+ *    el cobro guarda su id en id_apunte. Un cobro está COBRADO mientras
+ *    ese apunte exista: si se borra desde Contabilidad, vuelve a
+ *    pendiente.
  *
  * REGLAS DEL MÓDULO
  *  - Sin fecha editable ni descuento por trabajo: si hace falta una
@@ -38,6 +51,7 @@ let penClienteSel = '';        // id del cliente elegido en la fila de arriba ('
 let penDesmarcados = {};       // ids de trabajos desmarcados del cliente elegido (por defecto, todos marcados)
 let penFiltroEstado = 'pendiente';   // 'pendiente' | 'facturado' | 'todos'
 let penBusqueda = '';
+let penAmbito = 'empresa';      // 'empresa' | 'personal'
 
 // ============================================================
 // 1. UTILIDADES
@@ -98,6 +112,74 @@ function penEsFacturado(t) {
   return penActiva(f);
 }
 
+// ---- Cobros personales (octubre 2026) ----
+function penEsPersonal(t) {
+  return !!t && String(t.ambito || '') === 'personal';
+}
+
+function penApunteDe(t) {
+  if (!t || !t.id_apunte) return null;
+  return estado.apuntes.find(function (a) { return String(a.id) === String(t.id_apunte); }) || null;
+}
+
+// Cobrado = su apunte existe. Si el apunte se borra desde Contabilidad,
+// el cobro vuelve a pendiente. Excepción: un cobro de hace más de 5 años
+// cuyo apunte ya no está se da por cobrado (el apunte pudo archivarse).
+function penEsCobrado(t) {
+  if (!penEsPersonal(t) || !t.id_apunte) return false;
+  if (penApunteDe(t)) return true;
+  const ms = penCreado(t);
+  return !!ms && new Date(ms).getFullYear() < new Date().getFullYear() - 5;
+}
+
+// Terminado: facturado (empresa) o cobrado (personal).
+function penHecho(t) {
+  return penEsPersonal(t) ? penEsCobrado(t) : penEsFacturado(t);
+}
+
+function penDelAmbito(t, ambito) {
+  return penEsPersonal(t) === ((ambito || penAmbito) === 'personal');
+}
+
+// Los trabajos se agrupan por cliente; un cobro personal sin contacto
+// registrado se agrupa por el nombre escrito ('libre:<nombre>').
+function penClave(t) {
+  const id = String(t.id_cliente == null ? '' : t.id_cliente);
+  if (id !== '') return id;
+  return 'libre:' + normalizarBusqueda(String(t.contacto_libre || '').trim());
+}
+
+function penNombreDe(t) {
+  const id = String(t.id_cliente == null ? '' : t.id_cliente);
+  if (id !== '') return penNombreCliente(id);
+  return String(t.contacto_libre || '').trim() || '—';
+}
+
+function penNombreClave(clave) {
+  if (String(clave).indexOf('libre:') === 0) {
+    const t = estado.pendiente.find(function (x) { return penClave(x) === String(clave); });
+    return t ? penNombreDe(t) : '—';
+  }
+  return penNombreCliente(clave);
+}
+
+function penClienteDeClave(clave) {
+  return String(clave).indexOf('libre:') === 0 ? null : penClienteDe(clave);
+}
+
+function penNuevoIdApunte() {
+  return 'apu-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e9).toString(36);
+}
+
+// Contactos activos de cualquier rol: quien te debe un cobro personal
+// puede ser un cliente, un proveedor o ambos.
+function penContactosActivos() {
+  return estado.clientes.filter(function (c) { return c.estado === 'activo'; })
+    .sort(function (a, b) {
+      return String(a.nombre_contacto || '').localeCompare(String(b.nombre_contacto || ''), 'es');
+    });
+}
+
 // ---- Enlace con presupuestos (octubre 2026) ----
 // Un trabajo puede venir de un presupuesto aceptado (columna id_presupuesto).
 // Vacío = trabajo apuntado a mano, como siempre.
@@ -126,23 +208,25 @@ function penPresupuestoFacturado(idPresupuesto) {
 
 // Abre Pendiente con un cliente ya elegido.
 function penIrACliente(idCliente) {
+  penAmbito = 'empresa';
   penClienteSel = String(idCliente);
   penDesmarcados = {};
   cambiarVista('pendiente');
 }
 
-function penPendientesDe(idCliente) {
+function penPendientesDe(clave) {
   return estado.pendiente.filter(function (t) {
-    return String(t.id_cliente) === String(idCliente) && !penEsFacturado(t);
+    return penClave(t) === String(clave) && penDelAmbito(t) && !penHecho(t);
   }).sort(function (a, b) { return penCreado(a) - penCreado(b); });
 }
 
 // Clientes con al menos un trabajo pendiente, el último apuntado primero.
-function penClientesConPendientes() {
+function penClientesConPendientes(ambito) {
+  const amb = ambito || 'empresa';
   const por = {};
   estado.pendiente.forEach(function (t) {
-    if (penEsFacturado(t)) return;
-    const k = String(t.id_cliente);
+    if (!penDelAmbito(t, amb) || penHecho(t)) return;
+    const k = penClave(t);
     if (!por[k]) por[k] = { id: k, ultimo: 0, n: 0, total: 0 };
     por[k].n += 1;
     por[k].total = roundMoney(por[k].total + penImporte(t));
@@ -243,37 +327,67 @@ function penRepintar() {
 // 2. PINTADO PRINCIPAL
 // ============================================================
 
+function penTituloBloque() {
+  return penAmbito === 'personal' ? 'Quién te debe (sin factura)' : 'Clientes con trabajos por facturar';
+}
+
 function pintarPendiente() {
   const contenido = document.getElementById('contenido');
   if (!contenido) return;
 
-  // Si el cliente elegido ya no tiene pendientes (se facturaron o se
-  // borraron), se deja de tenerlo elegido.
+  // Si el elegido ya no tiene pendientes en este ámbito, se mira el otro
+  // (por ejemplo, al llegar desde el Inicio). Si tampoco, se deja de
+  // tenerlo elegido (se facturó, se cobró o se borró).
   if (penClienteSel && penPendientesDe(penClienteSel).length === 0) {
-    penClienteSel = '';
-    penDesmarcados = {};
+    const previo = penAmbito;
+    penAmbito = (penAmbito === 'empresa') ? 'personal' : 'empresa';
+    if (penPendientesDe(penClienteSel).length === 0) {
+      penAmbito = previo;
+      penClienteSel = '';
+      penDesmarcados = {};
+    }
   }
 
-  const clientes = penClientesConPendientes();
+  const personal = penAmbito === 'personal';
+  const clientes = penClientesConPendientes(penAmbito);
 
   contenido.innerHTML =
+    '<div class="fv-cabecera-lista">' +
+      '<div class="fv-selector" id="pen-selector">' +
+        '<button type="button" data-ambito="empresa">Empresa</button>' +
+        '<button type="button" data-ambito="personal">Personal</button>' +
+      '</div>' +
+      '<button type="button" class="fv-flotante" id="pen-btn-nuevo" aria-label="' + (personal ? 'Apuntar un cobro' : 'Apuntar un trabajo') + '"><i class="ti ti-plus"></i></button>' +
+    '</div>' +
     '<div class="pen-fila-titulo">' +
-      '<p class="pen-bloque-titulo">Clientes con trabajos por facturar</p>' +
-      '<button type="button" class="fv-flotante" id="pen-btn-nuevo" aria-label="Apuntar un trabajo"><i class="ti ti-plus"></i></button>' +
+      '<p class="pen-bloque-titulo">' + escaparHtml(penTituloBloque()) + '</p>' +
     '</div>' +
     (clientes.length === 0
-      ? '<p class="pen-sin-clientes">No hay trabajos pendientes de facturar.</p>'
+      ? '<p class="pen-sin-clientes">' + (personal ? 'No hay cobros personales pendientes.' : 'No hay trabajos pendientes de facturar.') + '</p>'
       : '<div class="pen-clientes" id="pen-clientes">' +
           clientes.map(function (c) {
-            const cli = penClienteDe(c.id);
-            const inactivo = !penClienteFacturable(cli);
+            const cli = penClienteDeClave(c.id);
+            const inactivo = !personal && !penClienteFacturable(cli);
             return '<button type="button" class="pen-cliente' + (String(c.id) === String(penClienteSel) ? ' activa' : '') + (inactivo ? ' inactivo' : '') + '" data-cliente="' + escaparHtml(c.id) + '">' +
               '<span class="pen-cliente-icono">' + htmlIconoContacto(cli ? cli.icono : '', 56) + '</span>' +
-              '<span class="pen-cliente-nombre">' + escaparHtml(penNombreCliente(c.id)) + '</span>' +
+              '<span class="pen-cliente-nombre">' + escaparHtml(penNombreClave(c.id)) + '</span>' +
             '</button>';
           }).join('') +
         '</div>') +
     '<div id="pen-zona"></div>';
+
+  document.getElementById('pen-selector').querySelectorAll('[data-ambito]').forEach(function (b) {
+    b.classList.toggle('activa', b.dataset.ambito === penAmbito);
+    b.addEventListener('click', function () {
+      if (b.dataset.ambito === penAmbito) return;
+      penAmbito = b.dataset.ambito;
+      penClienteSel = '';
+      penDesmarcados = {};
+      penFiltroEstado = 'pendiente';
+      penBusqueda = '';
+      pintarPendiente();
+    });
+  });
 
   document.getElementById('pen-btn-nuevo').addEventListener('click', function () {
     penAbrirFormulario(null, penClienteSel);
@@ -313,7 +427,7 @@ function pintarListaGeneral() {
 }
 
 function penPanelFiltros() {
-  const estados = [['pendiente', 'Pendientes'], ['facturado', 'Facturados'], ['todos', 'Todos']];
+  const estados = [['pendiente', 'Pendientes'], ['facturado', penAmbito === 'personal' ? 'Cobrados' : 'Facturados'], ['todos', 'Todos']];
   return '<div class="fv-filtros-panel" id="pen-filtros-panel">' +
     '<p class="fv-filtros-titulo">Estado</p>' +
     estados.map(function (op) {
@@ -357,7 +471,7 @@ function penCablearBarra() {
 function penTextoBusqueda(t) {
   const c = penClienteDe(t.id_cliente);
   return normalizarBusqueda([
-    t.concepto, c ? c.nombre_contacto : '', c ? c.nombre_fiscal : '', t.factura,
+    t.concepto, c ? c.nombre_contacto : '', c ? c.nombre_fiscal : '', t.contacto_libre, t.factura,
     formatMoney(penImporte(t)), penFechaApuntado(t)
   ].filter(Boolean).join(' '));
 }
@@ -365,16 +479,18 @@ function penTextoBusqueda(t) {
 function penListaFiltrada() {
   const texto = normalizarBusqueda(penBusqueda);
   return estado.pendiente.filter(function (t) {
-    const facturado = penEsFacturado(t);
-    if (penFiltroEstado === 'pendiente' && facturado) return false;
-    if (penFiltroEstado === 'facturado' && !facturado) return false;
+    if (!penDelAmbito(t)) return false;
+    const hecho = penHecho(t);
+    if (penFiltroEstado === 'pendiente' && hecho) return false;
+    if (penFiltroEstado === 'facturado' && !hecho) return false;
     if (texto && penTextoBusqueda(t).indexOf(texto) === -1) return false;
     return true;
   }).sort(function (a, b) { return penCreado(b) - penCreado(a); });
 }
 
 function penPastilla(t) {
-  if (!penEsFacturado(t)) return '<span class="pastilla ind-ambar">Pendiente</span>';
+  if (!penHecho(t)) return '<span class="pastilla ind-ambar">Pendiente</span>';
+  if (penEsPersonal(t)) return '<span class="pastilla ind-verde">Cobrado</span>';
   const f = penFacturaDe(t);
   const numero = String((f && f.numero) || t.factura || 'Facturado');
   return '<span class="pastilla ind-verde">' + escaparHtml(numero) + '</span>';
@@ -382,14 +498,14 @@ function penPastilla(t) {
 
 function penFila(t) {
   const c = penClienteDe(t.id_cliente);
-  const facturado = penEsFacturado(t);
+  const hecho = penHecho(t);
   const fecha = penFechaApuntado(t);
   const pres = penPresupuestoDe(t);
-  return '<div class="fv-fila pen-fila' + (facturado ? ' pen-fila-facturada' : '') + '" data-id="' + escaparHtml(t.id) + '">' +
+  return '<div class="fv-fila pen-fila' + (hecho ? ' pen-fila-facturada' : '') + '" data-id="' + escaparHtml(t.id) + '">' +
     htmlIconoContacto(c ? c.icono : '', 42) +
     '<div class="fv-info">' +
       '<p class="fv-nombre">' + escaparHtml(String(t.concepto || '—')) + '</p>' +
-      '<p class="fv-meta">' + escaparHtml(penNombreCliente(t.id_cliente)) + (fecha ? ' · ' + escaparHtml(fecha) : '') + (pres ? ' · ' + escaparHtml(pres.numero || '') : '') + '</p>' +
+      '<p class="fv-meta">' + escaparHtml(penNombreDe(t)) + (fecha ? ' · ' + escaparHtml(fecha) : '') + (pres ? ' · ' + escaparHtml(pres.numero || '') : '') + '</p>' +
     '</div>' +
     '<div class="fv-derecha pen-derecha">' +
       '<span class="fv-total-fila">' + escaparHtml(dineroVisible(penImporte(t))) + '</span>' +
@@ -406,14 +522,16 @@ function penRepintarLista() {
   const cont = document.getElementById('pen-lista');
   if (!cont) return;
   const lista = penListaFiltrada();
+  const personal = penAmbito === 'personal';
 
   if (lista.length === 0) {
+    const hayDelAmbito = estado.pendiente.some(function (t) { return penDelAmbito(t); });
     cont.innerHTML = '<p class="fv-vacio">' +
       (penBusqueda || penFiltroEstado !== 'pendiente'
         ? 'No hay resultados con estos filtros.'
-        : (estado.pendiente.length === 0
-          ? 'Todavía no hay trabajos apuntados. Pulsa + para apuntar el primero.'
-          : 'No hay trabajos pendientes de facturar.')) +
+        : (!hayDelAmbito
+          ? (personal ? 'Todavía no hay cobros apuntados. Pulsa + para apuntar el primero.' : 'Todavía no hay trabajos apuntados. Pulsa + para apuntar el primero.')
+          : (personal ? 'No hay cobros pendientes.' : 'No hay trabajos pendientes de facturar.'))) +
       '</p>';
     return;
   }
@@ -427,8 +545,14 @@ function penRepintarLista() {
     fila.addEventListener('click', function () {
       const t = estado.pendiente.find(function (x) { return String(x.id) === String(fila.dataset.id); });
       if (!t) return;
-      if (penEsFacturado(t)) { if (penFacturaDe(t)) abrirFichaFacturaVenta(t.id_factura); }
-      else penAbrirFormulario(t.id, '');
+      if (penHecho(t)) {
+        if (penEsPersonal(t)) { if (penApunteDe(t)) abrirFichaApunte(t.id_apunte); }
+        else if (penFacturaDe(t)) abrirFichaFacturaVenta(t.id_factura);
+      } else if (penEsDePresupuesto(t)) {
+        if (penPresupuestoDe(t)) abrirFichaPresupuesto(t.id_presupuesto);
+      } else {
+        penAbrirFormulario(t.id, '');
+      }
     });
   });
 }
@@ -440,22 +564,24 @@ function penRepintarLista() {
 // listas: es la vista previa de lo que se va a facturar, igual que las
 // fichas y los formularios ("si se abre algo, es para verlo").
 
-function penMarcadosDe(idCliente) {
-  return penPendientesDe(idCliente).filter(function (t) { return !penDesmarcados[t.id]; });
+function penMarcadosDe(clave) {
+  return penPendientesDe(clave).filter(function (t) { return !penDesmarcados[t.id]; });
 }
 
 function pintarPanelCliente() {
   const zona = document.getElementById('pen-zona');
   if (!zona) return;
+  const personal = penAmbito === 'personal';
   const todos = penPendientesDe(penClienteSel);
-  const cli = penClienteDe(penClienteSel);
-  const facturable = penClienteFacturable(cli);
+  const cli = penClienteDeClave(penClienteSel);
+  const facturable = personal ? true : penClienteFacturable(cli);
 
   // Estructura: en el móvil, todo en una columna (resumen, trabajos y
-  // botón Facturar, por ese orden). En PC, dos columnas: los trabajos a
-  // la izquierda y, a la derecha y fijos al bajar, el resumen y el botón.
+  // botón Facturar o Cobrado, por ese orden). En PC, dos columnas: los
+  // trabajos a la izquierda y, a la derecha y fijos al bajar, el resumen y
+  // el botón.
   zona.innerHTML =
-    '<button type="button" class="pen-volver" id="pen-volver"><i class="ti ti-arrow-left"></i> Todos los trabajos</button>' +
+    '<button type="button" class="pen-volver" id="pen-volver"><i class="ti ti-arrow-left"></i> ' + (personal ? 'Todos los cobros' : 'Todos los trabajos') + '</button>' +
     '<div class="pen-panel">' +
     '<div class="pen-lateral">' +
       '<div class="pen-resumen" id="pen-resumen"></div>' +
@@ -464,8 +590,8 @@ function pintarPanelCliente() {
     '</div>' +
     '<div class="pen-trabajos">' +
     '<div class="pen-fila-titulo pen-fila-titulo-lista">' +
-      '<p class="pen-bloque-titulo">Trabajos pendientes</p>' +
-      '<button type="button" class="boton-menor" id="pen-anadir">+ Añadir trabajo</button>' +
+      '<p class="pen-bloque-titulo">' + (personal ? 'Cobros pendientes' : 'Trabajos pendientes') + '</p>' +
+      '<button type="button" class="boton-menor" id="pen-anadir">' + (personal ? '+ Añadir cobro' : '+ Añadir trabajo') + '</button>' +
     '</div>' +
     '<div class="pen-lista pen-lista-marcar">' +
       todos.map(function (t) {
@@ -511,7 +637,8 @@ function pintarPanelCliente() {
     penAbrirFormulario(null, penClienteSel);
   });
   document.getElementById('pen-btn-facturar').addEventListener('click', function () {
-    penFacturar(penClienteSel);
+    if (personal) penCobrar(penMarcadosDe(penClienteSel));
+    else penFacturar(penClienteSel);
   });
 
   penActualizarResumen();
@@ -522,17 +649,32 @@ function penActualizarResumen() {
   const boton = document.getElementById('pen-btn-facturar');
   if (!resumen || !boton || !penClienteSel) return;
 
+  const personal = penAmbito === 'personal';
   const todos = penPendientesDe(penClienteSel);
   const marcados = penMarcadosDe(penClienteSel);
   const suma = roundMoney(marcados.reduce(function (n, t) { return n + penImporte(t); }, 0));
+
+  const cabecera =
+    '<div class="pen-resumen-cab">' +
+      '<span class="pen-resumen-cliente">' + escaparHtml(penNombreClave(penClienteSel)) + '</span>' +
+      '<span class="pen-resumen-marcados">' + marcados.length + ' de ' + todos.length + ' marcados</span>' +
+    '</div>';
+
+  if (personal) {
+    resumen.innerHTML = cabecera +
+      '<div class="pen-resumen-total"><span>Total a cobrar</span><strong>' + escaparHtml(formatMoney(suma)) + '</strong></div>' +
+      '<p class="pen-resumen-nota">Sin IVA ni IRPF · al cobrar se anota en Contabilidad (personal)</p>';
+    boton.textContent = marcados.length === 0
+      ? 'Marca algún cobro'
+      : 'Marcar ' + marcados.length + (marcados.length === 1 ? ' cobrado' : ' cobrados');
+    boton.disabled = marcados.length === 0;
+    return;
+  }
+
   const cond = penCondiciones(penClienteSel, marcados);
   const r = penCalcularFactura(suma, cond);
 
-  resumen.innerHTML =
-    '<div class="pen-resumen-cab">' +
-      '<span class="pen-resumen-cliente">' + escaparHtml(penNombreCliente(penClienteSel)) + '</span>' +
-      '<span class="pen-resumen-marcados">' + marcados.length + ' de ' + todos.length + ' marcados</span>' +
-    '</div>' +
+  resumen.innerHTML = cabecera +
     '<div class="pen-resumen-lin"><span>Subtotal</span><span>' + escaparHtml(formatMoney(suma)) + '</span></div>' +
     '<div class="pen-resumen-total"><span>Factura</span><strong>' + escaparHtml(formatMoney(r.total)) + '</strong></div>' +
     '<p class="pen-resumen-nota">IVA ' + cond.ivaPct + ' % · IRPF ' + cond.irpfPct + ' %' +
@@ -607,6 +749,65 @@ function penAsignarFactura(ids, factura) {
 }
 
 // ============================================================
+// 3 bis. MARCAR COMO COBRADOS (cobros personales)
+// ============================================================
+// Cada cobro crea su propio apunte de Contabilidad (ingreso personal, sin
+// IVA ni IRPF, fecha de hoy) y guarda su id en id_apunte. Los dos se
+// envían a la vez; si algo falla, queda en rojo y se reenvía solo.
+
+async function penCobrar(trabajos) {
+  const lista = (trabajos || []).filter(function (t) { return penEsPersonal(t) && !penHecho(t); });
+  if (lista.length === 0) return;
+  if (!puedeEscribir()) return;
+
+  const total = roundMoney(lista.reduce(function (n, t) { return n + penImporte(t); }, 0));
+  const eleccion = await mostrarDialogoOpciones(
+    'Marcar como cobrado',
+    (lista.length === 1
+      ? 'Se anotará 1 ingreso personal en Contabilidad'
+      : 'Se anotarán ' + lista.length + ' ingresos personales en Contabilidad') +
+      ' por ' + formatMoney(total) + ', con fecha de hoy.',
+    [
+      { id: 'si', texto: 'Marcar cobrado', tipo: 'principal' },
+      { id: 'no', texto: 'Cancelar' }
+    ]
+  );
+  if (eleccion !== 'si') return;
+
+  const hoy = fechaHoyISO();
+  lista.forEach(function (t) {
+    const idApunte = penNuevoIdApunte();
+    const importe = penImporte(t);
+    const idContacto = String(t.id_cliente == null ? '' : t.id_cliente);
+    guardarRegistro('apuntes', {
+      id: idApunte,
+      ambito: 'personal',
+      tipo: 'ingreso',
+      fecha: hoy,
+      concepto: String(t.concepto || ''),
+      base: importe,
+      iva_pct: 0,
+      iva: 0,
+      irpf_pct: 0,
+      irpf: 0,
+      total: importe,
+      impuesto_tipo: 'ninguno',
+      impuesto_trimestre: '',
+      impuesto_año: '',
+      id_factura_venta: '',
+      id_factura_compra: '',
+      id_impuesto: '',
+      impuesto_pago: '',
+      id_contacto: idContacto,
+      contacto_libre: idContacto !== '' ? '' : String(t.contacto_libre || '')
+    }, null, null);
+    guardarRegistro(PEN_ENTIDAD, Object.assign({}, t, { id_apunte: idApunte }), penRepintar, null);
+  });
+  penClienteSel = '';
+  penDesmarcados = {};
+}
+
+// ============================================================
 // 4. MENÚ DE TRES PUNTOS
 // ============================================================
 
@@ -616,8 +817,27 @@ function penAbrirMenuMas(boton, id) {
   const t = estado.pendiente.find(function (x) { return String(x.id) === String(id); });
   if (!t) return;
 
-  const facturado = penEsFacturado(t);
+  const personal = penEsPersonal(t);
+  const hecho = penHecho(t);
   const factura = penFacturaDe(t);
+  const apunte = penApunteDe(t);
+
+  let opciones;
+  if (hecho && personal) {
+    opciones = apunte
+      ? '<button type="button" data-accion="verapunte">Ver apunte</button>'
+      : '<button type="button" disabled>Apunte archivado</button>';
+  } else if (hecho) {
+    opciones = factura
+      ? '<button type="button" data-accion="ver">Ver factura</button>'
+      : '<button type="button" disabled>Factura archivada</button>';
+  } else {
+    opciones =
+      (personal ? '<button type="button" data-accion="cobrar">Marcar cobrado</button>' : '') +
+      (penEsDePresupuesto(t) ? '' : '<button type="button" data-accion="editar">Editar</button>') +
+      '<button type="button" class="peligro" data-accion="eliminar">' +
+        (penEsDePresupuesto(t) ? 'Quitar de Pendiente' : 'Eliminar') + '</button>';
+  }
 
   const menu = document.createElement('div');
   menu.className = 'fv-menu-mas';
@@ -625,13 +845,7 @@ function penAbrirMenuMas(boton, id) {
     (estadoSyncDe(PEN_ENTIDAD, t) === 'error'
       ? '<button type="button" class="destacado" data-accion="reintentar">Reintentar guardado</button>'
       : '') +
-    (facturado
-      ? (factura
-          ? '<button type="button" data-accion="ver">Ver factura</button>'
-          : '<button type="button" disabled>Factura archivada</button>')
-      : (penEsDePresupuesto(t) ? '' : '<button type="button" data-accion="editar">Editar</button>') +
-        '<button type="button" class="peligro" data-accion="eliminar">' +
-          (penEsDePresupuesto(t) ? 'Quitar de Pendiente' : 'Eliminar') + '</button>') +
+    opciones +
     (penPresupuestoDe(t) ? '<button type="button" data-accion="verpresupuesto">Ver presupuesto</button>' : '');
 
   document.body.appendChild(menu);
@@ -649,7 +863,9 @@ function penAbrirMenuMas(boton, id) {
   };
   accion('reintentar', function () { reintentarRegistro(PEN_ENTIDAD, id, penRepintar); });
   accion('ver', function () { abrirFichaFacturaVenta(t.id_factura); });
+  accion('verapunte', function () { abrirFichaApunte(t.id_apunte); });
   accion('verpresupuesto', function () { abrirFichaPresupuesto(t.id_presupuesto); });
+  accion('cobrar', function () { penCobrar([t]); });
   accion('editar', function () { penAbrirFormulario(id, ''); });
   accion('eliminar', function () { penEliminar(id); });
 
@@ -659,13 +875,17 @@ function penAbrirMenuMas(boton, id) {
 function penEliminar(id) {
   const t = estado.pendiente.find(function (x) { return String(x.id) === String(id); });
   if (!t) return;
-  if (penEsFacturado(t)) {
-    alert('Este trabajo ya está facturado y no se puede borrar.');
+  if (penHecho(t)) {
+    alert(penEsPersonal(t)
+      ? 'Este cobro ya está cobrado y no se puede borrar. Para deshacerlo, borra su apunte en Contabilidad.'
+      : 'Este trabajo ya está facturado y no se puede borrar.');
     return;
   }
   const mensaje = penEsDePresupuesto(t)
     ? '¿Quitar «' + String(t.concepto || '') + '» de Pendiente? El presupuesto sigue aceptado y podrás volver a pasarlo a Pendiente.'
-    : '¿Eliminar el trabajo «' + String(t.concepto || '') + '»?';
+    : (penEsPersonal(t)
+      ? '¿Eliminar el cobro «' + String(t.concepto || '') + '»?'
+      : '¿Eliminar el trabajo «' + String(t.concepto || '') + '»?');
   if (!confirm(mensaje)) return;
   borrarRegistro(PEN_ENTIDAD, id, penRepintar, null);
 }
@@ -674,27 +894,51 @@ function penEliminar(id) {
 // 5. FORMULARIO DE UN TRABAJO
 // ============================================================
 
+// ¿El formulario es de un cobro personal? Un trabajo que se edita lo es
+// si lo era; uno nuevo, si se está en Personal (salvo desde la
+// calculadora, que siempre apunta trabajos de empresa).
+function penFormularioPersonal(original, extra) {
+  return original ? penEsPersonal(original) : (!extra && penAmbito === 'personal');
+}
+
 /**
  * @param id               id del trabajo a editar, o null si es nuevo
- * @param idClientePrevio  cliente con el que se abre un trabajo nuevo
+ * @param clavePrevia      grupo con el que se abre un trabajo nuevo (id de
+ *                         cliente, o 'libre:<nombre>' en cobros personales)
  * @param extra            opcional, solo en trabajos nuevos:
  *                         { concepto, importe, avisar }. Lo usa la calculadora
  *                         ("Guardar como pendiente"): rellena el formulario y,
  *                         al guardar, avisa y ofrece ir a Pendiente.
  */
-function penAbrirFormulario(id, idClientePrevio, extra) {
+function penAbrirFormulario(id, clavePrevia, extra) {
   if (document.querySelector('.pen-modal-fondo')) return;
 
   const editando = !!id;
   const original = editando ? estado.pendiente.find(function (t) { return String(t.id) === String(id); }) : null;
   if (editando && !original) return;
-  if (original && penEsFacturado(original)) {
-    alert('Este trabajo ya está facturado y no se puede editar.');
+  if (original && penHecho(original)) {
+    alert(penEsPersonal(original) ? 'Este cobro ya está cobrado y no se puede editar.' : 'Este trabajo ya está facturado y no se puede editar.');
+    return;
+  }
+  if (original && penEsDePresupuesto(original)) {
+    // Los trabajos que vienen de un presupuesto no se editan (su importe es el del presupuesto).
+    if (penPresupuestoDe(original)) abrirFichaPresupuesto(original.id_presupuesto);
     return;
   }
 
-  const clientes = (typeof fvClientesDisponibles === 'function') ? fvClientesDisponibles() : [];
-  const idCliente = original ? String(original.id_cliente) : String(idClientePrevio || '');
+  const personal = penFormularioPersonal(original, extra);
+  const clientes = personal
+    ? penContactosActivos()
+    : ((typeof fvClientesDisponibles === 'function') ? fvClientesDisponibles() : []);
+
+  let idCliente = original ? String(original.id_cliente == null ? '' : original.id_cliente) : String(clavePrevia || '');
+  let libre = original ? String(original.contacto_libre || '') : '';
+  if (idCliente.indexOf('libre:') === 0) { libre = penNombreClave(idCliente); idCliente = ''; }
+  if (idCliente !== '' && !penClienteDe(idCliente)) idCliente = '';
+
+  // El cliente de un trabajo de empresa no se cambia una vez apuntado; el
+  // pagador de un cobro personal sí (no hay nada unido a él).
+  const bloqueaCliente = editando && !personal;
 
   const fondo = document.createElement('div');
   fondo.className = 'fv-modal-fondo pen-modal-fondo';
@@ -702,8 +946,8 @@ function penAbrirFormulario(id, idClientePrevio, extra) {
     '<div class="fv-modal">' +
       '<div class="fv-modal-cabecera">' +
         '<div class="fv-modal-texto">' +
-          '<p class="fv-modal-titulo">' + (editando ? 'Editar trabajo' : 'Nuevo trabajo') + '</p>' +
-          '<p class="fv-modal-subtitulo">Pendiente de facturar</p>' +
+          '<p class="fv-modal-titulo">' + (personal ? (editando ? 'Editar cobro' : 'Nuevo cobro') : (editando ? 'Editar trabajo' : 'Nuevo trabajo')) + '</p>' +
+          '<p class="fv-modal-subtitulo">' + (personal ? 'Cobro personal, sin factura' : 'Pendiente de facturar') + '</p>' +
         '</div>' +
         '<button type="button" class="fv-modal-cerrar" aria-label="Cerrar"><i class="ti ti-x"></i></button>' +
       '</div>' +
@@ -711,9 +955,10 @@ function penAbrirFormulario(id, idClientePrevio, extra) {
         '<form id="pen-form">' +
           '<div class="fv-form-grid">' +
             '<div class="fv-campo-grupo ancho-total">' +
-              '<label>Cliente *</label>' +
+              '<label>' + (personal ? 'Quién te debe *' : 'Cliente *') + '</label>' +
               '<input type="hidden" id="pen-campo-id_cliente" value="' + escaparHtml(idCliente) + '">' +
-              '<button type="button" class="campo-contacto-btn" id="pen-btn-cliente"' + (editando ? ' disabled' : '') + '></button>' +
+              '<input type="hidden" id="pen-campo-libre" value="' + escaparHtml(libre) + '">' +
+              '<button type="button" class="campo-contacto-btn" id="pen-btn-cliente"' + (bloqueaCliente ? ' disabled' : '') + '></button>' +
               '<p class="fv-mensaje-error" data-error-de="id_cliente" hidden></p>' +
             '</div>' +
             '<div class="fv-campo-grupo ancho-total">' +
@@ -738,22 +983,33 @@ function penAbrirFormulario(id, idClientePrevio, extra) {
   document.body.appendChild(fondo);
 
   const oculto = fondo.querySelector('#pen-campo-id_cliente');
+  const ocultoLibre = fondo.querySelector('#pen-campo-libre');
   const botonCliente = fondo.querySelector('#pen-btn-cliente');
 
   function pintarCliente() {
     const c = penClienteDe(oculto.value);
-    const nombre = c ? String(c.nombre_contacto || c.nombre_fiscal || '') : '';
+    const nombre = c ? String(c.nombre_contacto || c.nombre_fiscal || '') : String(ocultoLibre.value || '').trim();
     botonCliente.innerHTML =
-      '<span class="campo-contacto-valor' + (nombre ? '' : ' vacio') + '">' + escaparHtml(nombre || 'Selecciona un cliente...') + '</span>' +
-      (editando ? '' : '<i class="ti ti-chevron-down"></i>');
+      '<span class="campo-contacto-valor' + (nombre ? '' : ' vacio') + '">' + escaparHtml(nombre || (personal ? 'Selecciona o escribe un nombre...' : 'Selecciona un cliente...')) + '</span>' +
+      (bloqueaCliente ? '' : '<i class="ti ti-chevron-down"></i>');
   }
   pintarCliente();
 
   botonCliente.addEventListener('click', function () {
-    if (editando) return;
-    abrirSelectorContacto(clientes, oculto.value, { permitirLibre: false }).then(function (resultado) {
+    if (bloqueaCliente) return;
+    const actual = oculto.value;
+    abrirSelectorContacto(clientes, actual, personal
+      ? { permitirLibre: true, etiquetaLibre: 'nombre de quien te debe' }
+      : { permitirLibre: false }
+    ).then(function (resultado) {
       if (resultado === null) return;
-      oculto.value = resultado || '';
+      if (resultado && typeof resultado === 'object' && 'libre' in resultado) {
+        oculto.value = '';
+        ocultoLibre.value = String(resultado.libre || '');
+      } else {
+        oculto.value = resultado || '';
+        ocultoLibre.value = '';
+      }
       pintarCliente();
     });
   });
@@ -768,7 +1024,7 @@ function penAbrirFormulario(id, idClientePrevio, extra) {
   });
 
   setTimeout(function () {
-    const campo = fondo.querySelector(editando || idCliente ? '#pen-campo-concepto' : '#pen-btn-cliente');
+    const campo = fondo.querySelector(editando || idCliente || libre ? '#pen-campo-concepto' : '#pen-btn-cliente');
     if (campo) campo.focus();
   }, 50);
 }
@@ -784,32 +1040,54 @@ function penGuardarFormulario(fondo, original, extra) {
     if (input) input.classList.add('fv-campo-error');
   }
 
+  const personal = penFormularioPersonal(original, extra);
   const idCliente = fondo.querySelector('#pen-campo-id_cliente').value;
+  const libre = String(fondo.querySelector('#pen-campo-libre').value || '').trim();
   const concepto = fondo.querySelector('#pen-campo-concepto').value.trim();
   const importe = roundMoney(parsearNumero(fondo.querySelector('#pen-campo-importe').value));
 
   let valido = true;
   const cliente = penClienteDe(idCliente);
-  if (!cliente) { error('id_cliente', 'Selecciona un cliente.'); valido = false; }
-  if (!concepto) { error('concepto', 'Escribe el concepto del trabajo.'); valido = false; }
-  if (!(importe > 0)) { error('importe', 'Escribe el importe del trabajo.'); valido = false; }
+  if (personal) {
+    if (!cliente && !libre) { error('id_cliente', 'Indica quién te debe: elige un contacto o escribe un nombre.'); valido = false; }
+  } else if (!cliente) {
+    error('id_cliente', 'Selecciona un cliente.');
+    valido = false;
+  }
+  if (!concepto) { error('concepto', personal ? 'Escribe el concepto del cobro.' : 'Escribe el concepto del trabajo.'); valido = false; }
+  if (!(importe > 0)) { error('importe', personal ? 'Escribe el importe del cobro.' : 'Escribe el importe del trabajo.'); valido = false; }
   if (!valido) return;
 
-  if (original && penEsFacturado(original)) {
-    alert('Este trabajo ya está facturado y no se puede editar.');
+  if (original && penHecho(original)) {
+    alert(penEsPersonal(original) ? 'Este cobro ya está cobrado y no se puede editar.' : 'Este trabajo ya está facturado y no se puede editar.');
     return;
   }
 
   // Un trabajo nuevo, o editado, queda pendiente y sin factura: si
   // pertenecía a una factura desactivada, deja de estar unido a ella.
-  const registro = Object.assign({}, original || {}, {
-    id: original ? original.id : penNuevoId(),
-    id_cliente: cliente.id,
-    concepto: concepto,
-    importe: importe,
-    id_factura: '',
-    factura: ''
-  });
+  const registro = personal
+    ? Object.assign({}, original || {}, {
+        id: original ? original.id : penNuevoId(),
+        id_cliente: cliente ? cliente.id : '',
+        contacto_libre: cliente ? '' : libre,
+        concepto: concepto,
+        importe: importe,
+        id_factura: '',
+        factura: '',
+        tipo: 'cobro',
+        ambito: 'personal',
+        id_apunte: ''
+      })
+    : Object.assign({}, original || {}, {
+        id: original ? original.id : penNuevoId(),
+        id_cliente: cliente.id,
+        concepto: concepto,
+        importe: importe,
+        id_factura: '',
+        factura: '',
+        tipo: 'factura',
+        ambito: 'empresa'
+      });
 
   fondo.remove();
   guardarRegistro(PEN_ENTIDAD, registro, penRepintar, null);
@@ -826,9 +1104,7 @@ function penGuardarFormulario(fondo, original, extra) {
       ]
     ).then(function (eleccion) {
       if (eleccion !== 'ver') return;
-      penClienteSel = String(cliente.id);
-      penDesmarcados = {};
-      cambiarVista('pendiente');
+      penIrACliente(cliente.id);
     });
   }
 }
