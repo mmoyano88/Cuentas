@@ -180,6 +180,23 @@ function penContactosActivos() {
     });
 }
 
+// ---- Totales para el Inicio (octubre 2026) ----
+// Lo que saldría en la factura de los trabajos pendientes de un cliente
+// (con el IVA y el IRPF del presupuesto si todos vienen de presupuestos
+// iguales; si no, los de su última factura).
+function penTotalFactura(clave) {
+  const trabajos = penPendientesDe(clave, 'empresa');
+  const suma = roundMoney(trabajos.reduce(function (n, t) { return n + penImporte(t); }, 0));
+  return penCalcularFactura(suma, penCondiciones(clave, trabajos)).total;
+}
+
+// Lo que te deben en cobros personales: el importe tal cual, sin IVA ni IRPF.
+function penTotalCobrosPersonales() {
+  return roundMoney(estado.pendiente.reduce(function (n, t) {
+    return (penEsPersonal(t) && !penHecho(t)) ? n + penImporte(t) : n;
+  }, 0));
+}
+
 // ---- Enlace con presupuestos (octubre 2026) ----
 // Un trabajo puede venir de un presupuesto aceptado (columna id_presupuesto).
 // Vacío = trabajo apuntado a mano, como siempre.
@@ -214,9 +231,9 @@ function penIrACliente(idCliente) {
   cambiarVista('pendiente');
 }
 
-function penPendientesDe(clave) {
+function penPendientesDe(clave, ambito) {
   return estado.pendiente.filter(function (t) {
-    return penClave(t) === String(clave) && penDelAmbito(t) && !penHecho(t);
+    return penClave(t) === String(clave) && penDelAmbito(t, ambito) && !penHecho(t);
   }).sort(function (a, b) { return penCreado(a) - penCreado(b); });
 }
 
@@ -427,7 +444,9 @@ function pintarListaGeneral() {
 }
 
 function penPanelFiltros() {
-  const estados = [['pendiente', 'Pendientes'], ['facturado', penAmbito === 'personal' ? 'Cobrados' : 'Facturados'], ['todos', 'Todos']];
+  const estados = penAmbito === 'personal'
+    ? [['pendiente', 'Pendientes'], ['facturado', 'Cobrados'], ['todos', 'Todos']]
+    : [['pendiente', 'Por facturar'], ['cobrar', 'Por cobrar'], ['facturado', 'Facturados'], ['todos', 'Todos']];
   return '<div class="fv-filtros-panel" id="pen-filtros-panel">' +
     '<p class="fv-filtros-titulo">Estado</p>' +
     estados.map(function (op) {
@@ -518,9 +537,87 @@ function penFila(t) {
   '</div>';
 }
 
+// Facturas de venta emitidas y todavía sin cobrar (solo se muestran aquí:
+// se cobran y se editan desde Facturas). Las más antiguas, primero.
+function penFacturasPorCobrar() {
+  const texto = normalizarBusqueda(penBusqueda);
+  return estado.ventas.filter(function (f) {
+    if (!fvEstaActiva(f) || String(f.estado || '').toLowerCase() !== 'pendiente') return false;
+    if (!texto) return true;
+    return normalizarBusqueda([fvNombreMostrado(f), f.cliente, f.concepto, f.numero, formatMoney(parsearNumero(f.total))].filter(Boolean).join(' ')).indexOf(texto) !== -1;
+  }).sort(function (x, y) {
+    const fx = normalizarFecha(x.fecha), fy = normalizarFecha(y.fecha);
+    if (fx !== fy) return fx < fy ? -1 : 1;
+    return String(x.numero || '').localeCompare(String(y.numero || ''));
+  });
+}
+
+function penFilaFactura(f) {
+  const c = penClienteDe(f.id_cliente);
+  return '<div class="fv-fila pen-fila pen-fila-cobrar" data-factura="' + escaparHtml(f.id) + '">' +
+    htmlIconoContacto(c ? c.icono : '', 42) +
+    '<div class="fv-info">' +
+      '<p class="fv-nombre">' + escaparHtml(String(f.concepto || '—')) + '</p>' +
+      '<p class="fv-meta">' + escaparHtml(fvNombreMostrado(f) || '—') + ' · ' + escaparHtml(String(f.numero || '—')) + '</p>' +
+    '</div>' +
+    '<div class="fv-derecha pen-derecha">' +
+      '<span class="fv-total-fila">' + escaparHtml(dineroVisible(parsearNumero(f.total))) + '</span>' +
+      (typeof fvHtmlAntiguedad === 'function' ? fvHtmlAntiguedad(f) : '') +
+    '</div>' +
+    '<div class="fv-control">' +
+      '<button type="button" class="fv-btn-icono" data-mas-factura="' + escaparHtml(f.id) + '" aria-label="Más opciones"><i class="ti ti-dots-vertical"></i></button>' +
+      (typeof fvPuntoEstado === 'function' ? fvPuntoEstado(f) : '') +
+    '</div>' +
+  '</div>';
+}
+
+function penAbrirMenuFactura(boton, id) {
+  document.querySelectorAll('.fv-menu-mas').forEach(function (m) { m.remove(); });
+  const f = estado.ventas.find(function (x) { return String(x.id) === String(id); });
+  if (!f) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'fv-menu-mas';
+  menu.innerHTML =
+    '<button type="button" data-accion="pagada">Marcar pagada</button>' +
+    '<button type="button" data-accion="ver">Ver factura</button>';
+  document.body.appendChild(menu);
+  fvPosicionarMenu(menu, boton);
+
+  function cerrarMenu() {
+    menu.remove();
+    document.removeEventListener('click', cerrarSiFuera);
+  }
+  function cerrarSiFuera(ev) { if (!menu.contains(ev.target)) cerrarMenu(); }
+
+  menu.querySelector('[data-accion="pagada"]').addEventListener('click', function () { cerrarMenu(); fvCambiarCobro(id, penRepintar); });
+  menu.querySelector('[data-accion="ver"]').addEventListener('click', function () { cerrarMenu(); abrirFichaFacturaVenta(id); });
+  setTimeout(function () { document.addEventListener('click', cerrarSiFuera); }, 0);
+}
+
+function penRepintarListaCobrar(cont) {
+  const lista = penFacturasPorCobrar();
+  if (lista.length === 0) {
+    cont.innerHTML = '<p class="fv-vacio">' + (penBusqueda ? 'No hay resultados con estos filtros.' : 'No tienes facturas pendientes de cobro.') + '</p>';
+    return;
+  }
+  const total = roundMoney(lista.reduce(function (n, f) { return n + parsearNumero(f.total); }, 0));
+  cont.innerHTML =
+    '<p class="pen-resumen-cobrar">' + lista.length + (lista.length === 1 ? ' factura sin cobrar' : ' facturas sin cobrar') + ' · ' + escaparHtml(dineroVisible(total)) + '</p>' +
+    '<div class="fv-lista-movil pen-lista">' + lista.map(penFilaFactura).join('') + '</div>';
+
+  cont.querySelectorAll('[data-mas-factura]').forEach(function (b) {
+    b.addEventListener('click', function (ev) { ev.stopPropagation(); penAbrirMenuFactura(b, b.dataset.masFactura); });
+  });
+  cont.querySelectorAll('.pen-fila-cobrar').forEach(function (fila) {
+    fila.addEventListener('click', function () { abrirFichaFacturaVenta(fila.dataset.factura); });
+  });
+}
+
 function penRepintarLista() {
   const cont = document.getElementById('pen-lista');
   if (!cont) return;
+  if (penAmbito === 'empresa' && penFiltroEstado === 'cobrar') { penRepintarListaCobrar(cont); return; }
   const lista = penListaFiltrada();
   const personal = penAmbito === 'personal';
 

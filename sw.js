@@ -25,7 +25,7 @@
  * control, la app se recarga sola una vez (ver el final de app.js).
  */
 
-const VERSION = 'cuentas-v84';
+const VERSION = 'cuentas-v85';
 
 const ARCHIVOS = [
   './',

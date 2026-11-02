@@ -1875,3 +1875,14 @@ select.campo:disabled {
   outline: 2px solid #161615;
   outline-offset: 2px;
 }
+
+
+/* ============================================================
+   PENDIENTE: facturas por cobrar (27/10/2026)
+   ============================================================ */
+#pen-lista .pen-resumen-cobrar {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--texto);
+}

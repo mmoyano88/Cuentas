@@ -440,7 +440,7 @@ function dashImpuestos() {
     typeof impFacturasSinCobrar === 'function';
 
   if (!disponible) {
-    return { trimestre: fvTrimestreDeFecha(fechaHoyISO()), pendiente: 0, facturado: 0, teDeben: 0, adelantas: 0 };
+    return { trimestre: fvTrimestreDeFecha(fechaHoyISO()), pendiente: 0, facturado: 0, sinFactura: 0, teDeben: 0, adelantas: 0 };
   }
 
   const proximo = impProximoPago();
@@ -452,14 +452,23 @@ function dashImpuestos() {
   // llevarían en la factura (igual que la tarjeta "Pendiente de
   // facturar"). "Ya facturado" es solo la parte de facturas emitidas.
   const porFacturar = dashPendienteClientes().reduce(function (suma, c) {
-    return suma + penCalcularFactura(c.total, penCondicionesDe(c.id)).total;
+    return suma + dashTotalPendiente(c);
   }, 0);
+
+  // Selector Empresa / Personal / Total (27/10/2026). Empresa: facturas sin
+  // cobrar + trabajos por facturar. Personal: cobros personales pendientes,
+  // tal cual, sin IVA ni IRPF. Total: las dos cosas.
+  const deEmpresa = roundMoney(sinCobrar.total + porFacturar);
+  const dePersonal = (typeof penTotalCobrosPersonales === 'function') ? penTotalCobrosPersonales() : 0;
+  const teDeben = dashPerspectiva === 'empresa' ? deEmpresa
+    : (dashPerspectiva === 'personal' ? dePersonal : roundMoney(deEmpresa + dePersonal));
 
   return {
     trimestre: proximo.trimestre,
     pendiente: pendiente.total,
     facturado: sinCobrar.total,
-    teDeben: roundMoney(sinCobrar.total + porFacturar),
+    sinFactura: dePersonal,
+    teDeben: teDeben,
     adelantas: roundMoney(sinCobrar.yaAdelantado + sinCobrar.enProximo)
   };
 }
@@ -511,7 +520,7 @@ function dashBloqueInfo() {
     dashPuntoInfo(DASH_TARJETAS_COLOR.impuestos.icono, 'Próximo pago',
       'Lo que queda por pagar del trimestre que toca (IVA + IRPF, cada uno desde 0 €). Debajo, el adelanto: la parte de ese pago que viene de facturas emitidas que todavía no has cobrado. A diferencia del resto, cuenta las facturas desde que se emiten, aunque no estén cobradas. Pulsa la tarjeta para ir a Impuestos, donde están el plazo y el pago.') +
     dashPuntoInfo(DASH_TARJETAS_COLOR.adelantar.icono, 'Te deben',
-      'Lo que te deben y te deberán: las facturas de venta activas sin cobrar más los trabajos de Pendiente que aún no has facturado, estos con el IVA y el IRPF que llevarían en la factura. Debajo, "Ya facturado": solo la parte de facturas ya emitidas y sin cobrar.') +
+      'Lo que te deben y te deberán. En Empresa: las facturas de venta activas sin cobrar más los trabajos de Pendiente que aún no has facturado, estos con el IVA y el IRPF que llevarían en la factura (los de su presupuesto, si vienen de uno). En Personal: los cobros personales pendientes, por su importe, sin IVA ni IRPF. En Total: las dos cosas. Debajo, \"Ya facturado\": solo la parte de facturas ya emitidas y sin cobrar (en Personal, \"Sin factura\").') +
     dashPuntoInfo('ti-chart-line', 'Gráfico de evolución',
       'Lo que te queda, acumulado mes a mes en los últimos 12 meses, con tres líneas: empresa, personal y total (empresa más personal). La inclinación dice cuándo sube más o menos; por debajo de cero es que has gastado más de lo que has ingresado. Al pulsar un mes sale el acumulado y lo de ese mes. El último tramo, punteado, es el mes en curso. Este gráfico no cambia con el selector de arriba.') +
     dashPuntoInfo('ti-chart-donut', 'Clientes y proveedores',
@@ -744,9 +753,16 @@ function dashPendienteClientes() {
   return penClientesConPendientes();
 }
 
+// Lo que saldría en la factura de los trabajos pendientes de un cliente
+// (con el IVA y el IRPF del presupuesto cuando vienen de uno).
+function dashTotalPendiente(c) {
+  if (typeof penTotalFactura === 'function') return penTotalFactura(c.id);
+  return penCalcularFactura(c.total, penCondicionesDe(c.id)).total;
+}
+
 function dashFilaPendiente(c) {
   const cliente = estado.clientes.find(function (x) { return String(x.id) === String(c.id); }) || {};
-  const total = penCalcularFactura(c.total, penCondicionesDe(c.id)).total;
+  const total = dashTotalPendiente(c);
   return '<button type="button" class="dash-lista-fila" data-pendiente="' + escaparHtml(c.id) + '">' +
     htmlIconoContacto(cliente.icono, 32) +
     '<span class="dash-lista-info">' +
@@ -956,7 +972,9 @@ function dashRepintarTarjetas() {
       'Media mensual' + (media.meses > 0 && media.meses < 12 ? ' (' + media.meses + ' meses)' : ''),
       media.beneficio, 'Últimos 3 meses:', media.reciente) +
     dashTarjeta('impuestos', 'Próximo pago ' + imp.trimestre, imp.pendiente, 'Adelanto ' + imp.trimestre + ':', imp.adelantas, true) +
-    dashTarjeta('adelantar', 'Te deben', imp.teDeben, 'Ya facturado:', imp.facturado);
+    dashTarjeta('adelantar', 'Te deben', imp.teDeben,
+      dashPerspectiva === 'personal' ? 'Sin factura:' : 'Ya facturado:',
+      dashPerspectiva === 'personal' ? imp.sinFactura : imp.facturado);
 
   // La tarjeta de Próximo pago lleva a Impuestos (también con teclado).
   const boton = zona.querySelector('[data-ir-impuestos]');
