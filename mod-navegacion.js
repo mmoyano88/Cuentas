@@ -38,7 +38,9 @@ const MENU = [
 // Panel "Más" (26/09/2026): baldosas grandes para las secciones de uso
 // normal y, debajo, una línea pequeña para Mis datos y Configuración.
 const MOVIL_DIRECTOS = ['dashboard', 'presupuestos', 'pendiente', 'facturas'];
-const MOVIL_MAS = ['contabilidad', 'impuestos', 'clientes', 'plantillas'];
+// Orden pedido por el propietario (02/11/2026): Contabilidad, Plantillas,
+// Clientes, Impuestos. La barra lateral de PC (MENU) no cambia.
+const MOVIL_MAS = ['contabilidad', 'plantillas', 'clientes', 'impuestos'];
 const MOVIL_MAS_PIE = ['misdatos', 'configuracion'];
 
 // ============================================================

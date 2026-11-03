@@ -995,7 +995,9 @@ function penEliminar(id) {
 // si lo era; uno nuevo, si se está en Personal (salvo desde la
 // calculadora, que siempre apunta trabajos de empresa).
 function penFormularioPersonal(original, extra) {
-  return original ? penEsPersonal(original) : (!extra && penAmbito === 'personal');
+  // Con `extra`, el formulario es de empresa salvo que pida lo contrario
+  // (`extra.personal`, desde una plantilla de apunte personal).
+  return original ? penEsPersonal(original) : (extra ? !!extra.personal : penAmbito === 'personal');
 }
 
 /**
@@ -1003,9 +1005,12 @@ function penFormularioPersonal(original, extra) {
  * @param clavePrevia      grupo con el que se abre un trabajo nuevo (id de
  *                         cliente, o 'libre:<nombre>' en cobros personales)
  * @param extra            opcional, solo en trabajos nuevos:
- *                         { concepto, importe, avisar }. Lo usa la calculadora
- *                         ("Guardar como pendiente"): rellena el formulario y,
- *                         al guardar, avisa y ofrece ir a Pendiente.
+ *                         { concepto, importe, avisar, personal, libre }. Lo usan
+ *                         la calculadora ("Guardar como pendiente") y las
+ *                         plantillas ("Pasar a Pendiente"): rellena el
+ *                         formulario y, al guardar, avisa y ofrece ir a
+ *                         Pendiente. `personal` = cobro personal; `libre` =
+ *                         nombre escrito a mano del pagador.
  */
 function penAbrirFormulario(id, clavePrevia, extra) {
   if (document.querySelector('.pen-modal-fondo')) return;
@@ -1029,7 +1034,7 @@ function penAbrirFormulario(id, clavePrevia, extra) {
     : ((typeof fvClientesDisponibles === 'function') ? fvClientesDisponibles() : []);
 
   let idCliente = original ? String(original.id_cliente == null ? '' : original.id_cliente) : String(clavePrevia || '');
-  let libre = original ? String(original.contacto_libre || '') : '';
+  let libre = original ? String(original.contacto_libre || '') : String((extra && extra.libre) || '');
   if (idCliente.indexOf('libre:') === 0) { libre = penNombreClave(idCliente); idCliente = ''; }
   if (idCliente !== '' && !penClienteDe(idCliente)) idCliente = '';
 
@@ -1192,16 +1197,21 @@ function penGuardarFormulario(fondo, original, extra) {
   // Desde la calculadora: se queda donde estaba, pero se avisa y se
   // ofrece ir a ver el trabajo apuntado.
   if (extra && extra.avisar && !original) {
+    const nombre = cliente ? penNombreCliente(cliente.id) : libre;
     mostrarDialogoOpciones(
-      'Trabajo apuntado',
-      'Se ha apuntado en Pendiente para ' + penNombreCliente(cliente.id) + '.',
+      personal ? 'Cobro apuntado' : 'Trabajo apuntado',
+      'Se ha apuntado en Pendiente para ' + nombre + '.',
       [
         { id: 'ver', texto: 'Ver en Pendiente', tipo: 'principal' },
         { id: 'seguir', texto: 'Seguir aquí' }
       ]
     ).then(function (eleccion) {
       if (eleccion !== 'ver') return;
-      penIrACliente(cliente.id);
+      if (!personal) { penIrACliente(cliente.id); return; }
+      penAmbito = 'personal';
+      penClienteSel = cliente ? String(cliente.id) : 'libre:' + normalizarBusqueda(libre);
+      penDesmarcados = {};
+      cambiarVista('pendiente');
     });
   }
 }

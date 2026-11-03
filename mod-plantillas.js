@@ -473,6 +473,13 @@ async function plEliminar(tipo, id) {
 // dentro solo hay cliente y fecha, que se vuelven a elegir en dos
 // toques). Cliente y fecha se piden aquí; el resto se copia tal cual.
 
+// "Pasar a Pendiente": plantillas de factura, y de apunte solo si es un
+// ingreso personal (sin IVA ni factura). El resto no tiene sentido ahí.
+function plPuedePasarAPendiente(tipo, pl) {
+  if (tipo === 'factura') return true;
+  return tipo === 'apunte' && pl.tipo === 'ingreso' && pl.ambito === 'personal';
+}
+
 function plAbrirPlantilla(tipo, id) {
   const pl = plBuscar(tipo, id);
   if (!pl) return;
@@ -559,6 +566,12 @@ function plAbrirPlantilla(tipo, id) {
 
       '<div class="pre-modal-pie">' +
         '<button type="button" class="boton-secundario" id="pl-usar-editar">Editar</button>' +
+        // "Pasar a Pendiente" (02/11/2026): solo en plantillas de factura y
+        // de apunte de ingreso personal. Mismo botón redondo e icono que en
+        // la ficha de un presupuesto aceptado.
+        (plPuedePasarAPendiente(tipo, pl)
+          ? '<button type="button" class="boton-secundario" id="pl-usar-pendiente" title="Pasar a Pendiente" aria-label="Pasar a Pendiente"></button>'
+          : '') +
         '<button type="button" class="boton-principal" id="pl-usar-crear">' + escaparHtml(info.crear) + '</button>' +
       '</div>' +
     '</div>';
@@ -573,7 +586,7 @@ function plAbrirPlantilla(tipo, id) {
     // Escape solo cierra si no hay otra ventana abierta por encima
     // (selector de contacto, alta de cliente...).
     if (ev.key !== 'Escape') return;
-    if (document.querySelector('.selector-icono-fondo, .cli-modal-fondo, .dialogo-fondo')) return;
+    if (document.querySelector('.selector-icono-fondo, .cli-modal-fondo, .dialogo-fondo, .pen-modal-fondo')) return;
     cerrar();
   }
   fondo.addEventListener('click', function (ev) { if (ev.target === fondo) cerrar(); });
@@ -583,6 +596,22 @@ function plAbrirPlantilla(tipo, id) {
   fondo.querySelector('#pl-usar-editar').addEventListener('click', function () {
     cerrar();
     plAbrirEdicion(tipo, id);
+  });
+  fondo.querySelector('#pl-usar-pendiente')?.addEventListener('click', function () {
+    if (typeof penAbrirFormulario !== 'function') { alert('El módulo de Pendiente no está disponible.'); return; }
+    if (!puedeEscribir()) return;
+    const texto = String(fondo.querySelector('#pl-usar-texto').value || '').trim();
+    let extra;
+    if (tipo === 'factura') {
+      // Queda por facturar con la base final (importe menos descuento).
+      // IVA e IRPF se ponen al facturar, como en cualquier trabajo.
+      extra = { concepto: String(pl.concepto || pl.nombre || '').trim(), importe: plCalcularFactura(pl).base, avisar: true };
+    } else {
+      // Ingreso personal: cobro sin factura ni impuestos, por su total.
+      extra = { concepto: texto || String(pl.concepto || pl.nombre || '').trim(), importe: roundMoney(parsearNumero(pl.total)), avisar: true, personal: true, libre: eleccion.contacto_libre };
+    }
+    cerrar();
+    penAbrirFormulario(null, eleccion.id_contacto, extra);
   });
   fondo.querySelector('#pre-ficha-calculadora')?.addEventListener('click', function () {
     cerrar();

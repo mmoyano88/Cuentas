@@ -553,7 +553,7 @@ button:active:not(:disabled) {
 
 /* Presupuesto aceptado (octubre 2026): junto al PDF, dos botones circulares
    pequeños: convertir en factura y pasar a Pendiente (trabajo hecho). */
-#pre-ficha-factura, #pre-ficha-pendiente {
+#pre-ficha-factura, #pre-ficha-pendiente, #pl-usar-pendiente {
   flex: 0 0 46px;
   width: 46px;
   height: 46px;
@@ -565,13 +565,13 @@ button:active:not(:disabled) {
   align-items: center;
   justify-content: center;
 }
-#pre-ficha-factura::before, #pre-ficha-pendiente::before {
+#pre-ficha-factura::before, #pre-ficha-pendiente::before, #pl-usar-pendiente::before {
   font-family: 'tabler-icons';
   font-size: 20px;
   line-height: 1;
 }
 #pre-ficha-factura::before { content: '\fd68'; }     /* factura */
-#pre-ficha-pendiente::before { content: '\fa09'; }   /* pendiente */
+#pre-ficha-pendiente::before, #pl-usar-pendiente::before { content: '\fa09'; }   /* pendiente (mismo icono en toda la app) */
 #pre-ficha-pendiente.pre-en-pendiente { border-color: #3E9E4E; color: #3E9E4E; }
 
 /* Iconos en el pie SOLO donde explican algo (28/09/2026): "Ver" lleva el
