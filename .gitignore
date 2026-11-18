@@ -1,0 +1,20 @@
+# Hojas de cálculo y copias de datos contables
+*.xlsx
+*.xls
+*.csv
+*.ods
+
+# Copias privadas de Apps Script o archivos con claves
+*privado*
+*secreto*
+*claves*
+*.env
+
+# Archivos temporales del sistema operativo o editores
+.DS_Store
+Thumbs.db
+desktop.ini
+*.bak
+*.tmp
+
+referencia-apps-script.gs
